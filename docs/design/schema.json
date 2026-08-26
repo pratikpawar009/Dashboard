@@ -1,0 +1,19 @@
+{
+  "designSystem": {
+    "fileKey": "TODO",
+    "url": "TODO",
+    "pages": {
+      "tokens": "",
+      "atoms": "",
+      "molecules": "",
+      "organisms": "",
+      "icons": "",
+      "features": {}
+    }
+  },
+  "tokens": {
+    "color": [],
+    "spacing": [],
+    "typography": []
+  }
+}

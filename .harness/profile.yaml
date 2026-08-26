@@ -1,0 +1,50 @@
+# .harness/profile.yaml
+# Discovered by the AgentRise MCP server (`agentrise-mcp`).
+#
+# Two sections:
+#   files[]     — activity JSONL rows shipped via `push_activity` tool.
+#   artifacts{} — governance counts shipped via `push_artifacts` tool.
+programId: dashboard
+
+files:
+  - path: docs/activity/activity.jsonl
+    kind: activity
+    mode: append
+
+# Keys match ProgramArtifact.type values (snake_case). Each source describes
+# how to compute one integer count from the local workspace.
+#
+#   glob-count       — count files matching `glob` under `path` (dir),
+#                      skipping any relative-path that matches an entry in
+#                      `exclude` (fnmatch, "**" honoured).
+#   json-key-count   — read `path` (json file), count top-level object keys,
+#                      skipping any listed in `exclude`.
+#   json-field-sum   — for every json file matching `glob` under `path`,
+#                      add the length of the array at `field` (missing = 0).
+#   constant         — fixed integer at `value` (use for "we don't have this
+#                      data, keep zero").
+artifacts:
+  prd:
+    kind: glob-count
+    path: docs/prd
+    glob: "*.md"
+    exclude: [".wip/**"]
+
+  user_story:
+    kind: json-key-count
+    path: docs/state/features.json
+    exclude: ["last_updated"]
+
+  test_case:
+    kind: json-field-sum
+    path: docs/test-cases
+    glob: "*.json"
+    field: test_cases
+
+  arch_diagram:
+    kind: constant
+    value: 0
+
+  api_spec:
+    kind: constant
+    value: 0

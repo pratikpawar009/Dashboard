@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "agentrise": {
+      "type": "http",
+      "url": "http://localhost:3010/mcp"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}

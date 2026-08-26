@@ -1,0 +1,29 @@
+# Reconciled by /arh-scaffold against the real manifests it generated:
+# apps/web/package.json (pnpm, vitest) and services/api/pyproject.toml (uv, pytest).
+
+typecheck:           "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy ."
+test:                "pnpm -C apps/web test && cd services/api && uv run pytest"
+test_unit:           "pnpm -C apps/web test && cd services/api && uv run pytest tests/"
+test_integration:    ""   # not yet scaffolded — no tests/integration dir or fixtures yet
+test_e2e:            ""   # not yet configured — no e2e framework (Playwright/Cypress) declared in ADR-0001
+lint:                "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check ."
+format:               "pnpm -C apps/web exec prettier --write . && cd services/api && uv run ruff format ."
+build:                "pnpm -C apps/web build"   # FastAPI backend has no compiled build step, runs directly via uvicorn
+
+# design_check: left blank on purpose. No accessibility/console-error-scan/perf
+# tool has been declared or installed yet (design integration is html-mockup,
+# fileKey/url still TODO in docs/design/schema.json). Per project-commands
+# skill this is OPTIONAL — leaving it empty is honest; /arh-implement will
+# raise an evidence-na AF-NN for design_check until a tool is chosen and wired
+# here (e.g. axe-playwright or pa11y-ci against apps/web).
+design_check:         ""
+
+typecheck_for_ts:     "pnpm -C apps/web exec tsc --noEmit"
+typecheck_for_py:     "cd services/api && uv run mypy ."
+format_for_ts:        "pnpm -C apps/web exec prettier --write $FILE"
+format_for_py:        "cd services/api && uv run ruff format $FILE"
+
+preflight:
+  - "pnpm -C apps/web install"
+  - "cd services/api && uv sync"
+  - "cd services/api && uv run python -c \"import app.main\"   # smoke-import once app/main.py exists"

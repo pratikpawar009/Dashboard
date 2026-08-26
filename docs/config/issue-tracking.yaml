@@ -1,0 +1,10 @@
+provider: github
+org: pratikpawar009
+repo: Dashboard
+project:
+  number: null
+  status_field: null
+labels:
+  - dashboard
+  - type:story
+  # priority label (P1/P2/P3) is applied per-story from its own RTM Priority column

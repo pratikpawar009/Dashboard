@@ -1,0 +1,63 @@
+apiVersion: harness.dev/v1
+kind: Harness
+template_version: 0.1.0
+project:
+  name: dashboard
+  description: 'dashboard harness AI sdlc monitoring dashboard '
+stacks:
+  - id: fastapi
+    framework: fastapi
+    paths:
+      - '**'
+  - id: typescript
+    framework: typescript
+    paths:
+      - '**'
+  - id: next
+    framework: next
+    paths:
+      - '**'
+  - id: postgres
+    framework: postgres
+    paths:
+      - '**'
+  - id: pytest
+    framework: pytest
+    paths:
+      - '**'
+  - id: alembic
+    framework: alembic
+    paths:
+      - '**'
+  - id: pydantic
+    framework: pydantic
+    paths:
+      - '**'
+  - id: nextjs
+    framework: nextjs
+    version: '15'
+    package_manager: pnpm
+    test_runner: vitest
+    paths:
+      - apps/web/**
+  - id: fastapi-2
+    framework: fastapi
+    version: '0.115'
+    package_manager: uv
+    test_runner: pytest
+    paths:
+      - services/api/**
+integrations:
+  doc_tracker: local
+  issue_tracker: github
+  design: html-mockup
+  vcs: github
+  ci: none
+  tracker: agentrise
+governance:
+  profile:
+    - standard
+permissions:
+  allow_extra: []
+targets:
+  - claude-code

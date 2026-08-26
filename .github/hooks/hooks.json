@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionEnd": [
+      {
+        "type": "command",
+        "bash": "node .github/hooks/copilot-activity.mjs",
+        "powershell": "node .github/hooks/copilot-activity.mjs",
+        "timeoutSec": 15
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "bash": "node .github/hooks/copilot-activity.mjs",
+        "powershell": "node .github/hooks/copilot-activity.mjs",
+        "timeoutSec": 15
+      }
+    ]
+  }
+}
