@@ -1,0 +1,347 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#11",
+  "tracker_research": "pratikpawar009/Dashboard#49",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/BED-01/DESIGN.md",
+  "design_provider": "none",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-08-27T10:45:00Z",
+  "gate": "APPROVE",
+  "tracker_prd": "pratikpawar009/Dashboard#50",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tasks": {
+    "file": "docs/features/BED-01/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/BED-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/BED-01/DATA-DESIGN.md"
+  },
+  "impl_evidence": {
+    "session_ended_at": "2026-08-27T08:24:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck_for_py: (mypy portion of typecheck:)",
+        "command": "cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-01/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T08:21:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test: (pytest portion)",
+        "command": "cd services/api && TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5434/dashboard_test uv run pytest -q",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-01/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T08:22:00Z",
+        "note": "40 passed. Run against a disposable Postgres container (bed01-evidence-pg, port 5434), started fresh and torn down after \u2014 no ambient DB state assumed, per AF-06."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint: (ruff portion)",
+        "command": "cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-01/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T08:21:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "docs/config/project-commands.yaml preflight smoke-import + stack-smoke.md fastapi-2 Migrate:/Run:/Check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-08-27T08:24:00Z",
+        "stacks": [
+          {
+            "stack": "api-smoke-import",
+            "status": "PASS",
+            "command": "cd services/api && uv run python -c \"import app.main\"",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-01/evidence/runtime-smoke-import.log",
+            "boot_log_scan": "clean"
+          },
+          {
+            "stack": "api-alembic-upgrade",
+            "status": "PASS",
+            "command": "cd services/api && DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5434/dashboard uv run alembic upgrade head",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-01/evidence/runtime-alembic-upgrade.log",
+            "boot_log_scan": "clean",
+            "note": "Ran against a self-contained, disposable Postgres container (bed01-evidence-pg -> bed01-evidence-pg2, port 5434) started fresh for this check and removed after. Verified all 18 tables + alembic_version created via psql \\dt."
+          },
+          {
+            "stack": "api-boot",
+            "status": "PASS",
+            "command": "cd services/api && DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5434/dashboard uv run uvicorn app.main:app --port 8123",
+            "exit_code": null,
+            "evidence_path": "docs/features/BED-01/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "Additional stack-smoke.md fastapi-2 boot check beyond the story's scoped runtime definition: /health returned HTTP 200, boot log clean (no Error|Exception|Panic|FATAL|fatal). Backend-only story, no router changes \u2014 this is confirmatory, not required by the story's file_plan."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-01/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T08:23:00Z",
+        "note": "build: key is non-empty (repo-wide, points at apps/web) so per evidence-pass anti-gaming rule (applicability is a function of repo-level config, not story scope) this was run for real rather than self-declared N/A, even though BED-01 touched no apps/web files. Next.js production build succeeded, 2 static routes generated."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-09",
+        "ran_at": null
+      }
+    }
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "R-08-usage-events-retention",
+      "kind": "risk",
+      "reason": "usage_events has no retention/archival policy (unbounded growth risk to rollup-rebuild cost) \u2014 accepted, out of scope for BED-01 per Decision log 2026-08-26 (confirmed by user) and PRD R-001/NFR-014",
+      "owner": "Product/Data Engineering (per PRD R-001; not yet assigned)",
+      "added_at": "2026-08-26T17:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-06-carry",
+      "kind": "finding",
+      "reason": "Local Postgres reachability inconsistent across ports (5432 native / 5433 dev container / disposable test containers). Settle on docker-compose's postgres service as the single source of truth for local + CI test runs. Concrete instance found while re-verifying after triage: tests/conftest.py expects the test database to already exist and does not create it, so a fresh `uv run pytest` fails with an opaque `database \"dashboard_test\" does not exist` error until someone manually runs CREATE DATABASE. Whatever settles the docker-compose/CI convention should also make the test DB self-provisioning.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T03:10:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-08-carry",
+      "kind": "finding",
+      "reason": "alembic's fileConfig() disables pre-fetched loggers and swaps the root handler away from the app's JSONFormatter, so migration-failure logs are silently dropped (NFR-011 gap). Fix when a story first wraps alembic upgrade in ops/deploy tooling.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T03:10:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "REVIEW-F2-carry",
+      "kind": "finding",
+      "reason": "Fixture-vs-model comparison in test_models.py is one-directional: it verifies every fixture column exists on the model, but would not catch an EXTRA undeclared column added to a model. Make the comparison bidirectional. (REVIEW.md F-2, LOW)",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T09:15:00Z",
+      "added_by": "implement/02-validate (gate round 1 join)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "REVIEW-F3-carry",
+      "kind": "finding",
+      "reason": "TestBuildOrder verifies the FR-1 test-first build order using self-reported tasks.json completed_at timestamps rather than independent git history, because nothing was committed when the test was authored. Re-tighten to `git log --follow` once this branch has commits. (REVIEW.md F-3 / VALIDATION TC-16, LOW)",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T09:15:00Z",
+      "added_by": "implement/02-validate (gate round 1 join)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "SMOKE-PORT-carry",
+      "kind": "finding",
+      "reason": "docs/config/stack-smoke.md's fastapi/fastapi-2 `Deps:` line hard-codes port 5432, which diverges from what local dev, the gate, and CI actually use. Parameterize it so the documented smoke command matches reality. (validation-agent carry-forward; related to AF-06-carry)",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T09:15:00Z",
+      "added_by": "implement/02-validate (gate round 1 join)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "REGRESSION-TAG-carry",
+      "kind": "finding",
+      "reason": "The F-1 fix extended TC-02/TC-03 in place rather than adding an explicitly `regression-<id>`-tagged test case to docs/test-cases/BED-01.json. Functionally equivalent coverage; letter-of-protocol gap only. Consider adding the tagged TC for traceability.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T10:15:00Z",
+      "added_by": "implement/02-validate (gate round 2 join)",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "tracker_plan": "pratikpawar009/Dashboard#61",
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "task_id": "T-04",
+      "source": "services/api/app/models/ingestion.py:110",
+      "summary": "UserRole.source uses client-side ORM default, not server_default",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "resolved",
+      "decision": "Confirmed zero server_default= usages across all 4 model files; consistent with codebase convention. Verified empirically via Postgres inspection.",
+      "decided_by": "implementation-agent (auto-resolved during implementation)",
+      "decided_at": "2026-08-26",
+      "rationale": "Confirmed zero server_default= usages across all 4 model files; consistent with codebase convention. Verified empirically via Postgres inspection.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "spec-ambiguity",
+      "task_id": "T-02",
+      "source": "docs/requirements/data.md:20,23",
+      "summary": "mau_series.as_of_timestamp and program_summary.as_of_timestamp inferred, not itemized in PRD 8.4 prose",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "accept",
+      "decision": "Keep both columns; strip the '(assumption - flag if wrong)' annotations from data.md so the contract reads as settled before the migration freezes.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T03:10:00Z",
+      "rationale": "Inference confirmed correct: every sibling rollup table carries as_of_timestamp, and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "spec-ambiguity",
+      "task_id": "T-07",
+      "source": "docs/test-cases/BED-01.json (TC-12, TC-14)",
+      "summary": "TC-12/TC-14 referenced nonexistent table/column pairings",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "fixed",
+      "decision": "Objective errors verified against data.md and implemented models; corrected directly in the test-case JSON.",
+      "decided_by": "implementation-agent (auto-resolved during implementation)",
+      "decided_at": "2026-08-26",
+      "rationale": "Objective errors verified against data.md and implemented models; corrected directly in the test-case JSON.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "risky-pattern",
+      "task_id": "T-09",
+      "source": "services/api/uv.lock:987",
+      "summary": "greenlet omitted from SQLAlchemy dependency markers on macOS ARM64; uv sync skips it and the async engine fails at runtime",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "accept",
+      "decision": "Add greenlet as an explicit dependency in services/api/pyproject.toml and regenerate uv.lock, before commit-PR.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T03:10:00Z",
+      "rationale": "Blocks every Apple Silicon dev machine and any ARM CI runner on first alembic upgrade head.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "risky-pattern",
+      "task_id": "T-10",
+      "source": "services/api/tests/conftest.py (AlembicRunner)",
+      "summary": "alembic command must run off the asyncio event loop inside async tests",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "mitigated",
+      "decision": "Mitigated in conftest.py by dispatching alembic calls through a worker thread.",
+      "decided_by": "implementation-agent (auto-resolved during implementation)",
+      "decided_at": "2026-08-26",
+      "rationale": "Mitigated in conftest.py by dispatching alembic calls through a worker thread.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "risky-pattern",
+      "task_id": "T-10",
+      "source": "services/api/app/core/config.py:11",
+      "summary": "Local Postgres reachability inconsistent across ports; tests must not assume ambient DB state",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "defer",
+      "decision": "Track CI/local-env convention work; no change in this diff.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T03:10:00Z",
+      "rationale": "CI/local-environment convention question (docker-compose postgres as single source of truth), not a code defect in BED-01. Already mitigated via TEST_DATABASE_URL override plus disposable containers.",
+      "carry_forward_ref": "AF-06-carry"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "spec-ambiguity",
+      "task_id": "T-11",
+      "source": "docs/test-cases/BED-01.json (TC-11, TC-18)",
+      "summary": "token_hash test data was a 63-char string, not a valid SHA-256 digest",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "fixed",
+      "decision": "Mathematically verifiable error; corrected to a genuine 64-char digest.",
+      "decided_by": "implementation-agent (auto-resolved during implementation)",
+      "decided_at": "2026-08-26",
+      "rationale": "Mathematically verifiable error; corrected to a genuine 64-char digest.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-08",
+      "kind": "risky-pattern",
+      "task_id": "T-11",
+      "source": "services/api/migrations/env.py:18-19",
+      "summary": "alembic fileConfig() runs with disable_existing_loggers=True, silently disabling pre-fetched loggers and dropping migration-failure logs (NFR-011 gap)",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-26",
+      "status": "defer",
+      "decision": "Track for the story that first wraps alembic upgrade in ops/deploy tooling.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T03:10:00Z",
+      "rationale": "Real gap, but no ops/deploy code wraps alembic upgrade yet, so nothing is broken in production terms today. env.py logging setup is outside BED-01's declared file scope.",
+      "carry_forward_ref": "AF-08-carry"
+    },
+    {
+      "flag_id": "AF-09",
+      "kind": "evidence-na",
+      "task_id": "n/a",
+      "source": "docs/config/project-commands.yaml (design_check)",
+      "summary": "design_check dimension marked N/A - key empty, no a11y/perf tool declared",
+      "raised_by": "evidence-pass",
+      "raised_at": "2026-08-27",
+      "status": "reject",
+      "decision": "Flag rejected as noise - see rationale.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T03:10:00Z",
+      "rationale": "Legitimate N/A for this diff: BED-01 has no UI surface at all (design_mode=none, settled at the PRD gate), so design_check has nothing to inspect.",
+      "carry_forward_ref": null
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-08-27 P=19/19 in 2 round(s)",
+  "validation_report": "docs/features/BED-01/VALIDATION-20260827-1005.md",
+  "review": "PASS",
+  "review_report": "docs/features/BED-01/REVIEW.md",
+  "gate_rounds": 2,
+  "impl": "complete",
+  "impl_branch": "feature/BED-01",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03"
+  ],
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/62",
+  "tracker_review_comment": "pratikpawar009/Dashboard#11#issuecomment-5434172227"
+}
