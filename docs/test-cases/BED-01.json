@@ -1,0 +1,1148 @@
+{
+  "story_id": "BED-01",
+  "test_cases": [
+    {
+      "id": "BED-01-TC-01",
+      "title": "alembic upgrade head creates all 18 tables with snake_case names",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-1",
+      "given": "a clean Postgres database",
+      "when": "alembic upgrade head is run",
+      "then": "all 18 tables across the rollups, governance, and ingestion_auth_system groups exist with snake_case names",
+      "objective": "Verify the full 18-table shape (10 rollup + 3 governance + 5 ingestion/auth/system) is created by the initial migration with correctly cased table names.",
+      "preconditions": [
+        "Disposable test Postgres instance available and empty (no alembic_version row)",
+        "app/models/base.py Base.metadata wired into migrations/env.py",
+        "migrations/versions/001_initial_schema.py present"
+      ],
+      "test_data": {
+        "expected_tables": [
+          "org_summary_rollup",
+          "token_series",
+          "mau_series",
+          "program_summary",
+          "program_releases",
+          "program_commands",
+          "program_members",
+          "session_series",
+          "program_token_series",
+          "user_sessions",
+          "program_artifacts",
+          "program_guardrails",
+          "org_constitution",
+          "usage_events",
+          "ingest_tokens",
+          "system_metadata",
+          "persona_config",
+          "user_roles"
+        ]
+      },
+      "steps": [
+        "Point Alembic at the disposable test database",
+        "Run `alembic upgrade head`",
+        "Reflect the database via SQLAlchemy `inspect(engine).get_table_names()`"
+      ],
+      "expected_results": [
+        "Command exits 0 with no errors",
+        "Reflected table name set equals test_data.expected_tables exactly (18 entries, all snake_case)",
+        "alembic_version table is present and holds the head revision id"
+      ],
+      "tags": [
+        "schema",
+        "migration",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#51",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 260,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 260,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-02",
+      "title": "Every table's column type, nullability, and unique constraints match PRD \u00a78.4 fixture",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-1",
+      "given": "the SQLAlchemy models and a structured PRD \u00a78.4 fixture (JSON/YAML) enumerating every table's fields",
+      "when": "test_models.py runs a parametrized assertion per table against the fixture",
+      "then": "each column's type, nullability, default, and unique constraint on the live model matches the fixture entry",
+      "objective": "Verify per-column shape (type/nullability/unique) of every one of the 18 tables matches PRD \u00a78.4 field-for-field, per C-1.",
+      "preconditions": [
+        "Structured fixture file capturing PRD \u00a78.4's per-table field list exists and is loaded by test_models.py",
+        "Base.metadata is importable without a live DB connection"
+      ],
+      "test_data": {
+        "fixture_path": "backend/tests/fixtures/prd_8_4_schema.json",
+        "sample_assertion": {
+          "table": "org_constitution",
+          "column": "id",
+          "nullable": false
+        }
+      },
+      "steps": [
+        "Load the structured fixture",
+        "For each table in the fixture, resolve the matching SQLAlchemy model via Base.registry",
+        "For each field, compare fixture type/nullable/default/unique against `Column.type`, `Column.nullable`, `Column.default`, `Column.unique`/`UniqueConstraint`"
+      ],
+      "expected_results": [
+        "Every fixture-declared field is present on the model",
+        "No mismatched type, nullability, default, or unique flag across any of the 18 tables"
+      ],
+      "tags": [
+        "schema",
+        "field-shape",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#52",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 22,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 22,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-03",
+      "title": "Fixture-driven model test fails when a field is deliberately mismatched",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-AC-1",
+      "given": "the same PRD \u00a78.4 fixture used by TC-02",
+      "when": "a model field is deliberately mutated to diverge from the fixture (e.g. a nullable column flipped to NOT NULL)",
+      "then": "the fixture-driven assertion fails, proving the gate actually detects divergence rather than passing vacuously",
+      "objective": "Prove TC-02's assertion mechanism is not a no-op \u2014 it fails on a real mismatch.",
+      "preconditions": [
+        "Test harness allows monkeypatching a single model column for the duration of one test"
+      ],
+      "test_data": {
+        "table": "usage_events",
+        "column": "session_id",
+        "mutated_nullable": true,
+        "fixture_nullable": false
+      },
+      "steps": [
+        "Monkeypatch `usage_events.session_id` to `nullable=True` (fixture declares `nullable=False`)",
+        "Re-run the TC-02 comparison logic against the mutated model"
+      ],
+      "expected_results": [
+        "The comparison raises an assertion failure identifying `usage_events.session_id` as mismatched",
+        "Monkeypatch is reverted after the test (no cross-test leakage)"
+      ],
+      "tags": [
+        "schema",
+        "field-shape",
+        "meta-test"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#53",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 8,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-04",
+      "title": "downgrade(base) -> upgrade(head) round trip produces an identical schema",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-2",
+      "given": "the migration chain has been applied to a disposable test database",
+      "when": "alembic downgrade base is run followed by alembic upgrade head",
+      "then": "both commands complete with no errors and the resulting schema is identical to the first apply",
+      "objective": "Verify migration reversibility: every revision's downgrade() cleanly reverts and re-upgrading reproduces the exact same schema (AC2, C-4).",
+      "preconditions": [
+        "Disposable test Postgres instance",
+        "Migration chain already applied once (first apply snapshot captured)"
+      ],
+      "test_data": {},
+      "steps": [
+        "Run `alembic upgrade head`; snapshot table/column/constraint/index set via SQLAlchemy inspector",
+        "Run `alembic downgrade base`",
+        "Run `alembic upgrade head` again; snapshot the schema a second time",
+        "Diff the two snapshots"
+      ],
+      "expected_results": [
+        "Both alembic commands exit 0",
+        "Second snapshot's table/column/constraint/index set is identical to the first (empty diff)"
+      ],
+      "tags": [
+        "migration",
+        "round-trip",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#54",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-05",
+      "title": "Round-trip test fails a revision whose downgrade() is a no-op or missing",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-AC-2",
+      "given": "a deliberately broken revision whose downgrade() body is `pass` (does not drop what upgrade() created)",
+      "when": "the TC-04 round-trip test is run against that revision in isolation",
+      "then": "the round-trip assertion fails, proving the gate catches a non-working downgrade rather than passing vacuously",
+      "objective": "Prove the round-trip check in test_migrations.py detects a broken downgrade(), not just a well-behaved one.",
+      "preconditions": [
+        "A throwaway test revision with `downgrade(): pass` added to an isolated test migrations directory"
+      ],
+      "test_data": {
+        "revision": "999_broken_downgrade_test_fixture"
+      },
+      "steps": [
+        "Apply the throwaway revision with `alembic upgrade head`",
+        "Run `alembic downgrade base`",
+        "Reflect the schema and compare against the pre-upgrade (empty) state"
+      ],
+      "expected_results": [
+        "Post-downgrade schema still contains objects the no-op downgrade() failed to drop",
+        "The round-trip assertion raises a failure identifying the leftover objects"
+      ],
+      "tags": [
+        "migration",
+        "round-trip",
+        "meta-test"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#55",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-06",
+      "title": "alembic check reports zero pending changes against the applied schema",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-3",
+      "given": "the SQLAlchemy models and the applied schema from migrating to head",
+      "when": "an Alembic autogenerate diff (`alembic check` or equivalent) is run",
+      "then": "it reports zero pending changes",
+      "objective": "Verify the schema-diff gate (R-007) reports empty diff when models and applied migration are in sync.",
+      "preconditions": [
+        "Disposable test Postgres instance migrated to head",
+        "Base.metadata reflects all 18 models"
+      ],
+      "test_data": {},
+      "steps": [
+        "Run `alembic upgrade head`",
+        "Run `alembic check` (or the equivalent autogenerate-diff invocation) against the live database"
+      ],
+      "expected_results": [
+        "Command exits 0",
+        "Output/return value reports no pending schema changes"
+      ],
+      "tags": [
+        "schema-diff",
+        "R-007",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#56",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 130,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 130,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-07",
+      "title": "alembic check detects an intentionally introduced model/migration drift",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-AC-3",
+      "given": "a model with an extra column added that is not reflected in any applied migration",
+      "when": "alembic check is run against the applied (unmigrated-for-that-column) schema",
+      "then": "it reports a non-empty diff, proving the gate actually detects drift rather than always reporting clean",
+      "objective": "Prove the R-007 schema-diff gate fails closed on real drift, not just passes vacuously on TC-06's happy path.",
+      "preconditions": [
+        "Isolated test copy of a model with one extra column not present in migrations/versions/001_initial_schema.py"
+      ],
+      "test_data": {
+        "table": "program_summary",
+        "injected_column": "test_only_drift_marker"
+      },
+      "steps": [
+        "Add `test_only_drift_marker` column to the in-memory test copy of the `program_summary` model",
+        "Run `alembic upgrade head` against the disposable test database (without the new column)",
+        "Run `alembic check` against that database using the drifted model metadata"
+      ],
+      "expected_results": [
+        "Command exits non-zero or raises",
+        "Reported diff names `program_summary.test_only_drift_marker` as a pending change"
+      ],
+      "tags": [
+        "schema-diff",
+        "R-007",
+        "meta-test"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#57",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-08",
+      "title": "Duplicate (program_id, session_id, cmd_ts) insert into usage_events violates the unique constraint",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-4",
+      "given": "the usage_events table exists with a unique constraint on (program_id, session_id, cmd_ts)",
+      "when": "two rows are inserted with the same (program_id, session_id, cmd_ts)",
+      "then": "the second insert raises an IntegrityError/unique-violation rather than creating a duplicate row",
+      "objective": "Verify the idempotency-foundation unique constraint (A-002, NFR-012 foundation) rejects duplicate ingest writes at the DB layer.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events table empty"
+      ],
+      "test_data": {
+        "program_id": "prog-123",
+        "session_id": "sess-abc",
+        "cmd_ts": "2026-08-26T10:00:00Z"
+      },
+      "steps": [
+        "Insert a usage_events row with test_data values",
+        "Attempt to insert a second row with the identical (program_id, session_id, cmd_ts)"
+      ],
+      "expected_results": [
+        "First insert succeeds",
+        "Second insert raises a unique-constraint IntegrityError",
+        "usage_events contains exactly one row for that key tuple after the attempted duplicate"
+      ],
+      "tags": [
+        "usage_events",
+        "unique-constraint",
+        "idempotency"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#58",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 95,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 95,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-09",
+      "title": "usage_events accepts rows sharing program_id/session_id when cmd_ts differs",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-4",
+      "given": "an existing usage_events row for a given (program_id, session_id)",
+      "when": "a second row is inserted with the same program_id and session_id but a different cmd_ts",
+      "then": "the insert succeeds, proving the unique constraint is scoped to the full 3-column tuple and not overly broad",
+      "objective": "Verify the unique constraint does not falsely reject legitimate distinct events within the same session.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events table empty"
+      ],
+      "test_data": {
+        "program_id": "prog-123",
+        "session_id": "sess-abc",
+        "cmd_ts_1": "2026-08-26T10:00:00Z",
+        "cmd_ts_2": "2026-08-26T10:00:05Z"
+      },
+      "steps": [
+        "Insert a usage_events row with cmd_ts_1",
+        "Insert a second usage_events row with the same program_id/session_id but cmd_ts_2"
+      ],
+      "expected_results": [
+        "Both inserts succeed with no constraint violation",
+        "usage_events contains 2 distinct rows for the (program_id, session_id) pair"
+      ],
+      "tags": [
+        "usage_events",
+        "unique-constraint",
+        "boundary"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#59",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 135,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 135,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-10",
+      "title": "ingest_tokens model exposes only token_hash, no raw-token-capable column",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-5",
+      "given": "the ingest_tokens SQLAlchemy model",
+      "when": "its columns are inspected via Table.columns reflection (not string-matching source)",
+      "then": "only token_hash (unique, intended for a SHA-256 hex digest) is present \u2014 no column named/aliased token, raw_token, or equivalent",
+      "objective": "Verify the ingest_tokens table's column set cannot persist a raw token, per C-5.",
+      "preconditions": [
+        "ingest_tokens model importable",
+        "Base.metadata registered"
+      ],
+      "test_data": {
+        "forbidden_column_names": [
+          "token",
+          "raw_token",
+          "plaintext_token",
+          "secret"
+        ]
+      },
+      "steps": [
+        "Reflect `ingest_tokens.__table__.columns` (or live-DB `Table.columns` after migration)",
+        "Assert `token_hash` is present and has `unique=True`",
+        "Assert none of test_data.forbidden_column_names appear in the column name set"
+      ],
+      "expected_results": [
+        "Column set contains `token_hash` with a unique constraint",
+        "No column in test_data.forbidden_column_names exists on the table"
+      ],
+      "tags": [
+        "ingest_tokens",
+        "security",
+        "reflection"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#60",
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-11",
+      "title": "Duplicate token_hash insert into ingest_tokens violates its unique constraint",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-5",
+      "given": "an ingest_tokens row already persisted with a given token_hash",
+      "when": "a second row is inserted with the identical token_hash value",
+      "then": "the second insert raises a unique-constraint IntegrityError",
+      "objective": "Verify token_hash uniqueness is enforced at the DB layer, not only declared on the model.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "ingest_tokens table empty"
+      ],
+      "test_data": {
+        "token_hash": "bbb8064c1addabbc06c0ed2f605a47daaddca8ef31dbf3f2b0fd163332164cd8"
+      },
+      "steps": [
+        "Insert an ingest_tokens row with test_data.token_hash",
+        "Attempt to insert a second row with the same token_hash"
+      ],
+      "expected_results": [
+        "First insert succeeds",
+        "Second insert raises a unique-constraint IntegrityError"
+      ],
+      "tags": [
+        "ingest_tokens",
+        "security",
+        "unique-constraint"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 130,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 130,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-12",
+      "title": "BigInt-typed Prisma fields map to SQLAlchemy BigInteger",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-6",
+      "given": "Prisma-to-SQLAlchemy type mapping for BigInt-typed fields",
+      "when": "total_token_consumption (org_summary_rollup) and value (token_series) are inspected on their respective models",
+      "then": "both columns use SQLAlchemy BigInteger",
+      "objective": "Verify the BigInt -> BigInteger type-mapping rule from PRD \u00a78.4 is applied.",
+      "preconditions": [
+        "Models importable without a live DB connection"
+      ],
+      "test_data": {
+        "columns": [
+          {
+            "table": "org_summary_rollup",
+            "column": "total_token_consumption"
+          },
+          {
+            "table": "token_series",
+            "column": "value"
+          }
+        ]
+      },
+      "steps": [
+        "For each entry in test_data.columns, resolve the column via the model's `__table__.c`",
+        "Assert `isinstance(column.type, sqlalchemy.BigInteger)`"
+      ],
+      "expected_results": [
+        "Both columns report BigInteger as their SQLAlchemy type"
+      ],
+      "tags": [
+        "type-mapping",
+        "BigInteger"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-13",
+      "title": "Json-typed Prisma fields map to SQLAlchemy JSON/JSONB",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-6",
+      "given": "Prisma-to-SQLAlchemy type mapping for Json-typed fields",
+      "when": "monthly_token_sparkline (program_summary) and models (usage_events) are inspected on their respective models",
+      "then": "both columns use SQLAlchemy JSON or postgresql.JSONB",
+      "objective": "Verify the Json -> JSON/JSONB type-mapping rule from PRD \u00a78.4 is applied.",
+      "preconditions": [
+        "Models importable without a live DB connection"
+      ],
+      "test_data": {
+        "columns": [
+          {
+            "table": "program_summary",
+            "column": "monthly_token_sparkline"
+          },
+          {
+            "table": "usage_events",
+            "column": "models"
+          }
+        ]
+      },
+      "steps": [
+        "For each entry in test_data.columns, resolve the column via the model's `__table__.c`",
+        "Assert the column type is `sqlalchemy.JSON` or `sqlalchemy.dialects.postgresql.JSONB`"
+      ],
+      "expected_results": [
+        "Both columns report JSON/JSONB as their SQLAlchemy type"
+      ],
+      "tags": [
+        "type-mapping",
+        "JSON"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-14",
+      "title": "String[]-typed allowed_program_ids maps to postgresql.ARRAY(String)",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-6",
+      "given": "Prisma-to-SQLAlchemy type mapping for a String[]-typed field",
+      "when": "allowed_program_ids is inspected on its model",
+      "then": "the column uses postgresql.ARRAY(String)",
+      "objective": "Verify the String[] -> postgresql.ARRAY(String) type-mapping rule from PRD \u00a78.4 is applied.",
+      "preconditions": [
+        "Model importable without a live DB connection"
+      ],
+      "test_data": {
+        "table": "ingest_tokens",
+        "column": "allowed_program_ids"
+      },
+      "steps": [
+        "Resolve `allowed_program_ids` via the model's `__table__.c`",
+        "Assert `isinstance(column.type, sqlalchemy.dialects.postgresql.ARRAY)` and `isinstance(column.type.item_type, sqlalchemy.String)`"
+      ],
+      "expected_results": [
+        "Column reports postgresql.ARRAY with a String item type"
+      ],
+      "tags": [
+        "type-mapping",
+        "ARRAY"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-15",
+      "title": "Discriminator fields stay plain String with no Postgres enum type",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-AC-6",
+      "given": "discriminator fields program_releases.type and program_guardrails.status",
+      "when": "both columns are inspected on their respective models",
+      "then": "both use plain SQLAlchemy String with no Postgres ENUM type backing them",
+      "objective": "Verify discriminator fields are not modeled as a Postgres native enum, per PRD \u00a78.4 type-mapping rule.",
+      "preconditions": [
+        "Models importable without a live DB connection"
+      ],
+      "test_data": {
+        "columns": [
+          {
+            "table": "program_releases",
+            "column": "type"
+          },
+          {
+            "table": "program_guardrails",
+            "column": "status"
+          }
+        ]
+      },
+      "steps": [
+        "For each entry in test_data.columns, resolve the column via the model's `__table__.c`",
+        "Assert `isinstance(column.type, sqlalchemy.String)` and NOT `isinstance(column.type, sqlalchemy.dialects.postgresql.ENUM)`"
+      ],
+      "expected_results": [
+        "Both columns are plain String with no ENUM type present"
+      ],
+      "tags": [
+        "type-mapping",
+        "discriminator"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-16",
+      "title": "Structured PRD \u00a78.4 fixture and test_models.py are authored before the initial migration revision",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-FR-1",
+      "given": "the repository's git history for backend/tests/test_models.py, its structured fixture, and migrations/versions/001_initial_schema.py",
+      "when": "the commit history is inspected",
+      "then": "the fixture and test_models.py were authored and passing before 001_initial_schema.py was added, satisfying the build-order gate",
+      "objective": "Verify FR-1's test-first build order: the acceptance test exists against a structured spec before migration code is written (C-1).",
+      "preconditions": [
+        "Git history available in CI checkout (not a shallow clone missing relevant commits)"
+      ],
+      "test_data": {
+        "files": [
+          "backend/tests/fixtures/prd_8_4_schema.json",
+          "backend/tests/test_models.py",
+          "migrations/versions/001_initial_schema.py"
+        ]
+      },
+      "steps": [
+        "Run `git log --follow --format=%ct` for each file in test_data.files",
+        "Take the earliest commit timestamp for each file",
+        "Compare the fixture/test_models.py timestamp against the migration file's timestamp"
+      ],
+      "expected_results": [
+        "backend/tests/fixtures/prd_8_4_schema.json and backend/tests/test_models.py's earliest commit predates migrations/versions/001_initial_schema.py's earliest commit"
+      ],
+      "tags": [
+        "build-order",
+        "process-gate",
+        "FR-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-17",
+      "title": "001_initial_schema.py module docstring states the PRD-spec-lock immutability rule",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-FR-2",
+      "given": "the migrations/versions/001_initial_schema.py module",
+      "when": "its module docstring is inspected",
+      "then": "the docstring documents that this revision is never edited retroactively and corrections are new revisions (C-2)",
+      "objective": "Verify the migration-immutability policy (FR-2) is documented in the revision's own docstring as an automatable proxy for the code-review-enforced rule.",
+      "preconditions": [
+        "migrations/versions/001_initial_schema.py exists"
+      ],
+      "test_data": {
+        "required_phrases": [
+          "never edited",
+          "new revision"
+        ]
+      },
+      "steps": [
+        "Import migrations/versions/001_initial_schema.py and read `__doc__`",
+        "Assert the docstring contains language matching test_data.required_phrases (case-insensitive substring or equivalent)"
+      ],
+      "expected_results": [
+        "Module docstring documents the no-retroactive-edit / new-revision-only policy"
+      ],
+      "tags": [
+        "migration-immutability",
+        "FR-2",
+        "documentation"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-18",
+      "title": "ingest_tokens persists only a SHA-256 hex digest, never a raw credential",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-01-NFR-security",
+      "given": "the ingest_tokens table schema",
+      "when": "the table is reflected and a token is stored",
+      "then": "only token_hash (unique) is persisted and it holds a 64-character SHA-256 hex digest \u2014 no column or code path stores the raw token value",
+      "objective": "Verify NFR-security: ingest_tokens.token_hash stores only the SHA-256 hex digest, never the raw token (NFR-006 foundation).",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "ingest_tokens table empty"
+      ],
+      "test_data": {
+        "raw_token": "<PLACEHOLDER_RAW_TOKEN>",
+        "token_hash": "bbb8064c1addabbc06c0ed2f605a47daaddca8ef31dbf3f2b0fd163332164cd8"
+      },
+      "steps": [
+        "Reflect ingest_tokens columns and confirm the forbidden-column check from TC-10 holds against the live DB (not just the in-memory model)",
+        "Insert a row using only test_data.token_hash (the hashed value, never test_data.raw_token)",
+        "Query the inserted row back and inspect stored column values"
+      ],
+      "expected_results": [
+        "Live-DB reflection confirms no raw-token-capable column exists",
+        "Stored token_hash equals test_data.token_hash, is unique-constrained, and is exactly a 64-character hex string",
+        "test_data.raw_token never appears in any persisted column value"
+      ],
+      "tags": [
+        "security",
+        "ingest_tokens",
+        "NFR-006"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 115,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 115,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-01-TC-19",
+      "title": "Migration failure surfaces via structlog JSON, not a raw traceback",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-01-NFR-observability",
+      "given": "a migration run that is forced to fail (e.g. applying a revision against a database already partially migrated in a conflicting state)",
+      "when": "alembic upgrade is invoked and the failure occurs",
+      "then": "the failure is surfaced as a structlog JSON log entry via app/core/logging.py's formatter, with alembic_version left at the last successfully applied revision, rather than an unstructured raw traceback",
+      "objective": "Verify migration failures are observable via the project's structured JSON logging (NFR-011), per the story's observability assumption.",
+      "preconditions": [
+        "Disposable test database",
+        "A deliberately conflicting migration state set up to force a failure",
+        "structlog configured per app/core/logging.py"
+      ],
+      "test_data": {
+        "forced_conflict": "duplicate index name collision on second upgrade attempt"
+      },
+      "steps": [
+        "Set up a database state that will cause the target revision's upgrade() to raise",
+        "Run `alembic upgrade head` capturing log output",
+        "Inspect captured log output and the resulting alembic_version row"
+      ],
+      "expected_results": [
+        "A structlog JSON-formatted error log entry is emitted describing the failure",
+        "No unstructured raw Python traceback is the sole failure signal in captured output",
+        "alembic_version still reflects the last successfully applied revision, not the failed one"
+      ],
+      "tags": [
+        "observability",
+        "structlog",
+        "NFR-011"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:05:00Z",
+        "duration_ms": 45,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 45,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "BED-01-AC-1",
+        "covered_by": [
+          "BED-01-TC-01",
+          "BED-01-TC-02",
+          "BED-01-TC-03"
+        ]
+      },
+      {
+        "id": "BED-01-AC-2",
+        "covered_by": [
+          "BED-01-TC-04",
+          "BED-01-TC-05"
+        ]
+      },
+      {
+        "id": "BED-01-AC-3",
+        "covered_by": [
+          "BED-01-TC-06",
+          "BED-01-TC-07"
+        ]
+      },
+      {
+        "id": "BED-01-AC-4",
+        "covered_by": [
+          "BED-01-TC-08",
+          "BED-01-TC-09"
+        ]
+      },
+      {
+        "id": "BED-01-AC-5",
+        "covered_by": [
+          "BED-01-TC-10",
+          "BED-01-TC-11"
+        ]
+      },
+      {
+        "id": "BED-01-AC-6",
+        "covered_by": [
+          "BED-01-TC-12",
+          "BED-01-TC-13",
+          "BED-01-TC-14",
+          "BED-01-TC-15"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "BED-01-FR-1",
+        "covered_by": [
+          "BED-01-TC-16"
+        ]
+      },
+      {
+        "id": "BED-01-FR-2",
+        "covered_by": [
+          "BED-01-TC-17"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "BED-01-NFR-security",
+        "covered_by": [
+          "BED-01-TC-18"
+        ]
+      },
+      {
+        "id": "BED-01-NFR-observability",
+        "covered_by": [
+          "BED-01-TC-19"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

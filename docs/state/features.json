@@ -2,12 +2,52 @@
   "BED-01": {
     "story": "validated",
     "story_priority": "P1",
-    "story_independent_test": true,
-    "needs_clarification_count": 0,
+    "research": "complete",
+    "research_verdict": "GO-WITH-CONDITIONS",
+    "prd": "complete",
+    "design": "n/a",
+    "tracker_story": "pratikpawar009/Dashboard#11",
+    "tracker_research": "pratikpawar009/Dashboard#49",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "story-validated",
-    "last_updated": "2026-08-26T12:58:22Z",
-    "tracker_story": "pratikpawar009/Dashboard#11"
+    "phase": "review",
+    "last_updated": "2026-08-27T10:15:00Z",
+    "tracker_prd": "pratikpawar009/Dashboard#50",
+    "gate": "APPROVE",
+    "plan": "complete",
+    "plan_validation": "PASS",
+    "tracker_plan": "pratikpawar009/Dashboard#61",
+    "impl_evidence": {
+      "session_ended_at": "2026-08-27T08:24:00Z",
+      "rounds": 1,
+      "checks": {
+        "typecheck": {
+          "status": "PASS",
+          "flag_id": null
+        },
+        "unit_tests": {
+          "status": "PASS",
+          "flag_id": null
+        },
+        "lint": {
+          "status": "PASS",
+          "flag_id": null
+        },
+        "runtime": {
+          "status": "PASS",
+          "flag_id": null
+        },
+        "compile": {
+          "status": "PASS",
+          "flag_id": null
+        },
+        "design_check": {
+          "status": "N/A",
+          "flag_id": "AF-09"
+        }
+      }
+    },
+    "validation": "passed",
+    "review": "PASS"
   },
   "BED-02": {
     "story": "validated",

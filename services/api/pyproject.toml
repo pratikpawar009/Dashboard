@@ -10,6 +10,10 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
     "sqlalchemy>=2.0",
+    # SQLAlchemy's async engine requires greenlet at runtime, but declares it via
+    # platform markers that omit macOS arm64 — so `uv sync` silently skips it on
+    # Apple Silicon and every async DB call fails. Declared explicitly (AF-04).
+    "greenlet>=3.0",
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
 ]

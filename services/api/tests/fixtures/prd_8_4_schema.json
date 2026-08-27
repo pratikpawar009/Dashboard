@@ -1,0 +1,281 @@
+{
+  "_meta": {
+    "source": "docs/requirements/data.md#db-schema",
+    "note": "Authoritative field-level spec (db-schema contract). Table count is 18 (10 rollup + 3 governance + 5 ingestion/auth/system) per the contract's own acceptance_spec note — some PRD prose elsewhere says 17, which is stale; do not reconcile to 17.",
+    "type_mapping": {
+      "Prisma BigInt": "sqlalchemy.BigInteger",
+      "Prisma Json": "sqlalchemy.dialects.postgresql.JSONB",
+      "Prisma String[]": "sqlalchemy.dialects.postgresql.ARRAY(String)",
+      "discriminator/enum-like fields": "plain String, no Postgres ENUM",
+      "timestamps": "DateTime(timezone=True)"
+    }
+  },
+  "tables": {
+    "org_summary_rollup": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "org_id", "type": "String", "nullable": false, "default": "org-1", "unique": true},
+        {"name": "programs_using_ai_count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "programs_total", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "total_token_consumption", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "lines_of_code_generated", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "releases_using_harness", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "repos_with_harness_installed", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "repos_total", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "created_at", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "updated_at", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(org_id) — singleton, org_id default 'org-1'"]
+    },
+    "token_series": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "org_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "month", "type": "String", "nullable": false, "default": null, "unique": false, "note": "YYYY-MM"},
+        {"name": "value", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(org_id, month)"]
+    },
+    "mau_series": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "org_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "month", "type": "String", "nullable": false, "default": null, "unique": false, "note": "YYYY-MM"},
+        {"name": "developer", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "architect", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "product_manager", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "engineering_manager", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false, "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD §8.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled — part of the frozen contract."}
+      ],
+      "constraints": ["unique(org_id, month)"]
+    },
+    "program_summary": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": true},
+        {"name": "name", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "icon", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "type", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "description", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "monthly_token_sparkline", "type": "JSONB", "nullable": false, "default": null, "unique": false, "note": "ADR-0003"},
+        {"name": "tokens", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "releases", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "features", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "active_contributors", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "repos_with_harness_installed", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "repos_total", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "commands_executed", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "lines_of_code_generated", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "user_stories_delivered", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "intervention_count", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "tool_rejections", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false, "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD §8.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled — part of the frozen contract."}
+      ],
+      "constraints": ["unique(program_id)"]
+    },
+    "program_releases": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "version", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "type", "type": "String", "nullable": false, "default": null, "unique": false, "note": "major|minor|patch, plain String no enum"},
+        {"name": "date", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "story_count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "pr_count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["index(program_id)"]
+    },
+    "program_commands": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "name", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "run_count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "period_start", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "period_end", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["index(program_id)"]
+    },
+    "program_members": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "user_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "name", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "role", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "sessions", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "tokens", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "last_active_date", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["index(program_id)"]
+    },
+    "session_series": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "org_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "member_id", "type": "String", "nullable": true, "default": null, "unique": false, "note": "nullable = org/program-wide rollup row"},
+        {"name": "date", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "session_time_seconds", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(org_id, program_id, member_id, date)"]
+    },
+    "program_token_series": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "date", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "tokens", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "input_tokens", "type": "Integer", "nullable": false, "default": 0, "unique": false},
+        {"name": "output_tokens", "type": "Integer", "nullable": false, "default": 0, "unique": false},
+        {"name": "cache_read_tokens", "type": "Integer", "nullable": false, "default": 0, "unique": false},
+        {"name": "cache_write_tokens", "type": "Integer", "nullable": false, "default": 0, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(program_id, date)"]
+    },
+    "user_sessions": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "user_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "session_identifier", "type": "String", "nullable": false, "default": null, "unique": true},
+        {"name": "name", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "started_at", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "duration_seconds", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "tokens", "type": "BigInteger", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(session_identifier)"]
+    },
+    "program_artifacts": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "type", "type": "String", "nullable": false, "default": null, "unique": false, "note": "prd|user_story|test_case|arch_diagram|api_spec"},
+        {"name": "count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "as_of_timestamp", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(program_id, type)"]
+    },
+    "program_guardrails": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "name", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "status", "type": "String", "nullable": false, "default": null, "unique": false, "note": "Enforced|Warning|NotImplemented"},
+        {"name": "document_ref", "type": "String", "nullable": true, "default": null, "unique": false},
+        {"name": "display_order", "type": "Integer", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(program_id, name)"]
+    },
+    "org_constitution": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "org_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "category", "type": "String", "nullable": false, "default": null, "unique": false, "note": "Constraints|Standard|Mandatory|Vision"},
+        {"name": "description", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "item_count", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "document_ref", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "display_order", "type": "Integer", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": ["unique(org_id, category)"]
+    },
+    "usage_events": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "program_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "ts", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "cmd_ts", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false},
+        {"name": "user", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "session_id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "kind", "type": "String", "nullable": true, "default": null, "unique": false},
+        {"name": "command", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "feature", "type": "String", "nullable": true, "default": null, "unique": false},
+        {"name": "duration_seconds", "type": "Integer", "nullable": false, "default": null, "unique": false},
+        {"name": "outcome", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "intervention_count", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "files_created", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "files_modified", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "lines_added", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "tool_rejections", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "input_tokens", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "output_tokens", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "cache_read_tokens", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "cache_write_tokens", "type": "Integer", "nullable": true, "default": null, "unique": false},
+        {"name": "total", "type": "BigInteger", "nullable": false, "default": null, "unique": false},
+        {"name": "models", "type": "JSONB", "nullable": true, "default": null, "unique": false, "note": "ADR-0003"}
+      ],
+      "constraints": [
+        "unique(program_id, session_id, cmd_ts)",
+        "index(program_id, ts)",
+        "index(program_id, user)",
+        "index(program_id, command)",
+        "index(program_id, session_id)"
+      ]
+    },
+    "ingest_tokens": {
+      "primary_key": "id",
+      "columns": [
+        {"name": "id", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "token_hash", "type": "String", "nullable": false, "default": null, "unique": true, "note": "SHA-256 hex, 64 chars"},
+        {"name": "label", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "user_email", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "allowed_program_ids", "type": "ARRAY(String)", "nullable": false, "default": null, "unique": false, "note": "or literal '*' wildcard entry"},
+        {"name": "expires_at", "type": "DateTime(timezone=True)", "nullable": true, "default": null, "unique": false},
+        {"name": "revoked_at", "type": "DateTime(timezone=True)", "nullable": true, "default": null, "unique": false},
+        {"name": "last_used_at", "type": "DateTime(timezone=True)", "nullable": true, "default": null, "unique": false}
+      ],
+      "constraints": [
+        "unique(token_hash)",
+        "index(user_email)",
+        "no column stores the raw token (AC-5, NFR-006) — forbidden columns: token, raw_token, plaintext_token, secret"
+      ]
+    },
+    "system_metadata": {
+      "primary_key": "key",
+      "columns": [
+        {"name": "key", "type": "String", "nullable": false, "default": null, "unique": false, "note": "literal primary key, e.g. 'ingestion'"},
+        {"name": "last_successful_run_at", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": []
+    },
+    "persona_config": {
+      "primary_key": "role",
+      "columns": [
+        {"name": "role", "type": "String", "nullable": false, "default": null, "unique": false, "note": "literal primary key"},
+        {"name": "persona", "type": "String", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": []
+    },
+    "user_roles": {
+      "primary_key": "email",
+      "columns": [
+        {"name": "email", "type": "String", "nullable": false, "default": null, "unique": false, "note": "literal primary key"},
+        {"name": "role", "type": "String", "nullable": false, "default": null, "unique": false},
+        {"name": "source", "type": "String", "nullable": false, "default": "keycloak", "unique": false},
+        {"name": "synced_at", "type": "DateTime(timezone=True)", "nullable": false, "default": null, "unique": false}
+      ],
+      "constraints": []
+    }
+  }
+}
