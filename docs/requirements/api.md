@@ -4,11 +4,29 @@
 produced_by: BED-02
 consumed_by: [OVW-01, OVW-02, OVW-03, OVW-04, PGD-01, PGD-02, PGD-03, PGD-04, PGD-05, PGD-06, SHP-02, SHP-03, SHP-04, SHP-05, SHP-06]
 shape:
-  range: "range=7d|30d|90d on every time-series/list endpoint; 400 via explicit check (never FastAPI's default 422) on an invalid value (FR-BE-02)"
-  pagination: "offset/limit (max 50, per-endpoint) and page/page_size (max 100) where applicable (FR-BE-03)"
-  derived_values: "adoption %, deltas, averages, 'X/Y passing' computed server-side only, never client-side (FR-BE-04)"
-  formatting: "M/K numeric and h/m time formatting applied consistently — pick one layer (frontend display-only or backend pre-formatted) and do not mix (FR-BE-08)"
+  range:
+    dependency: "validate_range(request: Request, range: str = Query(...)) -> str @ app.dependencies.range — Depends(), not middleware, not per-router inline checks (FR-1)"
+    allowed_values: ["7d", "30d", "90d"]
+    rejection: "HTTPException(400, 'invalid_range') -> {\"error\": {\"code\": \"http_400\", \"message\": \"invalid_range\", \"details\": null}} via app.core.errors.error_body()/register_exception_handlers() — never FastAPI's default 422 (AC 2, FR-1)"
+    window_helper: "range_to_start(range_value: str, now: datetime | None = None) -> datetime @ app.dependencies.range — start = now - timedelta(days={7,30,90}[range_value]); returns timezone-aware UTC (default reference datetime.now(UTC)); a caller-supplied naive `now` raises ValueError rather than being coerced (D-06, docs/features/BED-02/DECISIONS.md)"
+    logging: "on rejection: logger.warning('invalid_range', extra={route, param: 'range', rejected_value}) — surfaced via JSONFormatter's extras merge (FR-3)"
+    consistency: "identical 400 status + error body across every consumer of validate_range() (AC 7)"
+  pagination:
+    offset_limit: "get_offset_limit(offset: int = Query(0, ge=0), limit: int = Query(50, ge=1)) -> tuple[int, int] @ app.dependencies.pagination — clamps limit to 50 (MAX_OFFSET_LIMIT), never rejects an over-max value (AC 3); MAX_OFFSET_LIMIT is importable only from app.dependencies.pagination, not re-exported on the app.dependencies package barrel"
+    page_size: "get_page_params(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1)) -> tuple[int, int] @ app.dependencies.pagination — clamps page_size to 100 (MAX_PAGE_SIZE), kept equal to app.api.activities.MAX_PAGE_SIZE (AC 4); MAX_PAGE_SIZE is importable only from app.dependencies.pagination, not re-exported on the app.dependencies package barrel — deliberately, since the name collides with app.api.activities.MAX_PAGE_SIZE (two distinct, numerically-equal constants)"
+  derived_values:
+    adoption_percent: "compute_adoption_percent(rollup: OrgSummaryRollup) -> dict @ app.services.rollup_compute — adoption_percent = programs_using_ai_count / programs_total * 100; None (not 0.0) when programs_total == 0 — no programs registered yet is not the same as measured-and-zero (D-07, docs/features/BED-02/DECISIONS.md). Consumers must render a null case, not assume a numeric adoption_percent."
+    period_delta: "compute_period_delta(current_total, prior_total) -> dict @ app.services.rollup_compute — delta = (current_total - prior_total) / prior_total * 100 (percent change; None when prior_total == 0)"
+    average: "compute_average(total, count) -> float @ app.services.rollup_compute — average = total / count (0.0 when count == 0). Returns a bare float, not a dict — the one rollup_compute function that diverges from D-02's raw+computed dict-merge default, since there is no separate raw field to merge it with."
+    guardrail_summary: "compute_guardrail_summary(guardrails: Sequence[ProgramGuardrail]) -> dict @ app.services.guardrail_compute — 'X/Y passing' where passing = status == 'Enforced' (D-05, docs/features/BED-02/DECISIONS.md); PASSING_STATUS is importable only from app.services.guardrail_compute, not re-exported on the app.services package barrel. An empty guardrails sequence returns passing_count=0, total_count=0, summary='0/0 passing' — never None: unlike adoption_percent this performs no division, so there is no zero-denominator to guard against (D-08, docs/features/BED-02/DECISIONS.md)."
+    layer: "services/api/app/services/*.py only — never left for the frontend to compute (AC 5)"
+  formatting:
+    numeric: "format_number(value: int | float) -> str @ app.utils.format — M/K suffix (e.g. 2500 -> '2.5K', 1_500_000 -> '1.5M'). Full boundary contract (D-09, docs/features/BED-02/DECISIONS.md): one decimal is always kept incl. a trailing .0 (2000 -> '2.0K'); bucket is chosen from the rounded quotient that will actually render, promoting up a bucket when that quotient reaches 1000, so bucket and value never disagree (999_999 -> '1.0M', not '1000.0K'); values below 1,000 render as a bare rounded int ('999 -> 999', '0 -> 0'); negatives keep their sign and bucket on abs(value) ('-2500 -> -2.5K'). Known limitation, not fixed: M is the largest bucket (no B/billions bucket) and promotion stops there, so a magnitude whose M-quotient itself rounds to >= 1000.0 (roughly >= 999_950_000) renders unbounded and un-abbreviated, e.g. 1_000_000_000 -> '1000.0M' — open/untriaged product question, see AF-04 (docs/features/BED-02/FLAGS.md)."
+    duration: "format_duration(minutes: int) -> str @ app.utils.format — h/m suffix (e.g. 125 -> '2h 5m'); exact hours drop the minutes term (120 -> '2h'); 0 -> '0m'. Raises ValueError on negative minutes rather than coercing — divmod floors toward -inf and would otherwise silently render a negative duration as a positive one (D-09, docs/features/BED-02/DECISIONS.md). Consumers must not pass a negative value without expecting/handling this exception."
+    layer: "backend-only (FR-2) — no equivalent frontend formatting utility exists or should be added (AC 6)"
 ```
+
+Wiring into consumer routers (OVW/PGD/SHP endpoints) is explicitly each downstream story's own scope — this shape is the contract they build against, not yet mounted on any route.
 
 ### freshness-api
 

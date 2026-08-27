@@ -1,0 +1,287 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#12",
+  "tracker_research": "pratikpawar009/Dashboard#63",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/BED-02/DESIGN.md",
+  "design_provider": "none",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-08-27T19:35:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#64",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tasks": {
+    "file": "docs/features/BED-02/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/BED-02/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/BED-02/DATA-DESIGN.md"
+  },
+  "tracker_plan": "pratikpawar009/Dashboard#82",
+  "impl_evidence": {
+    "session_ended_at": "2026-08-27T14:59:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-02/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T14:56:00Z",
+        "note": "Both halves run for real per anti-gaming rule (applicability follows repo-level config, not story scope) even though BED-02 touched no apps/web file. tsc: 0 errors. mypy: 'Success: no issues found in 42 source files'."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test:",
+        "command": "pnpm -C apps/web test && cd services/api && TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5446/dashboard_test DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5446/dashboard uv run pytest -q",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-02/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T14:57:00Z",
+        "note": "apps/web: 1 test file, 1 passed. services/api: 120 passed in 2.26s, run against disposable Postgres container bed02-evidence-pg (port 5446), matching the pre-handover baseline exactly (120 passed) \u2014 no BED-01 AF-06-carry environment failures reproduced."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-02/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T14:57:00Z",
+        "note": "eslint: 0 errors. ruff: 'All checks passed!'."
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "docs/config/project-commands.yaml preflight smoke-import + stack-smoke.md fastapi-2 Migrate:/Run:/Check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-08-27T14:58:00Z",
+        "stacks": [
+          {
+            "stack": "api-smoke-import",
+            "status": "PASS",
+            "command": "cd services/api && uv run python -c \"import app.main\"",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-02/evidence/runtime-smoke-import.log",
+            "boot_log_scan": "clean"
+          },
+          {
+            "stack": "api-alembic-upgrade",
+            "status": "PASS",
+            "command": "cd services/api && DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5446/dashboard uv run alembic upgrade head",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-02/evidence/runtime-alembic-upgrade.log",
+            "boot_log_scan": "clean",
+            "note": "Ran against disposable bed02-evidence-pg container (port 5446), dashboard DB already provisioned by the handover. Upgraded  -> 001_initial_schema cleanly (BED-02 adds no new migration)."
+          },
+          {
+            "stack": "api-boot",
+            "status": "PASS",
+            "command": "cd services/api && DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5446/dashboard uv run uvicorn app.main:app --port 8134",
+            "exit_code": null,
+            "evidence_path": "docs/features/BED-02/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "/health returned HTTP 200 {\"status\":\"ok\"}, boot log clean (no Error|Exception|Panic|FATAL|fatal). BED-02 adds no route/service/port \u2014 confirmatory boot check per stack-smoke.md fastapi-2. Server killed after check, no leaked process."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-02/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-08-27T14:57:00Z",
+        "note": "build: key non-empty (repo-wide, points at apps/web) so run for real rather than self-declared N/A, even though BED-02 touched no apps/web file, per evidence-pass anti-gaming rule. Next.js production build succeeded, 2 static routes generated."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-07",
+        "ran_at": null,
+        "note": "design_check: key empty in project-commands.yaml \u2014 no accessibility/console-error-scan/perf tool declared or installed. Legitimate N/A: BED-02 is backend-only, design: \"n/a\" in state, no UI surface touched."
+      }
+    },
+    "reverified_at": "2026-08-27T17:05:00Z",
+    "reverification_reason": "Accepted flag AF-03 changed services/api/app/dependencies/range.py after the round-1 packet passed (rejected_value capped at 64 chars with an explicit truncation marker, per security-baseline). The sequence rule forbids committing code changed after its last passing gate round, so all six dimensions were re-run on the amended tree rather than carrying forward a receipt describing a different tree. No dimension regressed: pytest 120 passed (unchanged from baseline), vitest 1 passed, ruff 0 errors, mypy 0 errors in 42 files, smoke-import clean, Next.js build succeeded. Not counted as a fix round \u2014 nothing FAILED."
+  },
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "task_id": "T-04",
+      "source": "services/api/app/core/logging.py:55",
+      "summary": "extra keys colliding with a first-class payload key (timestamp/level/logger/message) are silently dropped",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "First-class-wins is correct by design \u2014 a caller must not be able to forge a log line's level, logger or timestamp \u2014 and T-15's test now pins the precedence. A collision indicates a caller bug, so silence is acceptable; adding a warning would put a log call inside a log call.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "risky-pattern",
+      "task_id": "T-04",
+      "source": "services/api/app/core/logging.py:61",
+      "summary": "json.dumps(default=str) renders an unserialisable extra via str(), so an object repr containing secrets or PII could reach a log line",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Not crashing the request path is the right priority, so the trade stands. The residual risk lands on future call sites: 13 consumer stories will add extra={...} calls, and per security-baseline the formatter offers them no protection. Needs a review/lint convention for what may be passed in extra= before those stories wire this up.",
+      "carry_forward_ref": "AF-02-carry"
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "risky-pattern",
+      "task_id": "T-01",
+      "source": "services/api/app/dependencies/range.py:35",
+      "summary": "rejected_value logs the raw, unbounded user-supplied query value \u2014 log-injection and volume-amplification vector",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Accepted for fix in this session: cap rejected_value before logging. Keeps the PRD-mandated three-field set and TC-19 green while removing the unbounded-input vector; log injection was contained only incidentally by json.dumps escaping.",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "spec-gap",
+      "task_id": "T-08",
+      "source": "services/api/app/utils/format.py:59",
+      "summary": "no B/billions bucket \u2014 magnitudes above ~999,950,000 render as \"1000.0M\" and grow unbounded",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Genuine product decision the agent correctly refused to invent on its own authority. Must be settled \u2014 B bucket, display cap, or accepted-as-is \u2014 before the first consumer story renders org-wide 12-month token totals, which can plausibly reach 1e9.",
+      "carry_forward_ref": "AF-04-carry"
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "contract-drift",
+      "task_id": "T-18",
+      "source": "docs/requirements/api.md:198",
+      "summary": "guardrails-api defines pass = Enforced or Warning, contradicting D-05 / compute_guardrail_summary which counts Enforced only",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Real cross-story contradiction, but guardrails-api is produced_by SHP-05 and is not BED-02's contract to change. Assigned to the SHP-05 owner: either align the pass definition with D-05 or state explicitly that the two rollups are distinct. Left unedited rather than forced into agreement, since which is right is a product question.",
+      "carry_forward_ref": "AF-05-carry"
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "evidence-gap",
+      "task_id": "T-16",
+      "source": "services/api/tests/perf/test_range_pagination_perf.py:1",
+      "summary": "TC-18 asserts the 2s NFR-002 budget but passes in under a millisecond \u2014 no route, no I/O, so it does not verify NFR-002",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Cannot be closed inside BED-02: no production route is wired and nothing in the path touches Postgres. NFR-002 gets real verification when the first consumer story (OVW/PGD/SHP) wires a DB-backed endpoint and measures it. Also record that PLAN.md section 7's row for this file still describes migrated_db/test_session seeding the implementation does not use.",
+      "carry_forward_ref": "AF-06-carry"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "evidence-na",
+      "task_id": "n/a",
+      "source": "docs/config/project-commands.yaml:19",
+      "summary": "design_check dimension marked N/A \u2014 key empty, no a11y/console-error/perf tool declared",
+      "raised_by": "implementation-agent",
+      "raised_at": "2026-08-27",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-08-27T16:55:00Z",
+      "rationale": "Legitimate N/A for this diff: BED-02 is backend-only with design=n/a in state and no UI surface, so design_check has nothing to inspect. Same flag BED-01 raised as AF-09 and rejected for the same reason.",
+      "carry_forward_ref": null
+    }
+  ],
+  "pending_carry_forward": [
+    {
+      "item_id": "AF-02-carry",
+      "kind": "finding",
+      "reason": "Not crashing the request path is the right priority, so the trade stands. The residual risk lands on future call sites: 13 consumer stories will add extra={...} calls, and per security-baseline the formatter offers them no protection. Needs a review/lint convention for what may be passed in extra= before those stories wire this up.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T16:55:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-04-carry",
+      "kind": "finding",
+      "reason": "Genuine product decision the agent correctly refused to invent on its own authority. Must be settled \u2014 B bucket, display cap, or accepted-as-is \u2014 before the first consumer story renders org-wide 12-month token totals, which can plausibly reach 1e9.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T16:55:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-05-carry",
+      "kind": "finding",
+      "reason": "Real cross-story contradiction, but guardrails-api is produced_by SHP-05 and is not BED-02's contract to change. Assigned to the SHP-05 owner: either align the pass definition with D-05 or state explicitly that the two rollups are distinct. Left unedited rather than forced into agreement, since which is right is a product question.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T16:55:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-06-carry",
+      "kind": "finding",
+      "reason": "Cannot be closed inside BED-02: no production route is wired and nothing in the path touches Postgres. NFR-002 gets real verification when the first consumer story (OVW/PGD/SHP) wires a DB-backed endpoint and measures it. Also record that PLAN.md section 7's row for this file still describes migrated_db/test_session seeding the implementation does not use.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-08-27T16:55:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-08-27 P=20/20 in 1 round(s)",
+  "validation_report": "docs/features/BED-02/VALIDATION-20260827-1900.md",
+  "review": "PASS",
+  "review_report": "docs/features/BED-02/REVIEW.md",
+  "gate_rounds": 1,
+  "impl": "complete",
+  "impl_branch": "feature/BED-02",
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/83",
+  "tracker_review_comment": "pratikpawar009/Dashboard#12#issuecomment-5438044966"
+}

@@ -1,0 +1,1250 @@
+{
+  "story_id": "BED-02",
+  "test_cases": [
+    {
+      "id": "BED-02-TC-01",
+      "title": "validate_range accepts 7d, 30d, and 90d and the endpoint scopes its query accordingly",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-1",
+      "given": "a test FastAPI router built on Depends(validate_range) that echoes the resolved range and the query scope it derived",
+      "when": "the endpoint is called with range=7d, range=30d, and range=90d in turn",
+      "then": "each call succeeds with 200 and the response reports the range value was accepted and used to scope the query",
+      "objective": "Verify all three documented range values are accepted by the shared dependency and reach the handler for query scoping.",
+      "preconditions": [
+        "app/dependencies/range.py exposes validate_range()",
+        "a throwaway test router registers one GET endpoint with range: str = Depends(validate_range)"
+      ],
+      "test_data": {
+        "range_values": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Mount the test router on a FastAPI TestClient app",
+        "GET /test-range?range=7d, then range=30d, then range=90d"
+      ],
+      "expected_results": [
+        "All three requests return HTTP 200",
+        "Each response body echoes the exact range value that was requested",
+        "No HTTPException is raised for any of the three accepted values"
+      ],
+      "tags": [
+        "range-validation",
+        "happy-path"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_accepts_documented_range_values",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#66"
+    },
+    {
+      "id": "BED-02-TC-02",
+      "title": "Accepted range value maps to the correct lookback-window boundary",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-1",
+      "given": "the same test router as TC-01, additionally computing a query start-date from the validated range",
+      "when": "the endpoint is called with each accepted range value against a fixed 'now' clock",
+      "then": "the computed start-date is exactly now minus the range's day count (7, 30, or 90)",
+      "objective": "Verify range acceptance actually scopes the query window correctly, not just that the string passes validation.",
+      "preconditions": [
+        "Test endpoint freezes 'now' to a fixed timestamp for deterministic assertions"
+      ],
+      "test_data": {
+        "frozen_now": "2026-08-27T00:00:00Z",
+        "expected_start": {
+          "7d": "2026-08-20T00:00:00Z",
+          "30d": "2026-07-28T00:00:00Z",
+          "90d": "2026-05-29T00:00:00Z"
+        }
+      },
+      "steps": [
+        "Freeze the clock to test_data.frozen_now",
+        "Call the test endpoint with range=7d, 30d, and 90d in turn",
+        "Read the computed start-date from each response"
+      ],
+      "expected_results": [
+        "Computed start-date for each range matches test_data.expected_start exactly"
+      ],
+      "tags": [
+        "range-validation",
+        "query-scoping"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_range_maps_to_correct_window_start, tests/unit/test_range_validation.py::test_range_to_start_rejects_naive_now",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#67"
+    },
+    {
+      "id": "BED-02-TC-03",
+      "title": "Range values outside {7d, 30d, 90d} return HTTP 400, never FastAPI's default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-2",
+      "given": "the same test router built on Depends(validate_range)",
+      "when": "the endpoint is called with a range value not in {7d, 30d, 90d}",
+      "then": "the response status is 400, not the FastAPI/Pydantic default 422 type-coercion error",
+      "objective": "Verify the explicit-check mechanism (Depends raising HTTPException(400) before Pydantic coercion) rejects out-of-set values with 400, closing the 400-vs-422 gap FastAPI would otherwise produce.",
+      "preconditions": [
+        "validate_range() runs as a Depends() function, not inline per-handler or middleware"
+      ],
+      "test_data": {
+        "invalid_values": [
+          "invalid",
+          "60d",
+          "",
+          "7D",
+          "0d"
+        ]
+      },
+      "steps": [
+        "For each value in test_data.invalid_values, GET /test-range?range=<value>",
+        "Record the response status code for each call"
+      ],
+      "expected_results": [
+        "Every call in test_data.invalid_values returns status_code == 400",
+        "No call returns 422 for any of the five values, including the case-sensitivity variant '7D'"
+      ],
+      "tags": [
+        "range-validation",
+        "negative",
+        "400-vs-422"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_invalid_range_returns_400_not_422",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#68"
+    },
+    {
+      "id": "BED-02-TC-04",
+      "title": "Invalid range rejection returns the exact error_body() envelope shape via register_exception_handlers()",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-FR-1",
+      "given": "validate_range() raises HTTPException(400, 'invalid_range') for a value outside {7d, 30d, 90d}",
+      "when": "the request is handled by an app with register_exception_handlers() wired (app/core/errors.py)",
+      "then": "the response body is exactly {\"error\": {\"code\": \"http_400\", \"message\": \"invalid_range\", \"details\": null}}",
+      "objective": "Verify FR-1's exact mechanism: validate_range() routes through the existing error_body()/register_exception_handlers() machinery, producing the documented envelope byte-for-byte, not an ad hoc shape.",
+      "preconditions": [
+        "Test app calls register_exception_handlers(app) from app/core/errors.py",
+        "Test router depends on validate_range()"
+      ],
+      "test_data": {
+        "invalid_range": "60d"
+      },
+      "steps": [
+        "GET /test-range?range=60d against the wired test app",
+        "Parse the JSON response body"
+      ],
+      "expected_results": [
+        "response.status_code == 400",
+        "response.json() == {\"error\": {\"code\": \"http_400\", \"message\": \"invalid_range\", \"details\": null}}"
+      ],
+      "tags": [
+        "range-validation",
+        "error-envelope",
+        "FR-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_invalid_range_error_envelope_matches_error_body_shape",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#69"
+    },
+    {
+      "id": "BED-02-TC-05",
+      "title": "offset/limit pagination clamps limit to 50 when omitted or over-max",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-3",
+      "given": "a test router built on the offset/limit pagination helper in app/dependencies/pagination.py",
+      "when": "the endpoint is called with limit omitted, and separately with limit=500",
+      "then": "both calls resolve to an effective limit of 50, not an error and not the raw over-max value",
+      "objective": "Verify the offset/limit helper clamps rather than rejects, per AC-3's stated max of 50.",
+      "preconditions": [
+        "app/dependencies/pagination.py exposes the offset/limit helper",
+        "test router echoes the resolved offset/limit values"
+      ],
+      "test_data": {
+        "limit_omitted": null,
+        "limit_over_max": 500,
+        "expected_clamped_limit": 50
+      },
+      "steps": [
+        "GET /test-paginate-offset (no limit query param)",
+        "GET /test-paginate-offset?limit=500"
+      ],
+      "expected_results": [
+        "Both responses report resolved limit == 50",
+        "Neither call returns a 4xx error"
+      ],
+      "tags": [
+        "pagination",
+        "offset-limit",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_pagination.py::test_offset_limit_clamps_when_omitted, tests/unit/test_pagination.py::test_offset_limit_clamps_when_over_max",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#70"
+    },
+    {
+      "id": "BED-02-TC-06",
+      "title": "offset/limit pagination passes through within-bounds values unchanged",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-3",
+      "given": "the same offset/limit pagination helper",
+      "when": "the endpoint is called with offset=10 and limit=20 (both within bounds)",
+      "then": "the resolved offset and limit equal the requested values exactly, unmodified",
+      "objective": "Verify the clamp logic in TC-05 does not over-clamp legitimate within-bounds requests.",
+      "preconditions": [
+        "test router echoes the resolved offset/limit values"
+      ],
+      "test_data": {
+        "offset": 10,
+        "limit": 20
+      },
+      "steps": [
+        "GET /test-paginate-offset?offset=10&limit=20"
+      ],
+      "expected_results": [
+        "Resolved offset == 10 and resolved limit == 20 exactly"
+      ],
+      "tags": [
+        "pagination",
+        "offset-limit",
+        "happy-path"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_pagination.py::test_offset_limit_passes_through_within_bounds",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#71"
+    },
+    {
+      "id": "BED-02-TC-07",
+      "title": "page/page_size pagination clamps page_size to 100 when omitted or over-max",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-4",
+      "given": "a test router built on the page/page_size pagination helper in app/dependencies/pagination.py",
+      "when": "the endpoint is called with page_size omitted, and separately with page_size=250",
+      "then": "both calls resolve to an effective page_size of 100, not an error and not the raw over-max value",
+      "objective": "Verify the page/page_size helper clamps to the documented max of 100, matching activities.py's existing bound.",
+      "preconditions": [
+        "app/dependencies/pagination.py exposes the page/page_size helper",
+        "test router echoes the resolved page/page_size values"
+      ],
+      "test_data": {
+        "page_size_omitted": null,
+        "page_size_over_max": 250,
+        "expected_clamped_page_size": 100
+      },
+      "steps": [
+        "GET /test-paginate-page (no page_size query param)",
+        "GET /test-paginate-page?page_size=250"
+      ],
+      "expected_results": [
+        "Both responses report resolved page_size == 100",
+        "Neither call returns a 4xx error"
+      ],
+      "tags": [
+        "pagination",
+        "page-size",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_pagination.py::test_page_size_clamps_when_omitted, tests/unit/test_pagination.py::test_page_size_clamps_when_over_max",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#72"
+    },
+    {
+      "id": "BED-02-TC-08",
+      "title": "Shared page/page_size max stays consistent with activities.py's existing MAX_PAGE_SIZE",
+      "type": "unit",
+      "category": "regression",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-02-AC-4",
+      "given": "app/api/activities.py's existing MAX_PAGE_SIZE constant (100) and the new shared page/page_size helper",
+      "when": "both max-page-size values are read directly from source",
+      "then": "the new shared helper's max equals activities.py's MAX_PAGE_SIZE (100), preventing silent drift between the pre-existing router and the new shared contract",
+      "objective": "Prove the new pagination helper was built to match the pre-existing activities.py bound rather than introducing a second, divergent max.",
+      "preconditions": [
+        "app/api/activities.py importable with MAX_PAGE_SIZE defined",
+        "app/dependencies/pagination.py importable with its own max-page-size constant"
+      ],
+      "test_data": {
+        "activities_max_page_size": 100
+      },
+      "steps": [
+        "Import MAX_PAGE_SIZE from app/api/activities.py",
+        "Import the page/page_size helper's max constant from app/dependencies/pagination.py",
+        "Compare the two values"
+      ],
+      "expected_results": [
+        "Both constants equal 100",
+        "No divergence between the pre-existing router bound and the shared helper bound"
+      ],
+      "tags": [
+        "pagination",
+        "page-size",
+        "consistency"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_pagination.py::test_max_page_size_matches_activities_router",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#73"
+    },
+    {
+      "id": "BED-02-TC-09",
+      "title": "adoption_percent is computed server-side by a services/*.py function, never left for the frontend",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-5",
+      "given": "seeded program_summary/org_summary_rollup rows with known program-count values",
+      "when": "the derived-value services function computing adoption_percent is invoked against those rows",
+      "then": "the function returns the correctly computed percentage, and the raw component counts alone (without the computed field) are never the sole payload returned to a caller",
+      "objective": "Verify adoption % is computed at the services read-time layer, satisfying AC-5's server-side computation requirement.",
+      "preconditions": [
+        "Disposable test database migrated to head (BED-01 shape)",
+        "org_summary_rollup seeded with programs_using_ai_count=6 and programs_total=8"
+      ],
+      "test_data": {
+        "programs_using_ai_count": 6,
+        "programs_total": 8,
+        "expected_adoption_percent": 75.0
+      },
+      "steps": [
+        "Seed org_summary_rollup with test_data counts",
+        "Call the services/*.py function computing adoption_percent for that org",
+        "Inspect the returned value"
+      ],
+      "expected_results": [
+        "Returned adoption_percent == 75.0",
+        "The function's output includes the computed field, not just raw counts for the caller to divide itself"
+      ],
+      "tags": [
+        "derived-value",
+        "services",
+        "adoption-percent"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_derived_values.py::test_compute_adoption_percent_returns_correct_value, tests/unit/test_derived_values.py::test_compute_adoption_percent_merges_computed_field_with_raw_counts, tests/unit/test_derived_values.py::test_compute_adoption_percent_none_when_programs_total_zero",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#74"
+    },
+    {
+      "id": "BED-02-TC-10",
+      "title": "'X/Y passing' guardrail string is computed server-side by a services/*.py function",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-5",
+      "given": "seeded program_guardrails rows with a known pass/total split",
+      "when": "the derived-value services function computing the 'X/Y passing' string is invoked",
+      "then": "the function returns the pre-formatted 'X/Y passing' string computed from the seeded rows",
+      "objective": "Verify the 'X/Y passing' derived string is computed server-side, per AC-5, not assembled by the frontend from raw counts.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "program_guardrails seeded with 4 passing rows out of 6 total for one program"
+      ],
+      "test_data": {
+        "passing_count": 4,
+        "total_count": 6,
+        "expected_string": "4/6 passing"
+      },
+      "steps": [
+        "Seed program_guardrails with test_data counts for one program",
+        "Call the services/*.py function computing the guardrail summary for that program",
+        "Inspect the returned string"
+      ],
+      "expected_results": [
+        "Returned string exactly equals test_data.expected_string"
+      ],
+      "tags": [
+        "derived-value",
+        "services",
+        "guardrails"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_derived_values.py::test_compute_guardrail_summary_returns_expected_string, tests/unit/test_derived_values.py::test_compute_guardrail_summary_only_enforced_counts_as_passing, tests/unit/test_derived_values.py::test_compute_guardrail_summary_empty_sequence_returns_zero_over_zero",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#75"
+    },
+    {
+      "id": "BED-02-TC-11",
+      "title": "M/K numeric formatter produces consistent output across magnitude boundaries",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-6",
+      "given": "the shared numeric formatting utility",
+      "when": "it formats values spanning sub-thousand, thousand, and million magnitudes",
+      "then": "each value is rendered with the correct K/M suffix and precision",
+      "objective": "Verify M/K numeric formatting is applied consistently at magnitude boundaries.",
+      "preconditions": [
+        "app/utils/format.py importable"
+      ],
+      "test_data": {
+        "cases": [
+          {
+            "input": 999,
+            "expected": "999"
+          },
+          {
+            "input": 2500,
+            "expected": "2.5K"
+          },
+          {
+            "input": 1500000,
+            "expected": "1.5M"
+          },
+          {
+            "input": 0,
+            "expected": "0"
+          }
+        ]
+      },
+      "steps": [
+        "For each case in test_data.cases, call the numeric formatting function with case.input"
+      ],
+      "expected_results": [
+        "Each call's return value exactly equals the corresponding case.expected string"
+      ],
+      "tags": [
+        "formatting",
+        "numeric",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_format.py::test_format_number_boundaries, tests/unit/test_format.py::test_format_number_promotes_on_rounding_regression_fractional_input, tests/unit/test_format.py::test_format_number_promotes_on_rounding_regression_just_under_1m, tests/unit/test_format.py::test_format_number_promotes_on_rounding_regression_original_defect_value",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#76"
+    },
+    {
+      "id": "BED-02-TC-12",
+      "title": "h/m time formatter produces consistent output across duration boundaries",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-6",
+      "given": "the shared time-duration formatting utility",
+      "when": "it formats durations spanning sub-hour, exact-hour, and multi-hour-with-minutes values",
+      "then": "each value is rendered with the correct h/m format",
+      "objective": "Verify h/m time formatting is applied consistently at duration boundaries.",
+      "preconditions": [
+        "app/utils/format.py importable"
+      ],
+      "test_data": {
+        "cases": [
+          {
+            "input_minutes": 0,
+            "expected": "0m"
+          },
+          {
+            "input_minutes": 45,
+            "expected": "45m"
+          },
+          {
+            "input_minutes": 60,
+            "expected": "1h"
+          },
+          {
+            "input_minutes": 125,
+            "expected": "2h 5m"
+          }
+        ]
+      },
+      "steps": [
+        "For each case in test_data.cases, call the time formatting function with case.input_minutes"
+      ],
+      "expected_results": [
+        "Each call's return value exactly equals the corresponding case.expected string"
+      ],
+      "tags": [
+        "formatting",
+        "time",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_format.py::test_format_duration_boundaries, tests/unit/test_format.py::test_format_duration_negative_raises_value_error",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#77"
+    },
+    {
+      "id": "BED-02-TC-13",
+      "title": "No duplicate frontend M/K or h/m formatting utility exists \u2014 formatting stays at exactly one layer",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-02-FR-2",
+      "given": "the FR-2 decision that formatting lands backend-side only, in app/utils/format.py",
+      "when": "the apps/web source tree is scanned for an equivalent M/K numeric or h/m time formatting utility",
+      "then": "no such utility exists client-side \u2014 formatting is not mixed across both layers",
+      "objective": "Verify FR-2's single-layer decision is upheld: backend owns formatting, no parallel frontend implementation was introduced.",
+      "preconditions": [
+        "apps/web source tree available in the checkout"
+      ],
+      "test_data": {
+        "forbidden_patterns": [
+          "formatNumber",
+          "formatMK",
+          "formatDuration",
+          "formatHoursMinutes"
+        ]
+      },
+      "steps": [
+        "Recursively search apps/web/src (or equivalent) for function/module names matching test_data.forbidden_patterns",
+        "Recursively search apps/web for any module implementing K/M-suffix or h/m-suffix string construction logic"
+      ],
+      "expected_results": [
+        "No match is found for any forbidden pattern",
+        "No independent M/K or h/m formatting implementation exists under apps/web"
+      ],
+      "tags": [
+        "formatting",
+        "single-layer",
+        "FR-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_format.py::test_no_duplicate_frontend_formatter_exists",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#78"
+    },
+    {
+      "id": "BED-02-TC-14",
+      "title": "Two routers built on the shared validate_range() dependency return identical 400 status and error-body shape",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-AC-7",
+      "given": "two independent test routers (router_a, router_b) both declaring range: str = Depends(validate_range) on different paths",
+      "when": "both routers are exercised with the same invalid range value",
+      "then": "both responses return identical status code and byte-identical error-body shape",
+      "objective": "Verify the shared range-validation contract behaves identically across independent consumers, proving it is a true shared dependency and not duplicated per-router logic that could drift.",
+      "preconditions": [
+        "router_a mounted at /consumer-a/items, router_b mounted at /consumer-b/reports, both depending on the same validate_range import",
+        "register_exception_handlers(app) wired on the shared test app"
+      ],
+      "test_data": {
+        "invalid_range": "60d"
+      },
+      "steps": [
+        "GET /consumer-a/items?range=60d",
+        "GET /consumer-b/reports?range=60d",
+        "Compare the two responses"
+      ],
+      "expected_results": [
+        "Both responses return status_code == 400",
+        "Both response bodies are byte-identical: {\"error\": {\"code\": \"http_400\", \"message\": \"invalid_range\", \"details\": null}}"
+      ],
+      "tags": [
+        "range-validation",
+        "cross-router",
+        "consistency",
+        "AC-7"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_two_consumer_routers_return_identical_rejection",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#79"
+    },
+    {
+      "id": "BED-02-TC-15",
+      "title": "JSONFormatter surfaces extra={route, param, rejected_value} fields in the emitted JSON payload",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-FR-3",
+      "given": "a logging.LogRecord created via logger.warning('invalid_range', extra={'route': ..., 'param': ..., 'rejected_value': ...}) formatted by JSONFormatter",
+      "when": "JSONFormatter.format(record) is called and the result parsed as JSON",
+      "then": "the parsed payload contains route, param, and rejected_value keys with the exact values passed in extra",
+      "objective": "Verify FR-3: JSONFormatter.format merges LogRecord extras into its JSON payload. This test MUST fail against the current formatter (which builds its payload from a fixed key set and never reads record.__dict__) and MUST pass once the extra-passthrough merge is added.",
+      "preconditions": [
+        "app/core/logging.py's JSONFormatter importable",
+        "A logging.LogRecord can be constructed directly (bypassing a real logger) or captured via a test logging.Handler"
+      ],
+      "test_data": {
+        "route": "/api/activities",
+        "param": "range",
+        "rejected_value": "60d"
+      },
+      "steps": [
+        "Create a LogRecord (or emit via a captured logger.warning call) with extra=test_data",
+        "Call JSONFormatter().format(record)",
+        "json.loads() the returned string"
+      ],
+      "expected_results": [
+        "Parsed payload['route'] == '/api/activities'",
+        "Parsed payload['param'] == 'range'",
+        "Parsed payload['rejected_value'] == '60d'"
+      ],
+      "tags": [
+        "logging",
+        "JSONFormatter",
+        "FR-3",
+        "tdd-red-before-fix"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_logging.py::test_regression_fr3_extras_surface_in_json_payload",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#80"
+    },
+    {
+      "id": "BED-02-TC-16",
+      "title": "JSONFormatter extras merge excludes standard/reserved LogRecord attributes",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-02-FR-3",
+      "given": "a LogRecord formatted by JSONFormatter with no custom extra fields supplied",
+      "when": "JSONFormatter.format(record) is called and the result parsed as JSON",
+      "then": "the parsed payload contains only the documented fixed keys (timestamp, level, logger, message, exc_info?) plus any genuine extras \u2014 never internal LogRecord attributes like pathname, funcName, or args leaking in as top-level keys",
+      "objective": "Prove the extras-merge added for FR-3 does not also leak Python's standard LogRecord attribute set, which would pollute the JSON payload and could collide with future extra field names.",
+      "preconditions": [
+        "app/core/logging.py's JSONFormatter importable"
+      ],
+      "test_data": {
+        "reserved_attrs_to_check": [
+          "pathname",
+          "funcName",
+          "args",
+          "msg",
+          "levelno",
+          "process",
+          "thread"
+        ]
+      },
+      "steps": [
+        "Emit a plain logger.warning('test message') with no extra kwarg",
+        "Call JSONFormatter().format(record) on the resulting LogRecord",
+        "json.loads() the returned string"
+      ],
+      "expected_results": [
+        "None of test_data.reserved_attrs_to_check appear as top-level keys in the parsed payload",
+        "Parsed payload only contains timestamp, level, logger, message (and exc_info only when an exception is present)"
+      ],
+      "tags": [
+        "logging",
+        "JSONFormatter",
+        "FR-3",
+        "negative"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_logging.py::test_regression_fr3_reserved_logrecord_attrs_do_not_leak",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-02-TC-17",
+      "title": "Every derived-value services function carries a docstring stating its aggregation formula",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-02-FR-4",
+      "given": "the services/api/app/services/*.py modules implementing derived-value computation (adoption %, period delta, average, X/Y passing)",
+      "when": "each such function's __doc__ is inspected",
+      "then": "each docstring states the aggregation formula (e.g. 'adoption_percent = programs_using_ai_count / programs_total * 100')",
+      "objective": "Verify FR-4: derived-value functions document their formula on the function itself, not the model field, so downstream OVW/PGD/SHP implementers don't reverse-engineer the math.",
+      "preconditions": [
+        "services/api/app/services/*.py modules importable"
+      ],
+      "test_data": {
+        "expected_docstring_markers": [
+          "adoption_percent =",
+          "delta =",
+          "average =",
+          "passing"
+        ]
+      },
+      "steps": [
+        "Import every function in services/api/app/services/*.py identified as computing a derived value",
+        "Read each function's __doc__",
+        "Assert each docstring contains a formula-shaped statement (an '=' expression naming its inputs)"
+      ],
+      "expected_results": [
+        "Every derived-value function has a non-empty docstring",
+        "Each docstring contains an explicit formula expression, not just a one-line description"
+      ],
+      "tags": [
+        "documentation",
+        "services",
+        "FR-4"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_derived_values.py::test_compute_adoption_percent_docstring_states_formula, tests/unit/test_derived_values.py::test_compute_period_delta_docstring_states_formula, tests/unit/test_derived_values.py::test_compute_average_docstring_states_formula, tests/unit/test_derived_values.py::test_compute_guardrail_summary_docstring_states_formula",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-02-TC-18",
+      "title": "Range/filter-change refresh on a contract-built endpoint responds within the 2s budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-02-NFR-performance",
+      "given": "a test endpoint composed from validate_range(), the pagination helper, and a services derived-value call, seeded with representative row counts",
+      "when": "50 sequential requests are issued varying the range parameter",
+      "then": "p95 response latency is under 2 seconds",
+      "objective": "Verify the shared contract's overhead does not itself threaten the \u22642s range/filter-change refresh budget (NFR-002) that downstream consumer endpoints inherit.",
+      "preconditions": [
+        "Disposable test database migrated to head and seeded with representative rollup/governance row counts",
+        "Test endpoint wires Depends(validate_range) + pagination helper + a services derived-value call"
+      ],
+      "test_data": {
+        "iterations": 50,
+        "range_values_cycled": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Warm up with 5 unmeasured requests",
+        "Issue 50 sequential GET requests cycling through test_data.range_values_cycled",
+        "Record each request's wall-clock latency",
+        "Compute p95 across the 50 measured requests"
+      ],
+      "expected_results": [
+        "p95 latency < 2000 ms"
+      ],
+      "tags": [
+        "performance",
+        "NFR-002",
+        "budget"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 60,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 2000ms (NFR-002)",
+          "measured": "p95 < 60ms across 50 measured requests (whole-test call duration 0.06s; shared-contract overhead only, in-memory ProgramGuardrail rows, no DB I/O \u2014 does not verify real end-to-end NFR-002; AF-06-carry)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "tests/perf/test_range_pagination_perf.py::test_shared_contract_p95_latency_under_nfr_budget",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-02-TC-19",
+      "title": "Invalid-range rejection logs only the three documented opaque fields, no PII or extraneous user context",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-NFR-security",
+      "given": "validate_range() rejects an invalid range and logs via logger.warning(..., extra={'route', 'param', 'rejected_value'})",
+      "when": "the resulting JSON log line is captured and parsed",
+      "then": "the log entry contains exactly route, param, and rejected_value as its custom fields \u2014 no user-identity, session, email, or other free-text field is present",
+      "objective": "Verify the observability logging added for the rejection path stays within the security-baseline non-PII scope: opaque route/param/value identifiers only, per .claude/rules/security-baseline.md.",
+      "preconditions": [
+        "Test app wires validate_range() on a real endpoint with logging captured via a test log handler"
+      ],
+      "test_data": {
+        "invalid_range": "60d",
+        "forbidden_fields": [
+          "user_id",
+          "email",
+          "session_id",
+          "ip",
+          "authorization"
+        ]
+      },
+      "steps": [
+        "GET /test-range?range=60d against the wired test app with log capture enabled",
+        "Parse the captured JSON log line"
+      ],
+      "expected_results": [
+        "Log entry's custom fields are exactly {route, param, rejected_value}",
+        "None of test_data.forbidden_fields appear anywhere in the log entry"
+      ],
+      "tags": [
+        "security",
+        "logging",
+        "PII",
+        "NFR-security"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_invalid_range_logs_only_documented_fields",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-02-TC-20",
+      "title": "validate_range() rejection triggers a single structured warning log line via the real dependency (end-to-end of FR-3)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-02-NFR-observability",
+      "given": "a real request hitting a test endpoint built on Depends(validate_range) with an invalid range value",
+      "when": "the request is processed and validate_range() raises HTTPException(400)",
+      "then": "exactly one structured JSON warning log line is emitted carrying route, param, and rejected_value, produced by the actual validate_range() implementation (not a synthetic LogRecord)",
+      "objective": "Verify the observability requirement end-to-end: the real dependency's rejection path calls logger.warning with the documented extra fields, and JSONFormatter (FR-3) surfaces them, closing the loop between AC-2's rejection and the story's Observability NFR.",
+      "preconditions": [
+        "Test app wires configure_logging() and register_exception_handlers()",
+        "Test app wires the real validate_range() dependency on one endpoint"
+      ],
+      "test_data": {
+        "invalid_range": "abc"
+      },
+      "steps": [
+        "GET /test-range?range=abc with stdout log capture enabled",
+        "Parse the captured stdout for JSON log lines"
+      ],
+      "expected_results": [
+        "Exactly one WARNING-level JSON log line is emitted for the request",
+        "That log line's parsed payload includes route, param == 'range', and rejected_value == 'abc'"
+      ],
+      "tags": [
+        "observability",
+        "logging",
+        "end-to-end",
+        "FR-3"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T10:50:29.251476+00:00",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_range_validation.py::test_invalid_range_end_to_end_json_log_line",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "BED-02-AC-1",
+        "covered_by": [
+          "BED-02-TC-01",
+          "BED-02-TC-02"
+        ]
+      },
+      {
+        "id": "BED-02-AC-2",
+        "covered_by": [
+          "BED-02-TC-03"
+        ]
+      },
+      {
+        "id": "BED-02-AC-3",
+        "covered_by": [
+          "BED-02-TC-05",
+          "BED-02-TC-06"
+        ]
+      },
+      {
+        "id": "BED-02-AC-4",
+        "covered_by": [
+          "BED-02-TC-07",
+          "BED-02-TC-08"
+        ]
+      },
+      {
+        "id": "BED-02-AC-5",
+        "covered_by": [
+          "BED-02-TC-09",
+          "BED-02-TC-10"
+        ]
+      },
+      {
+        "id": "BED-02-AC-6",
+        "covered_by": [
+          "BED-02-TC-11",
+          "BED-02-TC-12"
+        ]
+      },
+      {
+        "id": "BED-02-AC-7",
+        "covered_by": [
+          "BED-02-TC-14"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "BED-02-FR-1",
+        "covered_by": [
+          "BED-02-TC-04"
+        ]
+      },
+      {
+        "id": "BED-02-FR-2",
+        "covered_by": [
+          "BED-02-TC-13"
+        ]
+      },
+      {
+        "id": "BED-02-FR-3",
+        "covered_by": [
+          "BED-02-TC-15",
+          "BED-02-TC-16"
+        ]
+      },
+      {
+        "id": "BED-02-FR-4",
+        "covered_by": [
+          "BED-02-TC-17"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "BED-02-NFR-performance",
+        "covered_by": [
+          "BED-02-TC-18"
+        ]
+      },
+      {
+        "id": "BED-02-NFR-security",
+        "covered_by": [
+          "BED-02-TC-19"
+        ]
+      },
+      {
+        "id": "BED-02-NFR-observability",
+        "covered_by": [
+          "BED-02-TC-20"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}
