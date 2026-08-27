@@ -121,9 +121,11 @@
         "R-04"
       ],
       "notes": "Depends()-not-middleware per FR-1/C-2 (module docstring states this); raises HTTPException(400, 'invalid_range') routed through existing error_body()/register_exception_handlers(); logs route/param/rejected_value via logger.warning(..., extra={...}) on rejection.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/dependencies/range.py"
+      ],
       "reason": null
     },
     {
@@ -140,9 +142,11 @@
       ],
       "risk_refs": [],
       "notes": "D-01: clamp via min(value, MAX) in the function body, Query() with ge= only (no le=) so an over-max value clamps instead of 422ing. MAX_PAGE_SIZE=100 kept equal to app.api.activities.MAX_PAGE_SIZE (TC-08).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/dependencies/pagination.py"
+      ],
       "reason": null
     },
     {
@@ -159,9 +163,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "from app.dependencies.range import validate_range, range_to_start; from app.dependencies.pagination import get_offset_limit, get_page_params \u2014 the entry-registration site for both new modules (Wiring dimension).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/dependencies/__init__.py"
+      ],
       "reason": null
     },
     {
@@ -179,9 +185,11 @@
         "R-04"
       ],
       "notes": "D-04: hardcoded _RESERVED_LOGRECORD_ATTRS frozenset; payload.update({k: v for k, v in record.__dict__.items() if k not in _RESERVED_LOGRECORD_ATTRS}) after the existing fixed-key payload is built.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/core/logging.py"
+      ],
       "reason": null
     },
     {
@@ -200,9 +208,11 @@
         "R-05"
       ],
       "notes": "D-02: functions accept pre-fetched OrgSummaryRollup rows / raw totals, return dict merging raw + computed field. Docstrings state formulas verbatim: 'adoption_percent = programs_using_ai_count / programs_total * 100', 'delta = (current_total - prior_total) / prior_total * 100', 'average = total / count' (FR-4 / TC-17 markers).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/services/rollup_compute.py"
+      ],
       "reason": null
     },
     {
@@ -221,9 +231,11 @@
         "R-05"
       ],
       "notes": "D-05: PASSING_STATUS = 'Enforced'; compute_guardrail_summary(guardrails) -> {passing_count, total_count, summary: f'{passing_count}/{total_count} passing'}. Docstring states the formula and the Enforced-only mapping.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/services/guardrail_compute.py"
+      ],
       "reason": null
     },
     {
@@ -240,9 +252,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "from app.services.rollup_compute import compute_adoption_percent, compute_period_delta, compute_average; from app.services.guardrail_compute import compute_guardrail_summary \u2014 entry-registration site for both new modules.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/services/__init__.py"
+      ],
       "reason": null
     },
     {
@@ -261,9 +275,11 @@
         "R-03"
       ],
       "notes": "format_number: >=1_000_000 -> '{v/1e6:.1f}M'; >=1_000 -> '{v/1e3:.1f}K'; else bare int string (0 -> '0', 999 -> '999'). format_duration: divmod(minutes, 60) -> '{h}h {m}m' / '{h}h' / '{m}m' per zero-branch.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/utils/format.py"
+      ],
       "reason": null
     },
     {
@@ -279,9 +295,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "from app.utils.format import format_number, format_duration \u2014 entry-registration site for the new module.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/app/utils/__init__.py"
+      ],
       "reason": null
     },
     {
@@ -295,9 +313,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "Package marker so tests/unit/* is importable, matching tests/__init__.py's existing package-ified convention (pytest-patterns).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/__init__.py"
+      ],
       "reason": null
     },
     {
@@ -326,9 +346,11 @@
         "R-07"
       ],
       "notes": "TC-01,02,03,04,14,19,20. Two throwaway routers (router_a/router_b) both Depends(validate_range) for TC-14/AC-7; httpx ASGITransport + AsyncClient per pytest-patterns example; TC-19/20 capture stdout JSON log lines via a test logging.Handler around the real validate_range() dependency (not a synthetic LogRecord) wired with configure_logging() + register_exception_handlers().",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_range_validation.py"
+      ],
       "reason": null
     },
     {
@@ -349,9 +371,11 @@
       ],
       "risk_refs": [],
       "notes": "TC-05,06,07,08. TC-08 is a pure import-and-compare (app.api.activities.MAX_PAGE_SIZE vs app.dependencies.pagination.MAX_PAGE_SIZE), no client needed.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_pagination.py"
+      ],
       "reason": null
     },
     {
@@ -375,9 +399,11 @@
         "R-05"
       ],
       "notes": "TC-09,10,17. Uses BED-01's tests/conftest.py migrated_db + test_session fixtures against the disposable _test-suffixed Postgres DB; seeds org_summary_rollup (TC-09) and program_guardrails (TC-10) rows directly via test_session, then calls the services functions. TC-17 introspects __doc__ on every services function for the formula markers (no DB needed).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_derived_values.py"
+      ],
       "reason": null
     },
     {
@@ -400,9 +426,11 @@
         "R-03"
       ],
       "notes": "TC-11,12 pure boundary-value assertions on format_number/format_duration. TC-13 recursively scans apps/web/src for forbidden_patterns (formatNumber, formatMK, formatDuration, formatHoursMinutes) and any independent K/M or h/m string-construction logic \u2014 proves FR-2's single-layer decision holds.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_format.py"
+      ],
       "reason": null
     },
     {
@@ -423,9 +451,11 @@
         "R-04"
       ],
       "notes": "TC-15 (extras surfaced) + TC-16 (reserved attrs excluded) construct LogRecord objects directly and call JSONFormatter().format(record); no live server.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_logging.py"
+      ],
       "reason": null
     },
     {
@@ -449,9 +479,12 @@
         "R-06"
       ],
       "notes": "TC-18. Uses migrated_db/test_session (BED-01 conftest.py) to seed representative rollup/guardrail row counts; endpoint composed from validate_range + get_offset_limit/get_page_params + one services call; 5 unmeasured warmup + 50 measured sequential ASGI requests; asserts p95 < 2000ms. Runs under the project's existing pytest runner (fastapi-2 stack's declared test_runner) \u2014 no new runner installed (Runner-setup dimension: N/A, no new tool).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/tests/perf/__init__.py",
+        "services/api/tests/perf/test_range_pagination_perf.py"
+      ],
       "reason": null
     },
     {
@@ -469,9 +502,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "PRD Documentation requirements: document app/dependencies, app/services, app/utils and the rule that new routers import them (from app.dependencies / app.services / app.utils) rather than reimplementing range/pagination/derived-value/formatting logic.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
       "reason": null
     },
     {
@@ -494,9 +529,11 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "Initial fill is ALREADY DONE at planning time (plan-authoring step 10 / SKILL.md:227 assigns authoring a registered cross-story contract to the planner, not the implementer) \u2014 docs/requirements/api.md#api-conventions now carries concrete signatures for range, pagination, derived_values and formatting. This task is therefore a RECONCILIATION, not an authoring pass: after T-01..T-09 land, diff the real function names, parameter defaults and return types against the contract and correct any drift. The 13 consumer stories build against this file, so a stale signature here is a cross-story defect, not a docs nit.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T14:30:00Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
       "reason": null
     }
   ]
