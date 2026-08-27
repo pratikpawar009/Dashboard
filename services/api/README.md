@@ -18,6 +18,31 @@ DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/dashboard
 
 Only start `uvicorn app.main:app` after migrations are applied.
 
+## Session factory
+
+`app/core/db.py` builds the engine + session factory once, at import time:
+
+```python
+engine = create_async_engine(settings.database_url)          # module-level, process-wide singleton
+SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
+async def get_db() -> AsyncIterator[AsyncSession]: ...       # FastAPI Depends() provider
+```
+
+`app/main.py` imports `engine` at module level and disposes it in an `@app.on_event("shutdown")` handler. Every DB-touching module must inject a session via `get_db()`; never construct a second engine.
+
+## Rollup rebuild
+
+`app/services/rollup_rebuild.py` is service-layer only — no HTTP route. Callers (ING-02/ING-06) invoke it directly.
+
+```python
+async def rebuild_program_rollups(session: AsyncSession, program_id: str) -> RebuildResult   # 7 program-scoped tables
+async def rebuild_org_rollups(session: AsyncSession) -> RebuildResult                        # 3 org-scoped tables
+```
+
+- **Full replace** — each call DELETEs the scope's rows and re-INSERTs from `usage_events`. Program scope is bounded to `program_id`; other programs are untouched.
+- **Transaction scope** — each call wraps its own tables in one transaction. The two scopes are never combined into a single cross-scope transaction.
+- **Idempotent**, precisely — re-running over an unchanged `usage_events` set reproduces identical business-value columns. Excludes `id` (fresh `uuid4()` on every INSERT) and `as_of_timestamp`/`created_at`/`updated_at` (set to "now" on every rebuild): idempotency does not mean byte-identical rows.
+
 ## Shared modules
 
 `app/dependencies/`, `app/services/`, `app/utils/` are the shared layer for router-facing derived values. Reach for these instead of re-implementing range/pagination/rollup/format logic per router — 13 downstream stories (OVW-01..04, PGD-01..06, SHP-02..06) depend on them behaving identically.

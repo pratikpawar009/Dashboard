@@ -74,6 +74,15 @@ shape:
 produced_by: BED-03
 consumed_by: [ING-02, ING-06]
 shape:
-  mechanism: "rebuild_program_rollups(program_id) / rebuild_org_rollups() fully re-derive every rollup table from usage_events on every successful ingest write — never incremental patches (A-002, FR-BE-06/07, NFR-012)"
-  invariant: "usage_events is append/upsert-only, unique on [program_id, session_id, cmd_ts]; rebuild is O(events for the affected program) per write"
+  contract: |
+    @dataclass(frozen=True)
+    class RebuildResult:
+        scope: Literal["program", "org"]
+        program_id: str | None
+        duration_ms: int
+        event_count: int
+
+    async def rebuild_program_rollups(session: AsyncSession, program_id: str) -> RebuildResult
+    async def rebuild_org_rollups(session: AsyncSession) -> RebuildResult
+  invariant: "fully re-derives every rollup table from usage_events on every successful ingest write — never incremental patches (A-002, FR-BE-06/07, NFR-012); usage_events is append/upsert-only, unique on [program_id, session_id, cmd_ts]; rebuild cost is O(events for the affected program) per write"
 ```

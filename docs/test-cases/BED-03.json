@@ -1,0 +1,1070 @@
+{
+  "story_id": "BED-03",
+  "test_cases": [
+    {
+      "id": "BED-03-TC-01",
+      "title": "rebuild_program_rollups fully replaces all 7 program-scoped rollup tables from usage_events alone",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-AC-1",
+      "given": "usage_events holds rows for program P across multiple sessions, commands, and releases",
+      "when": "rebuild_program_rollups(session, P) runs",
+      "then": "every program-scoped rollup table is fully replaced with values derived solely from usage_events rows for P",
+      "objective": "Verify rebuild_program_rollups derives correct aggregate values for all 7 program-scoped tables from usage_events alone, with no other data source.",
+      "preconditions": [
+        "Disposable test database migrated to head (18-table BED-01 schema)",
+        "usage_events seeded with a representative set of rows for program_id='prog-test-1': 3 sessions, 5 distinct commands, 2 releases, token usage on each row"
+      ],
+      "test_data": {
+        "program_id": "prog-test-1",
+        "seeded_event_count": 12,
+        "tables": [
+          "program_summary",
+          "program_releases",
+          "program_commands",
+          "program_members",
+          "session_series",
+          "program_token_series",
+          "user_sessions"
+        ]
+      },
+      "steps": [
+        "Seed usage_events with test_data.seeded_event_count rows for program_id='prog-test-1', spanning known sessions/commands/releases/token counts",
+        "Call await rebuild_program_rollups(session, 'prog-test-1')",
+        "Query each of the 7 tables in test_data.tables filtered to program_id='prog-test-1'"
+      ],
+      "expected_results": [
+        "All 7 tables contain rows for prog-test-1",
+        "Each table's aggregate values (counts, sums, series points) match hand-computed expectations derived directly from the seeded usage_events rows",
+        "Returned RebuildResult.event_count == 12 and RebuildResult.scope == 'program'"
+      ],
+      "tags": [
+        "rollup-rebuild",
+        "full-replace",
+        "happy-path"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 50,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 50,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-02",
+      "title": "Program-scoped rebuild deletes stale rows for events removed since the prior rebuild (DELETE+INSERT, not UPDATE/upsert)",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-2",
+      "given": "rebuild_program_rollups(P) has already run once, producing rollup rows anchored to an initial usage_events set",
+      "when": "a subset of P's usage_events rows is removed (simulating a corrected batch) and rebuild_program_rollups(P) runs again",
+      "then": "the rollup rows attributable only to the removed events are gone, not left behind as stale patched rows, proving the mechanism is DELETE...WHERE program_id=:pid + INSERT, never UPDATE/ON CONFLICT DO UPDATE",
+      "objective": "Prove FR-2's full-replace mechanics: a second rebuild after data shrinks removes stale aggregate contributions rather than leaving an incremental patch behind.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded with 10 rows for program_id='prog-test-2' including one distinct command 'rare-cmd' used only in 2 of those rows"
+      ],
+      "test_data": {
+        "program_id": "prog-test-2",
+        "initial_event_count": 10,
+        "removed_event_filter": "cmd_name='rare-cmd'",
+        "removed_event_count": 2
+      },
+      "steps": [
+        "Seed usage_events (10 rows) for prog-test-2 including 2 rows with cmd_name='rare-cmd'",
+        "Call rebuild_program_rollups(session, 'prog-test-2') and confirm program_commands contains a 'rare-cmd' row",
+        "Delete the 2 usage_events rows matching test_data.removed_event_filter directly from usage_events",
+        "Call rebuild_program_rollups(session, 'prog-test-2') again"
+      ],
+      "expected_results": [
+        "After the second rebuild, program_commands no longer contains a 'rare-cmd' row for prog-test-2",
+        "Remaining program-scoped rollup rows reflect only the 8 surviving usage_events rows",
+        "No row in any of the 7 program-scoped tables reflects the deleted events"
+      ],
+      "tags": [
+        "rollup-rebuild",
+        "full-replace",
+        "FR-2",
+        "not-a-patch"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-03",
+      "title": "rebuild_org_rollups fully replaces all 3 org-scoped rollup tables from usage_events across all programs",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-AC-2",
+      "given": "usage_events holds rows across 3 distinct programs",
+      "when": "rebuild_org_rollups(session) runs",
+      "then": "every org-scoped rollup table is fully replaced with values derived from usage_events across all programs",
+      "objective": "Verify rebuild_org_rollups derives correct aggregate values for all 3 org-scoped tables from the full usage_events set.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded with rows across program_id in {'prog-a','prog-b','prog-c'}, distinct token totals and active users per program"
+      ],
+      "test_data": {
+        "program_ids": [
+          "prog-a",
+          "prog-b",
+          "prog-c"
+        ],
+        "seeded_event_count": 30,
+        "tables": [
+          "org_summary_rollup",
+          "token_series",
+          "mau_series"
+        ]
+      },
+      "steps": [
+        "Seed usage_events with test_data.seeded_event_count rows spread across test_data.program_ids",
+        "Call await rebuild_org_rollups(session)",
+        "Query each of the 3 tables in test_data.tables"
+      ],
+      "expected_results": [
+        "All 3 org-scoped tables contain rows reflecting all 3 programs combined",
+        "Aggregate values match hand-computed expectations summed/derived across all seeded usage_events rows",
+        "Returned RebuildResult.event_count == 30, scope == 'org', program_id is None"
+      ],
+      "tags": [
+        "rollup-rebuild",
+        "full-replace",
+        "org-scope",
+        "happy-path"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-04",
+      "title": "Org-scoped rebuild deletes stale rows for a program's events removed since the prior rebuild",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-2",
+      "given": "rebuild_org_rollups() has already run once with events present for program 'prog-b'",
+      "when": "all of prog-b's usage_events rows are removed and rebuild_org_rollups() runs again",
+      "then": "prog-b's contribution is fully removed from the org-scoped tables' aggregates, not left as a stale patched value",
+      "objective": "Prove FR-2's full-replace mechanics at org scope: a second rebuild after a program's events disappear removes that program's aggregate contribution entirely.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded across prog-a and prog-b, with prog-b contributing a known distinct token total"
+      ],
+      "test_data": {
+        "program_ids": [
+          "prog-a",
+          "prog-b"
+        ],
+        "removed_program_id": "prog-b"
+      },
+      "steps": [
+        "Seed usage_events for prog-a and prog-b",
+        "Call rebuild_org_rollups(session) and record org_summary_rollup / token_series aggregate values",
+        "Delete all usage_events rows where program_id='prog-b'",
+        "Call rebuild_org_rollups(session) again"
+      ],
+      "expected_results": [
+        "Second-run org_summary_rollup / token_series / mau_series values equal exactly prog-a's contribution alone",
+        "No trace of prog-b's prior contribution remains in any org-scoped table"
+      ],
+      "tags": [
+        "rollup-rebuild",
+        "full-replace",
+        "org-scope",
+        "FR-2",
+        "not-a-patch"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-05",
+      "title": "Rebuild run twice on an unchanged event set produces byte-identical rollup rows",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-AC-3",
+      "given": "usage_events holds a fixed set of rows for program P and rebuild_program_rollups(P) has already been run once",
+      "when": "rebuild_program_rollups(P) is invoked a second time with no change to usage_events",
+      "then": "the second run's rollup rows are byte-identical to the first run's, across all 7 program-scoped tables",
+      "objective": "Verify idempotency: re-running the rebuild against an unchanged event set is a no-op with respect to observable output.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded with 8 rows for program_id='prog-idem-1'"
+      ],
+      "test_data": {
+        "program_id": "prog-idem-1",
+        "seeded_event_count": 8
+      },
+      "steps": [
+        "Seed usage_events for prog-idem-1",
+        "Call rebuild_program_rollups(session, 'prog-idem-1') and snapshot a row-checksum + COUNT(*) per program-scoped table",
+        "Call rebuild_program_rollups(session, 'prog-idem-1') again with no intervening writes",
+        "Snapshot the same checksum + COUNT(*) per table"
+      ],
+      "expected_results": [
+        "Second snapshot's checksum and COUNT(*) are identical to the first snapshot, for all 7 tables",
+        "No duplicate or drifted rows appear after the second run"
+      ],
+      "tags": [
+        "idempotency",
+        "rollup-rebuild"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-06",
+      "title": "Duplicate ingest payload is rejected by the unique constraint and the second rebuild is identical to the first (FR-4 mechanics)",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-4",
+      "given": "an ingest write posts a usage_events payload once, rebuild runs, then the identical payload is posted a second time",
+      "when": "the second identical insert is attempted against usage_events and the second rebuild runs",
+      "then": "the duplicate insert raises a unique-constraint violation on (program_id, session_id, cmd_ts) rather than being silently accepted, and the rollup rows after the second rebuild are byte-identical to the first run \u2014 no double-counting",
+      "objective": "Verify the exact idempotency test mechanics specified in FR-4: seed, rebuild, snapshot, attempt duplicate insert (assert UniqueViolation), rebuild again, assert byte-identical second snapshot.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events has the unique constraint on (program_id, session_id, cmd_ts) from BED-01's migration"
+      ],
+      "test_data": {
+        "program_id": "prog-idem-2",
+        "session_id": "sess-1",
+        "cmd_ts": "2026-08-27T12:00:00Z",
+        "payload_row_count": 5
+      },
+      "steps": [
+        "Insert test_data.payload_row_count usage_events rows for prog-idem-2 (one row keyed on session_id='sess-1', cmd_ts=test_data.cmd_ts)",
+        "Call rebuild_program_rollups(session, 'prog-idem-2') and snapshot per-table checksum + COUNT(*)",
+        "Attempt to re-insert the identical row (program_id='prog-idem-2', session_id='sess-1', cmd_ts=test_data.cmd_ts) into usage_events",
+        "Call rebuild_program_rollups(session, 'prog-idem-2') again",
+        "Snapshot per-table checksum + COUNT(*) a second time"
+      ],
+      "expected_results": [
+        "The duplicate insert attempt raises a unique-constraint violation (asyncpg.UniqueViolationError / IntegrityError) on (program_id, session_id, cmd_ts)",
+        "usage_events row count for prog-idem-2 remains test_data.payload_row_count after the failed duplicate insert",
+        "Second rebuild's snapshot is byte-identical to the first snapshot across all 7 program-scoped tables"
+      ],
+      "tags": [
+        "idempotency",
+        "unique-constraint",
+        "FR-4",
+        "no-double-count"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-07",
+      "title": "rebuild_program_rollups(P) changes only program P's rollup rows",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-AC-4",
+      "given": "usage_events holds rows for program P and unrelated program Q",
+      "when": "rebuild_program_rollups(P) completes",
+      "then": "only program P's rollup rows change; program Q's rollup rows are untouched",
+      "objective": "Verify the rebuild is scoped strictly to the target program and never performs a global scan or write.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded for program_id='prog-p' and program_id='prog-q'",
+        "Both programs' rollup tables pre-populated via an initial rebuild_program_rollups call for each"
+      ],
+      "test_data": {
+        "target_program": "prog-p",
+        "other_program": "prog-q"
+      },
+      "steps": [
+        "Rebuild both prog-p and prog-q once, snapshot prog-q's row checksums across all 7 program-scoped tables",
+        "Add 3 new usage_events rows for prog-p only",
+        "Call rebuild_program_rollups(session, 'prog-p')",
+        "Re-snapshot prog-q's row checksums across all 7 program-scoped tables"
+      ],
+      "expected_results": [
+        "prog-p's rollup rows reflect the 3 newly added events",
+        "prog-q's row checksums after the rebuild are identical to the pre-rebuild snapshot \u2014 zero rows changed"
+      ],
+      "tags": [
+        "isolation",
+        "program-scope",
+        "rollup-rebuild"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 50,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 50,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-08",
+      "title": "Program-scope isolation holds under a wide fan-out of unrelated programs",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-03-AC-4",
+      "given": "usage_events holds rows for 10 distinct programs",
+      "when": "rebuild_program_rollups is called for exactly one of the 10 programs",
+      "then": "the other 9 programs' rollup rows remain byte-identical, confirming O(events for P) scoping rather than any cross-program leakage even at higher program cardinality",
+      "objective": "Extend the isolation guarantee to a higher-cardinality scenario, closing the boundary case a 2-program test could miss (e.g. an unfiltered WHERE clause that happens to work with only 2 rows present).",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded for 10 distinct program_ids, each already rebuilt once"
+      ],
+      "test_data": {
+        "program_count": 10,
+        "target_program": "prog-05"
+      },
+      "steps": [
+        "Snapshot row checksums for all 7 program-scoped tables across all 10 programs",
+        "Add usage_events rows for prog-05 only",
+        "Call rebuild_program_rollups(session, 'prog-05')",
+        "Re-snapshot checksums for the remaining 9 programs"
+      ],
+      "expected_results": [
+        "prog-05's rows reflect the new events",
+        "All 9 other programs' checksums are unchanged across all 7 tables"
+      ],
+      "tags": [
+        "isolation",
+        "program-scope",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 190,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-09",
+      "title": "rollup_rebuild.py exports the documented signatures, RebuildResult shape, and never constructs its own session",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-1",
+      "given": "services/api/app/services/rollup_rebuild.py as the settled module path",
+      "when": "the module's public exports are inspected via reflection and a call is made with an injected AsyncSession",
+      "then": "rebuild_program_rollups(session, program_id) and rebuild_org_rollups(session) exist with the documented async signatures, return a RebuildResult carrying scope/program_id/duration_ms/event_count, and neither function creates its own session/engine internally",
+      "objective": "Verify FR-1's contract: exact module path, function signatures, DI mechanism, and the settlement of the stale backend/app/services/ingest.py test-mapping path.",
+      "preconditions": [
+        "services/api/app/services/rollup_rebuild.py importable",
+        "app/core/db.py's get_db()/SessionLocal importable"
+      ],
+      "test_data": {
+        "module_path": "services/api/app/services/rollup_rebuild.py",
+        "expected_result_fields": [
+          "scope",
+          "program_id",
+          "duration_ms",
+          "event_count"
+        ]
+      },
+      "steps": [
+        "Import rebuild_program_rollups and rebuild_org_rollups from app.services.rollup_rebuild",
+        "Inspect each function's signature via inspect.signature() and confirm parameter names/types (session: AsyncSession, program_id: str for the program variant)",
+        "Call rebuild_program_rollups(injected_session, 'prog-x') against a seeded test DB and inspect the returned object",
+        "Scan rollup_rebuild.py source for any direct SessionLocal()/create_async_engine() call inside the two functions"
+      ],
+      "expected_results": [
+        "Both functions are coroutine functions with the documented parameter signatures",
+        "The returned object exposes exactly test_data.expected_result_fields with correct types (scope: 'program', program_id: str, duration_ms: int, event_count: int)",
+        "Neither function constructs its own session \u2014 the injected session is the only session used"
+      ],
+      "tags": [
+        "contract",
+        "FR-1",
+        "module-path",
+        "session-injection"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-10",
+      "title": "A failure mid-rebuild rolls back the entire transaction \u2014 no partial rebuild visible to a concurrent reader",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-2",
+      "given": "rebuild_program_rollups(P) is mid-transaction, having already deleted and re-inserted rows for some of the 7 program-scoped tables",
+      "when": "an exception is forced during the INSERT for one of the remaining tables (e.g. a monkeypatched write raising an IntegrityError)",
+      "then": "the entire async with session.begin() block rolls back \u2014 none of the 7 tables show any change, matching their pre-rebuild state exactly",
+      "objective": "Verify the top research risk (transaction atomicity): all 7 (or 3) table mutations for one rebuild call commit or roll back together, never partially, per FR-2's single-transaction requirement.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded for program_id='prog-atomic-1' with an existing prior rollup state from a first successful rebuild"
+      ],
+      "test_data": {
+        "program_id": "prog-atomic-1",
+        "forced_failure_table": "program_token_series"
+      },
+      "steps": [
+        "Rebuild prog-atomic-1 once and snapshot checksums for all 7 tables",
+        "Add new usage_events rows for prog-atomic-1",
+        "Monkeypatch/mock the INSERT for test_data.forced_failure_table to raise an exception mid-transaction",
+        "Call rebuild_program_rollups(session, 'prog-atomic-1') and expect it to propagate the exception",
+        "Re-snapshot checksums for all 7 tables"
+      ],
+      "expected_results": [
+        "rebuild_program_rollups raises the forced exception rather than swallowing it",
+        "All 7 tables' checksums after the failed call exactly match the pre-call snapshot \u2014 no partial DELETE/INSERT from any table is visible",
+        "A subsequent successful rebuild_program_rollups(P) call (without the forced failure) produces the correct full replacement"
+      ],
+      "tags": [
+        "atomicity",
+        "transaction",
+        "FR-2",
+        "top-risk"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 100,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 100,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-11",
+      "title": "rebuild_program_rollups issues exactly one filtered read of usage_events, not one scan per rollup table",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-03-FR-3",
+      "given": "usage_events seeded for program P, with a SQLAlchemy query-count listener attached to the test session",
+      "when": "rebuild_program_rollups(session, P) runs",
+      "then": "exactly one SELECT against usage_events (filtered on program_id) is issued to derive all 7 program-scoped rollups' values, not 7 separate full scans",
+      "objective": "Verify FR-3's single-pass query design: one filtered read, not O(tables) reads, satisfying the performance-baseline no-N+1 rule.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded for program_id='prog-perf-scan'",
+        "SQLAlchemy engine 'before_cursor_execute' event listener attached to count SELECT statements against usage_events"
+      ],
+      "test_data": {
+        "program_id": "prog-perf-scan"
+      },
+      "steps": [
+        "Attach a query-counting listener scoped to statements referencing the usage_events table",
+        "Call rebuild_program_rollups(session, 'prog-perf-scan')",
+        "Read the listener's captured SELECT count against usage_events"
+      ],
+      "expected_results": [
+        "Exactly 1 SELECT statement against usage_events is recorded for the call",
+        "All 7 program-scoped tables are nonetheless populated correctly from that single scan"
+      ],
+      "tags": [
+        "performance",
+        "FR-3",
+        "single-pass",
+        "no-n-plus-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-12",
+      "title": "rebuild_org_rollups issues exactly one grouped read across all programs, not one scan per org-scoped table",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "BED-03-FR-3",
+      "given": "usage_events seeded across multiple programs, with a query-count listener attached to the test session",
+      "when": "rebuild_org_rollups(session) runs",
+      "then": "exactly one grouped SELECT against usage_events is issued to derive all 3 org-scoped rollups' values, not 3 separate scans",
+      "objective": "Verify FR-3's single-pass query design at org scope.",
+      "preconditions": [
+        "Disposable test database migrated to head",
+        "usage_events seeded across 3 programs",
+        "Query-counting listener scoped to statements referencing usage_events"
+      ],
+      "test_data": {
+        "program_ids": [
+          "prog-a",
+          "prog-b",
+          "prog-c"
+        ]
+      },
+      "steps": [
+        "Attach the query-counting listener",
+        "Call rebuild_org_rollups(session)",
+        "Read the captured SELECT count against usage_events"
+      ],
+      "expected_results": [
+        "Exactly 1 SELECT statement against usage_events is recorded for the call",
+        "All 3 org-scoped tables are populated correctly from that single scan"
+      ],
+      "tags": [
+        "performance",
+        "FR-3",
+        "single-pass",
+        "org-scope"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-13",
+      "title": "Program-scope rebuild emits exactly one rollup_rebuild_completed log line with scope/program_id/duration_ms/event_count",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-5",
+      "given": "a real rebuild_program_rollups(session, P) call against a test app wired with the app/core/logging.py JSONFormatter",
+      "when": "the call completes and captured log output is parsed",
+      "then": "exactly one structured JSON log line named rollup_rebuild_completed is emitted, with scope='program', program_id=P, duration_ms as an int, and event_count matching the scanned usage_events row count",
+      "objective": "Verify FR-5's observability event schema and single-emission point for the program scope, closing research condition C-5.",
+      "preconditions": [
+        "Test app configures logging via app.core.logging (JSONFormatter wired)",
+        "usage_events seeded with 6 rows for program_id='prog-log-1'",
+        "Log output captured via a test logging.Handler"
+      ],
+      "test_data": {
+        "program_id": "prog-log-1",
+        "seeded_event_count": 6
+      },
+      "steps": [
+        "Seed usage_events (6 rows) for prog-log-1",
+        "Call rebuild_program_rollups(session, 'prog-log-1') with log capture enabled",
+        "Parse the captured JSON log lines for the message 'rollup_rebuild_completed'"
+      ],
+      "expected_results": [
+        "Exactly one log line with message 'rollup_rebuild_completed' is emitted for the call",
+        "Its parsed payload has scope == 'program', program_id == 'prog-log-1', duration_ms is a non-negative int, event_count == 6",
+        "No PII field (email, raw content) appears in the log entry"
+      ],
+      "tags": [
+        "observability",
+        "FR-5",
+        "logging"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-14",
+      "title": "Org-scope rebuild emits exactly one rollup_rebuild_completed log line with program_id omitted/None",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-FR-5",
+      "given": "a real rebuild_org_rollups(session) call against a test app wired with JSONFormatter",
+      "when": "the call completes and captured log output is parsed",
+      "then": "exactly one rollup_rebuild_completed log line is emitted (not one per table), with scope='org', program_id omitted or None, duration_ms an int, and event_count matching the total scanned usage_events row count",
+      "objective": "Verify FR-5's schema and single-emission-per-call rule at org scope, including the program_id-omitted case.",
+      "preconditions": [
+        "Test app configures logging via app.core.logging",
+        "usage_events seeded across 2 programs, 10 rows total",
+        "Log output captured via a test logging.Handler"
+      ],
+      "test_data": {
+        "seeded_event_count": 10
+      },
+      "steps": [
+        "Seed usage_events across 2 programs, 10 rows total",
+        "Call rebuild_org_rollups(session) with log capture enabled",
+        "Parse captured JSON log lines for the message 'rollup_rebuild_completed'"
+      ],
+      "expected_results": [
+        "Exactly one log line with message 'rollup_rebuild_completed' is emitted for the call \u2014 not 3 (one per org-scoped table)",
+        "Its parsed payload has scope == 'org', program_id is null/absent, duration_ms is a non-negative int, event_count == 10"
+      ],
+      "tags": [
+        "observability",
+        "FR-5",
+        "logging",
+        "org-scope"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-15",
+      "title": "rebuild_program_rollups completes within 2 seconds for a program with 5,000 usage_events rows",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-NFR-performance",
+      "given": "usage_events seeded with 5,000 rows for a single program",
+      "when": "rebuild_program_rollups(session, program_id) is invoked and timed via time.perf_counter()",
+      "then": "wall-clock duration is <= 2 seconds",
+      "objective": "Verify the \u22642s/5,000-event performance budget (research condition C-4, story NFR, Decision log 2026-08-26 assumption).",
+      "preconditions": [
+        "Disposable test database migrated to head, running against a real Postgres instance (not sqlite) to reflect realistic I/O",
+        "usage_events seeded with 5,000 rows for program_id='prog-perf-5k'"
+      ],
+      "test_data": {
+        "program_id": "prog-perf-5k",
+        "event_count": 5000,
+        "budget_ms": 2000
+      },
+      "steps": [
+        "Seed usage_events with 5,000 rows for prog-perf-5k",
+        "Start time.perf_counter()",
+        "Call await rebuild_program_rollups(session, 'prog-perf-5k')",
+        "Stop the timer and compute elapsed wall-clock duration"
+      ],
+      "expected_results": [
+        "Elapsed wall-clock duration <= 2000 ms",
+        "RebuildResult.duration_ms is present and consistent with (within measurement noise of) the externally measured elapsed time"
+      ],
+      "tags": [
+        "performance",
+        "budget",
+        "C-4"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 1040,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1040,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "rebuild_program_rollups() wall-clock <= 2s for a program with <= 5,000 usage_events rows (story NFR-performance)",
+          "measured": "assertion passed: elapsed <= 2.000s (internal timer around rebuild_program_rollups only); full pytest call-phase incl. 5,000-row bulk seed insert = 1.040s",
+          "budget_pass": true
+        }
+      }
+    },
+    {
+      "id": "BED-03-TC-16",
+      "title": "Rebuild functions log no PII and expose no HTTP route",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-NFR-security",
+      "given": "usage_events seeded with rows that include opaque ids only (no email/raw-content columns populated for this scope), and the FastAPI app's route table",
+      "when": "rebuild_program_rollups and rebuild_org_rollups are called and their log output is captured, and the app's registered routes are enumerated",
+      "then": "no PII field (email, raw content) appears in any log line emitted during rebuild, and no HTTP route resolves to rebuild_program_rollups or rebuild_org_rollups",
+      "objective": "Verify the Security NFR: rebuild functions carry no external HTTP surface and never log PII, staying within the security-baseline scope.",
+      "preconditions": [
+        "Test app fully wired (routes + logging)",
+        "usage_events seeded with representative rows for one program",
+        "Log output captured via a test logging.Handler"
+      ],
+      "test_data": {
+        "forbidden_log_fields": [
+          "email",
+          "user_email",
+          "raw_content",
+          "prompt_text"
+        ]
+      },
+      "steps": [
+        "Call rebuild_program_rollups(session, program_id) and rebuild_org_rollups(session) with log capture enabled",
+        "Parse all captured JSON log lines for the two calls",
+        "Enumerate app.routes and search for any route whose endpoint resolves to rebuild_program_rollups or rebuild_org_rollups"
+      ],
+      "expected_results": [
+        "None of test_data.forbidden_log_fields appear in any captured log line",
+        "No route in app.routes maps to either rebuild function"
+      ],
+      "tags": [
+        "security",
+        "PII",
+        "no-http-route"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "BED-03-TC-17",
+      "title": "rollup_rebuild_completed is emitted end-to-end via the real JSONFormatter seam for both program and org scope",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-03-NFR-observability",
+      "given": "a real rebuild call (not a synthetic LogRecord) hitting the actual app.core.logging.JSONFormatter seam BED-02 extended with extra={} passthrough",
+      "when": "rebuild_program_rollups and rebuild_org_rollups are each called once against seeded usage_events, with stdout log capture enabled",
+      "then": "each call's captured stdout contains exactly one well-formed JSON log line for rollup_rebuild_completed with the documented field shape, produced by the production code path end-to-end",
+      "objective": "Close the loop between the story's Observability NFR and FR-5's schema by exercising the real logging pipeline end-to-end, not a hand-built LogRecord.",
+      "preconditions": [
+        "Test app calls configure_logging() (app.core.logging) exactly as production startup does",
+        "usage_events seeded for one program and across 2 programs respectively"
+      ],
+      "test_data": {
+        "program_id": "prog-obs-1"
+      },
+      "steps": [
+        "With stdout capture enabled, call rebuild_program_rollups(session, 'prog-obs-1')",
+        "Parse stdout for JSON log lines and isolate the rollup_rebuild_completed entry",
+        "Repeat with rebuild_org_rollups(session) against a multi-program seed"
+      ],
+      "expected_results": [
+        "Both calls each produce exactly one parseable JSON log line for rollup_rebuild_completed",
+        "Both entries carry scope, program_id (or null for org), duration_ms, event_count with correct types",
+        "No exception or malformed JSON is captured on stdout for either call"
+      ],
+      "tags": [
+        "observability",
+        "end-to-end",
+        "logging",
+        "C-5"
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "BED-03-AC-1",
+        "covered_by": [
+          "BED-03-TC-01",
+          "BED-03-TC-02"
+        ]
+      },
+      {
+        "id": "BED-03-AC-2",
+        "covered_by": [
+          "BED-03-TC-03",
+          "BED-03-TC-04"
+        ]
+      },
+      {
+        "id": "BED-03-AC-3",
+        "covered_by": [
+          "BED-03-TC-05",
+          "BED-03-TC-06"
+        ]
+      },
+      {
+        "id": "BED-03-AC-4",
+        "covered_by": [
+          "BED-03-TC-07",
+          "BED-03-TC-08"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "BED-03-FR-1",
+        "covered_by": [
+          "BED-03-TC-09"
+        ]
+      },
+      {
+        "id": "BED-03-FR-2",
+        "covered_by": [
+          "BED-03-TC-02",
+          "BED-03-TC-04",
+          "BED-03-TC-10"
+        ]
+      },
+      {
+        "id": "BED-03-FR-3",
+        "covered_by": [
+          "BED-03-TC-11",
+          "BED-03-TC-12"
+        ]
+      },
+      {
+        "id": "BED-03-FR-4",
+        "covered_by": [
+          "BED-03-TC-06"
+        ]
+      },
+      {
+        "id": "BED-03-FR-5",
+        "covered_by": [
+          "BED-03-TC-13",
+          "BED-03-TC-14"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "BED-03-NFR-performance",
+        "covered_by": [
+          "BED-03-TC-15"
+        ]
+      },
+      {
+        "id": "BED-03-NFR-security",
+        "covered_by": [
+          "BED-03-TC-16"
+        ]
+      },
+      {
+        "id": "BED-03-NFR-observability",
+        "covered_by": [
+          "BED-03-TC-17"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}
