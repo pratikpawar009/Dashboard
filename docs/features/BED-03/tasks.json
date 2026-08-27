@@ -7,7 +7,7 @@
     "F-01": {
       "action": "create",
       "path": "services/api/app/core/db.py",
-      "reason": "C-1/FR-1: async session factory (engine, SessionLocal, get_db() Depends()) — single source both rebuild functions and any future route must inject a session from"
+      "reason": "C-1/FR-1: async session factory (engine, SessionLocal, get_db() Depends()) \u2014 single source both rebuild functions and any future route must inject a session from"
     },
     "F-02": {
       "action": "create",
@@ -17,57 +17,57 @@
     "F-03": {
       "action": "modify",
       "path": "services/api/app/main.py",
-      "reason": "D-02: import engine from app.core.db at module level (wired at app startup, not per-request) + register @app.on_event(\"shutdown\") to dispose it — entry-registration site for db.py"
+      "reason": "D-02: import engine from app.core.db at module level (wired at app startup, not per-request) + register @app.on_event(\"shutdown\") to dispose it \u2014 entry-registration site for db.py"
     },
     "F-04": {
       "action": "modify",
       "path": "services/api/app/services/__init__.py",
-      "reason": "barrel-export rebuild_program_rollups/rebuild_org_rollups/RebuildResult — entry-registration site for rollup_rebuild.py, matching the existing rollup_compute.py/guardrail_compute.py convention (BED-02)"
+      "reason": "barrel-export rebuild_program_rollups/rebuild_org_rollups/RebuildResult \u2014 entry-registration site for rollup_rebuild.py, matching the existing rollup_compute.py/guardrail_compute.py convention (BED-02)"
     },
     "F-05": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_program.py",
-      "reason": "BED-03-TC-01,02 — program-scope full-replace correctness + stale-row deletion after events shrink (AC-1, FR-2)"
+      "reason": "BED-03-TC-01,02 \u2014 program-scope full-replace correctness + stale-row deletion after events shrink (AC-1, FR-2)"
     },
     "F-06": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_org.py",
-      "reason": "BED-03-TC-03,04 — org-scope full-replace correctness + stale-row deletion (AC-2, FR-2)"
+      "reason": "BED-03-TC-03,04 \u2014 org-scope full-replace correctness + stale-row deletion (AC-2, FR-2)"
     },
     "F-07": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_idempotency.py",
-      "reason": "BED-03-TC-05,06 — re-run-unchanged idempotency + duplicate-ingest/unique-constraint idempotency mechanics (AC-3, FR-4, C-3)"
+      "reason": "BED-03-TC-05,06 \u2014 re-run-unchanged idempotency + duplicate-ingest/unique-constraint idempotency mechanics (AC-3, FR-4, C-3)"
     },
     "F-08": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_isolation.py",
-      "reason": "BED-03-TC-07,08 — program-scope isolation, including a 10-program fan-out boundary case (AC-4)"
+      "reason": "BED-03-TC-07,08 \u2014 program-scope isolation, including a 10-program fan-out boundary case (AC-4)"
     },
     "F-09": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_contract.py",
-      "reason": "BED-03-TC-09,16 — module contract (signatures, RebuildResult shape, no self-constructed session) + security (no PII logged, no HTTP route) (FR-1, NFR-security)"
+      "reason": "BED-03-TC-09,16 \u2014 module contract (signatures, RebuildResult shape, no self-constructed session) + security (no PII logged, no HTTP route) (FR-1, NFR-security)"
     },
     "F-10": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_transaction.py",
-      "reason": "BED-03-TC-10 — mid-rebuild failure rolls back the entire transaction, no partial rebuild visible (FR-2, D-01, risk R-01 CRITICAL)"
+      "reason": "BED-03-TC-10 \u2014 mid-rebuild failure rolls back the entire transaction, no partial rebuild visible (FR-2, D-01, risk R-01 CRITICAL)"
     },
     "F-11": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_query_plan.py",
-      "reason": "BED-03-TC-11,12 — exactly one SELECT against usage_events per scope, via a before_cursor_execute listener (FR-3, D-05, C-2)"
+      "reason": "BED-03-TC-11,12 \u2014 exactly one SELECT against usage_events per scope, via a before_cursor_execute listener (FR-3, D-05, C-2)"
     },
     "F-12": {
       "action": "create",
       "path": "services/api/tests/unit/test_rollup_rebuild_observability.py",
-      "reason": "BED-03-TC-13,14,17 — rollup_rebuild_completed schema + single-emission for program/org scope, end-to-end via the real JSONFormatter seam (FR-5, C-5)"
+      "reason": "BED-03-TC-13,14,17 \u2014 rollup_rebuild_completed schema + single-emission for program/org scope, end-to-end via the real JSONFormatter seam (FR-5, C-5)"
     },
     "F-13": {
       "action": "create",
       "path": "services/api/tests/perf/test_rollup_rebuild_perf.py",
-      "reason": "BED-03-TC-15 — 5,000-event rebuild wall-clock <=2s (NFR-performance, C-4); runs under the existing pytest runner, no new tool"
+      "reason": "BED-03-TC-15 \u2014 5,000-event rebuild wall-clock <=2s (NFR-performance, C-4); runs under the existing pytest runner, no new tool"
     },
     "F-14": {
       "action": "modify",
@@ -86,35 +86,57 @@
       "title": "Create app/core/db.py (engine, SessionLocal, get_db())",
       "complexity": "S",
       "predecessors": [],
-      "files": ["F-01"],
-      "ac_refs": ["BED-03-FR-1"],
-      "risk_refs": ["R-04"],
-      "notes": "engine = create_async_engine(settings.database_url); SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False); async def get_db() -> AsyncIterator[AsyncSession]: async with SessionLocal() as session: yield session. Module-level construction only — no per-request engine creation (C-1).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "BED-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "engine = create_async_engine(settings.database_url); SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False); async def get_db() -> AsyncIterator[AsyncSession]: async with SessionLocal() as session: yield session. Module-level construction only \u2014 no per-request engine creation (C-1).",
+      "status": "done",
+      "completed_at": "2026-08-27T11:42:19Z",
+      "files_touched": [
+        "services/api/app/core/db.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-02",
       "title": "Wire app/core/db.py into app/main.py at startup",
       "complexity": "S",
-      "predecessors": ["T-01"],
-      "files": ["F-03"],
-      "ac_refs": ["BED-03-FR-1"],
-      "risk_refs": ["R-04"],
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "BED-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
       "notes": "D-02: import engine from app.core.db at module level (alongside the existing configure_logging() import-time call); register @app.on_event(\"shutdown\") async def _dispose_engine(): await engine.dispose(). No route added.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T11:53:23Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-03",
       "title": "Create app/services/rollup_rebuild.py (RebuildResult, rebuild_program_rollups, rebuild_org_rollups)",
       "complexity": "L",
-      "predecessors": ["T-01"],
-      "files": ["F-02"],
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
       "ac_refs": [
         "BED-03-AC-1",
         "BED-03-AC-2",
@@ -128,179 +150,320 @@
         "BED-03-NFR-security",
         "BED-03-NFR-observability"
       ],
-      "risk_refs": ["R-01", "R-02", "R-03", "R-05", "R-06", "R-07", "R-08", "R-09"],
-      "notes": "RebuildResult: @dataclass(frozen=True) {scope: Literal['program','org'], program_id: str | None, duration_ms: int, event_count: int} (D-06). rebuild_program_rollups(session, program_id): async with session.begin(): one SELECT * FROM usage_events WHERE program_id=:pid (D-05), Python-side aggregation per table per DATA-DESIGN.md §1 field-mapping table (D-03 defaults for non-derivable fields; program_releases writes zero rows), DELETE...WHERE program_id=:pid + INSERT for each of the 7 program tables, then log.info('rollup_rebuild_completed', extra={scope:'program', program_id, duration_ms, event_count}) (FR-5) after commit, return RebuildResult. rebuild_org_rollups(session): same shape for the 3 org tables, unfiltered grouped SELECT, program_id omitted from the log extra. Neither function constructs its own session/engine (FR-1, TC-09). time.perf_counter() spans the full transaction for duration_ms.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-05",
+        "R-06",
+        "R-07",
+        "R-08",
+        "R-09"
+      ],
+      "notes": "RebuildResult: @dataclass(frozen=True) {scope: Literal['program','org'], program_id: str | None, duration_ms: int, event_count: int} (D-06). rebuild_program_rollups(session, program_id): async with session.begin(): one SELECT * FROM usage_events WHERE program_id=:pid (D-05), Python-side aggregation per table per DATA-DESIGN.md \u00a71 field-mapping table (D-03 defaults for non-derivable fields; program_releases writes zero rows), DELETE...WHERE program_id=:pid + INSERT for each of the 7 program tables, then log.info('rollup_rebuild_completed', extra={scope:'program', program_id, duration_ms, event_count}) (FR-5) after commit, return RebuildResult. rebuild_org_rollups(session): same shape for the 3 org tables, unfiltered grouped SELECT, program_id omitted from the log extra. Neither function constructs its own session/engine (FR-1, TC-09). time.perf_counter() spans the full transaction for duration_ms.",
+      "status": "done",
+      "completed_at": "2026-08-27T11:53:24Z",
+      "files_touched": [
+        "services/api/app/services/rollup_rebuild.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-04",
       "title": "Add rollup_rebuild exports to app/services/__init__.py",
       "complexity": "S",
-      "predecessors": ["T-03"],
-      "files": ["F-04"],
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-04"
+      ],
       "ac_refs": [],
       "risk_refs": [],
-      "notes": "from app.services.rollup_rebuild import RebuildResult, rebuild_org_rollups, rebuild_program_rollups — entry-registration site for the new module (Wiring dimension), matching rollup_compute.py/guardrail_compute.py's existing barrel pattern.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "notes": "from app.services.rollup_rebuild import RebuildResult, rebuild_org_rollups, rebuild_program_rollups \u2014 entry-registration site for the new module (Wiring dimension), matching rollup_compute.py/guardrail_compute.py's existing barrel pattern.",
+      "status": "done",
+      "completed_at": "2026-08-27T11:54:38Z",
+      "files_touched": [
+        "services/api/app/services/__init__.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-05",
       "title": "Write tests/unit/test_rollup_rebuild_program.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-05"],
-      "ac_refs": ["BED-03-AC-1", "BED-03-FR-2"],
-      "risk_refs": ["R-01", "R-05", "R-09"],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "BED-03-AC-1",
+        "BED-03-FR-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05",
+        "R-09"
+      ],
       "notes": "TC-01 (full replace, 7 tables, hand-computed expectations against test_session/migrated_db fixtures from tests/conftest.py), TC-02 (seed 10 rows incl. 2 'rare-cmd', rebuild, delete the 2, rebuild again, assert program_commands no longer has 'rare-cmd' and all 7 tables reflect only the 8 survivors).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T12:00:53Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_program.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-06",
       "title": "Write tests/unit/test_rollup_rebuild_org.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-06"],
-      "ac_refs": ["BED-03-AC-2", "BED-03-FR-2"],
-      "risk_refs": ["R-01", "R-05"],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "BED-03-AC-2",
+        "BED-03-FR-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05"
+      ],
       "notes": "TC-03 (3 programs, 30 events, full replace of org_summary_rollup/token_series/mau_series), TC-04 (org-scope stale-row deletion after a program's events are removed).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T12:00:54Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_org.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-07",
       "title": "Write tests/unit/test_rollup_rebuild_idempotency.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-07"],
-      "ac_refs": ["BED-03-AC-3", "BED-03-FR-4"],
-      "risk_refs": ["R-03"],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "BED-03-AC-3",
+        "BED-03-FR-4"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
       "notes": "TC-05 (rebuild twice unchanged, snapshot checksum+COUNT(*) per D-04's business-value-columns-only comparison, assert identical), TC-06 (insert once, rebuild, attempt duplicate insert on (program_id,session_id,cmd_ts) and assert IntegrityError/UniqueViolation, rebuild again, assert second snapshot identical to first per D-04).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T12:00:55Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_idempotency.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-08",
       "title": "Write tests/unit/test_rollup_rebuild_isolation.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-08"],
-      "ac_refs": ["BED-03-AC-4"],
-      "risk_refs": ["R-01"],
-      "notes": "TC-07 (2 programs, rebuild P, assert Q's 7-table checksums unchanged), TC-08 (10 programs, rebuild 1, assert other 9's checksums unchanged — boundary case beyond a 2-program test).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "BED-03-AC-4"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "TC-07 (2 programs, rebuild P, assert Q's 7-table checksums unchanged), TC-08 (10 programs, rebuild 1, assert other 9's checksums unchanged \u2014 boundary case beyond a 2-program test).",
+      "status": "done",
+      "completed_at": "2026-08-27T12:00:56Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_isolation.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-09",
       "title": "Write tests/unit/test_rollup_rebuild_contract.py",
       "complexity": "M",
-      "predecessors": ["T-01", "T-03", "T-04"],
-      "files": ["F-09"],
-      "ac_refs": ["BED-03-FR-1", "BED-03-NFR-security"],
-      "risk_refs": ["R-04", "R-07"],
-      "notes": "TC-09 (inspect.signature() on both functions confirms session: AsyncSession + program_id param; call against a seeded test DB and assert RebuildResult exposes exactly {scope, program_id, duration_ms, event_count}; scan rollup_rebuild.py source text for SessionLocal()/create_async_engine() calls inside either function body, assert none). TC-16 (grep rollup_rebuild.py + app/api/ for any router referencing it — assert no route; capture logs from a rebuild call and assert no email/raw-content field appears).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "predecessors": [
+        "T-01",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "BED-03-FR-1",
+        "BED-03-NFR-security"
+      ],
+      "risk_refs": [
+        "R-04",
+        "R-07"
+      ],
+      "notes": "TC-09 (inspect.signature() on both functions confirms session: AsyncSession + program_id param; call against a seeded test DB and assert RebuildResult exposes exactly {scope, program_id, duration_ms, event_count}; scan rollup_rebuild.py source text for SessionLocal()/create_async_engine() calls inside either function body, assert none). TC-16 (grep rollup_rebuild.py + app/api/ for any router referencing it \u2014 assert no route; capture logs from a rebuild call and assert no email/raw-content field appears).",
+      "status": "done",
+      "completed_at": "2026-08-27T12:25:36Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_contract.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-10",
       "title": "Write tests/unit/test_rollup_rebuild_transaction.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-10"],
-      "ac_refs": ["BED-03-FR-2"],
-      "risk_refs": ["R-01"],
-      "notes": "TC-10: monkeypatch/mock one of the per-table INSERT calls to raise mid-rebuild, call rebuild_program_rollups, assert the exception propagates and none of the 7 tables' pre-rebuild rows were altered (rollback verified by re-querying after the failed call) — proves D-01's per-scope transaction wrapping.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "BED-03-FR-2"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "TC-10: monkeypatch/mock one of the per-table INSERT calls to raise mid-rebuild, call rebuild_program_rollups, assert the exception propagates and none of the 7 tables' pre-rebuild rows were altered (rollback verified by re-querying after the failed call) \u2014 proves D-01's per-scope transaction wrapping.",
+      "status": "done",
+      "completed_at": "2026-08-27T12:22:14Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_transaction.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-11",
       "title": "Write tests/unit/test_rollup_rebuild_query_plan.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-11"],
-      "ac_refs": ["BED-03-FR-3"],
-      "risk_refs": ["R-02", "R-05"],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "BED-03-FR-3"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-05"
+      ],
       "notes": "TC-11 (attach a before_cursor_execute listener on the test engine scoped to statements referencing usage_events, call rebuild_program_rollups, assert exactly 1 SELECT captured, all 7 tables still populated correctly). TC-12 (same pattern for rebuild_org_rollups, assert exactly 1 SELECT).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T12:22:16Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_query_plan.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-12",
       "title": "Write tests/unit/test_rollup_rebuild_observability.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-12"],
-      "ac_refs": ["BED-03-FR-5", "BED-03-NFR-observability"],
-      "risk_refs": ["R-08"],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "BED-03-FR-5",
+        "BED-03-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
       "notes": "TC-13 (program scope: capture logs via a test logging.Handler, assert exactly one rollup_rebuild_completed line with scope='program', program_id, duration_ms int, event_count==6). TC-14 (org scope: assert exactly one line, scope='org', program_id null/absent). TC-17 (end-to-end: configure_logging() exactly as production startup does, capture real stdout, assert one well-formed JSON line per call for both scopes, matching BED-02's JSONFormatter extra={} passthrough seam).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "status": "done",
+      "completed_at": "2026-08-27T12:27:01Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rollup_rebuild_observability.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-13",
       "title": "Write tests/perf/test_rollup_rebuild_perf.py",
       "complexity": "M",
-      "predecessors": ["T-03", "T-04"],
-      "files": ["F-13"],
-      "ac_refs": ["BED-03-NFR-performance"],
-      "risk_refs": ["R-02"],
-      "notes": "TC-15: seed 5,000 usage_events rows for one program via migrated_db/test_session (tests/conftest.py), call rebuild_program_rollups, assert wall-clock via time.perf_counter() <= 2.0s. Runs under the project's existing pytest runner (fastapi-2 stack) — no new tool installed, matching tests/perf/test_range_pagination_perf.py's precedent.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "BED-03-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "TC-15: seed 5,000 usage_events rows for one program via migrated_db/test_session (tests/conftest.py), call rebuild_program_rollups, assert wall-clock via time.perf_counter() <= 2.0s. Runs under the project's existing pytest runner (fastapi-2 stack) \u2014 no new tool installed, matching tests/perf/test_range_pagination_perf.py's precedent.",
+      "status": "done",
+      "completed_at": "2026-08-27T12:30:12Z",
+      "files_touched": [
+        "services/api/tests/perf/test_rollup_rebuild_perf.py"
+      ],
       "reason": null
     },
     {
       "task_id": "T-14",
       "title": "Update services/api/README.md with the rollup-rebuild + db.py conventions",
       "complexity": "S",
-      "predecessors": ["T-01", "T-03", "T-04"],
-      "files": ["F-14"],
+      "predecessors": [
+        "T-01",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-14"
+      ],
       "ac_refs": [],
       "risk_refs": [],
-      "notes": "PRD Documentation requirements: document rebuild_program_rollups()/rebuild_org_rollups() as the rollup-rebuild contract (signatures, full-replace semantics, idempotency guarantee per D-04, no HTTP route) and app/core/db.py's session-factory convention (get_db()/SessionLocal — every future DB-touching module must inject a session via this factory, never construct its own engine).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "notes": "PRD Documentation requirements: document rebuild_program_rollups()/rebuild_org_rollups() as the rollup-rebuild contract (signatures, full-replace semantics, idempotency guarantee per D-04, no HTTP route) and app/core/db.py's session-factory convention (get_db()/SessionLocal \u2014 every future DB-touching module must inject a session via this factory, never construct its own engine).",
+      "status": "done",
+      "completed_at": "2026-08-27T12:25:22Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
       "reason": null
     },
     {
       "task_id": "T-15",
       "title": "Fill the rollup-rebuild contract shape in docs/requirements/data.md",
       "complexity": "S",
-      "predecessors": ["T-03"],
-      "files": ["F-15"],
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-15"
+      ],
       "ac_refs": [],
       "risk_refs": [],
-      "notes": "plan-authoring step 10: replace the decomposition-time sketch (mechanism/invariant prose only) with the concrete signatures — rebuild_program_rollups(session: AsyncSession, program_id: str) -> RebuildResult, rebuild_org_rollups(session: AsyncSession) -> RebuildResult, RebuildResult{scope, program_id, duration_ms, event_count} — so ING-02/ING-06 build against the real shape, not the sketch.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
+      "notes": "plan-authoring step 10: replace the decomposition-time sketch (mechanism/invariant prose only) with the concrete signatures \u2014 rebuild_program_rollups(session: AsyncSession, program_id: str) -> RebuildResult, rebuild_org_rollups(session: AsyncSession) -> RebuildResult, RebuildResult{scope, program_id, duration_ms, event_count} \u2014 so ING-02/ING-06 build against the real shape, not the sketch.",
+      "status": "done",
+      "completed_at": "2026-08-27T11:54:39Z",
+      "files_touched": [
+        "docs/requirements/data.md"
+      ],
       "reason": null
     }
   ]

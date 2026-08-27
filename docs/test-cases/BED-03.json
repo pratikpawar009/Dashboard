@@ -44,7 +44,25 @@
         "rollup-rebuild",
         "full-replace",
         "happy-path"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 50,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 50,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-02",
@@ -84,7 +102,25 @@
         "full-replace",
         "FR-2",
         "not-a-patch"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-03",
@@ -103,9 +139,17 @@
         "usage_events seeded with rows across program_id in {'prog-a','prog-b','prog-c'}, distinct token totals and active users per program"
       ],
       "test_data": {
-        "program_ids": ["prog-a", "prog-b", "prog-c"],
+        "program_ids": [
+          "prog-a",
+          "prog-b",
+          "prog-c"
+        ],
         "seeded_event_count": 30,
-        "tables": ["org_summary_rollup", "token_series", "mau_series"]
+        "tables": [
+          "org_summary_rollup",
+          "token_series",
+          "mau_series"
+        ]
       },
       "steps": [
         "Seed usage_events with test_data.seeded_event_count rows spread across test_data.program_ids",
@@ -122,7 +166,25 @@
         "full-replace",
         "org-scope",
         "happy-path"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-04",
@@ -141,7 +203,10 @@
         "usage_events seeded across prog-a and prog-b, with prog-b contributing a known distinct token total"
       ],
       "test_data": {
-        "program_ids": ["prog-a", "prog-b"],
+        "program_ids": [
+          "prog-a",
+          "prog-b"
+        ],
         "removed_program_id": "prog-b"
       },
       "steps": [
@@ -160,7 +225,25 @@
         "org-scope",
         "FR-2",
         "not-a-patch"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-05",
@@ -195,7 +278,25 @@
       "tags": [
         "idempotency",
         "rollup-rebuild"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-06",
@@ -207,7 +308,7 @@
       "requirement_id": "BED-03-FR-4",
       "given": "an ingest write posts a usage_events payload once, rebuild runs, then the identical payload is posted a second time",
       "when": "the second identical insert is attempted against usage_events and the second rebuild runs",
-      "then": "the duplicate insert raises a unique-constraint violation on (program_id, session_id, cmd_ts) rather than being silently accepted, and the rollup rows after the second rebuild are byte-identical to the first run — no double-counting",
+      "then": "the duplicate insert raises a unique-constraint violation on (program_id, session_id, cmd_ts) rather than being silently accepted, and the rollup rows after the second rebuild are byte-identical to the first run \u2014 no double-counting",
       "objective": "Verify the exact idempotency test mechanics specified in FR-4: seed, rebuild, snapshot, attempt duplicate insert (assert UniqueViolation), rebuild again, assert byte-identical second snapshot.",
       "preconditions": [
         "Disposable test database migrated to head",
@@ -236,7 +337,25 @@
         "unique-constraint",
         "FR-4",
         "no-double-count"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-07",
@@ -267,13 +386,31 @@
       ],
       "expected_results": [
         "prog-p's rollup rows reflect the 3 newly added events",
-        "prog-q's row checksums after the rebuild are identical to the pre-rebuild snapshot — zero rows changed"
+        "prog-q's row checksums after the rebuild are identical to the pre-rebuild snapshot \u2014 zero rows changed"
       ],
       "tags": [
         "isolation",
         "program-scope",
         "rollup-rebuild"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 50,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 50,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-08",
@@ -309,7 +446,25 @@
         "isolation",
         "program-scope",
         "boundary"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 190,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-09",
@@ -329,7 +484,12 @@
       ],
       "test_data": {
         "module_path": "services/api/app/services/rollup_rebuild.py",
-        "expected_result_fields": ["scope", "program_id", "duration_ms", "event_count"]
+        "expected_result_fields": [
+          "scope",
+          "program_id",
+          "duration_ms",
+          "event_count"
+        ]
       },
       "steps": [
         "Import rebuild_program_rollups and rebuild_org_rollups from app.services.rollup_rebuild",
@@ -340,18 +500,36 @@
       "expected_results": [
         "Both functions are coroutine functions with the documented parameter signatures",
         "The returned object exposes exactly test_data.expected_result_fields with correct types (scope: 'program', program_id: str, duration_ms: int, event_count: int)",
-        "Neither function constructs its own session — the injected session is the only session used"
+        "Neither function constructs its own session \u2014 the injected session is the only session used"
       ],
       "tags": [
         "contract",
         "FR-1",
         "module-path",
         "session-injection"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-10",
-      "title": "A failure mid-rebuild rolls back the entire transaction — no partial rebuild visible to a concurrent reader",
+      "title": "A failure mid-rebuild rolls back the entire transaction \u2014 no partial rebuild visible to a concurrent reader",
       "type": "integration",
       "category": "negative",
       "automatable": true,
@@ -359,7 +537,7 @@
       "requirement_id": "BED-03-FR-2",
       "given": "rebuild_program_rollups(P) is mid-transaction, having already deleted and re-inserted rows for some of the 7 program-scoped tables",
       "when": "an exception is forced during the INSERT for one of the remaining tables (e.g. a monkeypatched write raising an IntegrityError)",
-      "then": "the entire async with session.begin() block rolls back — none of the 7 tables show any change, matching their pre-rebuild state exactly",
+      "then": "the entire async with session.begin() block rolls back \u2014 none of the 7 tables show any change, matching their pre-rebuild state exactly",
       "objective": "Verify the top research risk (transaction atomicity): all 7 (or 3) table mutations for one rebuild call commit or roll back together, never partially, per FR-2's single-transaction requirement.",
       "preconditions": [
         "Disposable test database migrated to head",
@@ -378,7 +556,7 @@
       ],
       "expected_results": [
         "rebuild_program_rollups raises the forced exception rather than swallowing it",
-        "All 7 tables' checksums after the failed call exactly match the pre-call snapshot — no partial DELETE/INSERT from any table is visible",
+        "All 7 tables' checksums after the failed call exactly match the pre-call snapshot \u2014 no partial DELETE/INSERT from any table is visible",
         "A subsequent successful rebuild_program_rollups(P) call (without the forced failure) produces the correct full replacement"
       ],
       "tags": [
@@ -386,7 +564,25 @@
         "transaction",
         "FR-2",
         "top-risk"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 100,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 100,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-11",
@@ -422,7 +618,25 @@
         "FR-3",
         "single-pass",
         "no-n-plus-1"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-12",
@@ -442,7 +656,11 @@
         "Query-counting listener scoped to statements referencing usage_events"
       ],
       "test_data": {
-        "program_ids": ["prog-a", "prog-b", "prog-c"]
+        "program_ids": [
+          "prog-a",
+          "prog-b",
+          "prog-c"
+        ]
       },
       "steps": [
         "Attach the query-counting listener",
@@ -458,7 +676,25 @@
         "FR-3",
         "single-pass",
         "org-scope"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-13",
@@ -495,7 +731,25 @@
         "observability",
         "FR-5",
         "logging"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-14",
@@ -523,7 +777,7 @@
         "Parse captured JSON log lines for the message 'rollup_rebuild_completed'"
       ],
       "expected_results": [
-        "Exactly one log line with message 'rollup_rebuild_completed' is emitted for the call — not 3 (one per org-scoped table)",
+        "Exactly one log line with message 'rollup_rebuild_completed' is emitted for the call \u2014 not 3 (one per org-scoped table)",
         "Its parsed payload has scope == 'org', program_id is null/absent, duration_ms is a non-negative int, event_count == 10"
       ],
       "tags": [
@@ -531,7 +785,25 @@
         "FR-5",
         "logging",
         "org-scope"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-15",
@@ -544,7 +816,7 @@
       "given": "usage_events seeded with 5,000 rows for a single program",
       "when": "rebuild_program_rollups(session, program_id) is invoked and timed via time.perf_counter()",
       "then": "wall-clock duration is <= 2 seconds",
-      "objective": "Verify the ≤2s/5,000-event performance budget (research condition C-4, story NFR, Decision log 2026-08-26 assumption).",
+      "objective": "Verify the \u22642s/5,000-event performance budget (research condition C-4, story NFR, Decision log 2026-08-26 assumption).",
       "preconditions": [
         "Disposable test database migrated to head, running against a real Postgres instance (not sqlite) to reflect realistic I/O",
         "usage_events seeded with 5,000 rows for program_id='prog-perf-5k'"
@@ -568,7 +840,30 @@
         "performance",
         "budget",
         "C-4"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 1040,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1040,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "rebuild_program_rollups() wall-clock <= 2s for a program with <= 5,000 usage_events rows (story NFR-performance)",
+          "measured": "assertion passed: elapsed <= 2.000s (internal timer around rebuild_program_rollups only); full pytest call-phase incl. 5,000-row bulk seed insert = 1.040s",
+          "budget_pass": true
+        }
+      }
     },
     {
       "id": "BED-03-TC-16",
@@ -588,7 +883,12 @@
         "Log output captured via a test logging.Handler"
       ],
       "test_data": {
-        "forbidden_log_fields": ["email", "user_email", "raw_content", "prompt_text"]
+        "forbidden_log_fields": [
+          "email",
+          "user_email",
+          "raw_content",
+          "prompt_text"
+        ]
       },
       "steps": [
         "Call rebuild_program_rollups(session, program_id) and rebuild_org_rollups(session) with log capture enabled",
@@ -603,7 +903,25 @@
         "security",
         "PII",
         "no-http-route"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-03-TC-17",
@@ -639,7 +957,25 @@
         "end-to-end",
         "logging",
         "C-5"
-      ]
+      ],
+      "last_run": {
+        "started_at": "2026-08-27T12:50:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     }
   ],
   "coverage_audit": {

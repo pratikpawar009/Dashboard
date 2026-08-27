@@ -20,10 +20,18 @@ from app.services.rollup_compute import (
     compute_average,
     compute_period_delta,
 )
+from app.services.rollup_rebuild import (
+    RebuildResult,
+    rebuild_org_rollups,
+    rebuild_program_rollups,
+)
 
 __all__ = [
     "compute_adoption_percent",
     "compute_average",
     "compute_guardrail_summary",
     "compute_period_delta",
+    "rebuild_org_rollups",
+    "rebuild_program_rollups",
+    "RebuildResult",
 ]
