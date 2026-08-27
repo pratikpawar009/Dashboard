@@ -4,8 +4,10 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-08-26
+**Updated**: 2026-08-27
 **Tracker**: pratikpawar009/Dashboard#12 (https://github.com/pratikpawar009/Dashboard/issues/12)
+**Tracker Research**: pratikpawar009/Dashboard#63 (https://github.com/pratikpawar009/Dashboard/issues/63)
+**Tracker Plan Requirements**: pratikpawar009/Dashboard#64 (https://github.com/pratikpawar009/Dashboard/issues/64)
 
 ## User story
 
@@ -28,7 +30,7 @@ routers don't each reinvent these rules.
    the per-endpoint max, then the endpoint clamps to a max of `100` (FR-BE-03).
 5. Given a response field is a derived value (adoption %, delta, average, "X/Y passing"),
    when the response is built, then the value is computed server-side in
-   `backend/app/services/*.py` — never left for the frontend to compute (FR-BE-04).
+   `services/api/app/services/*.py` — never left for the frontend to compute (FR-BE-04).
 6. Given a numeric or duration value is included in a response, when the shared formatting
    utility is applied, then output uses consistent M/K numeric formatting and h/m time
    formatting, applied at exactly one layer (backend-only or frontend-only, per the project's
@@ -60,7 +62,7 @@ routers don't each reinvent these rules.
 ## Test mapping
 
 - E2E: NA — backend-only shared convention, exercised indirectly through consumer routers' E2E suites.
-- Unit: `backend/app/utils/format.py`, `backend/app/dependencies/range.py` (or equivalent shared-dependency module), pagination helper module.
+- Unit: `services/api/app/utils/format.py`, `services/api/app/dependencies/range.py` (or equivalent shared-dependency module), pagination helper module.
 - Manual: NA
 
 ## Clarifications
@@ -73,3 +75,11 @@ routers don't each reinvent these rules.
 - 2026-08-26 Formatting layer choice left open ("pick one, backend or frontend") per FR-BE-08 —
   not resolved here; AC 6 states the constraint (single layer, no mixing) without picking a
   side, since the PRD explicitly defers that choice to implementation.
+- 2026-08-27 Test-mapping/AC-5 paths corrected `backend/app/...` → `services/api/app/...` to match the
+  real repo layout (README, ADR-0001). Path correction only — no acceptance-criteria semantics changed.
+- 2026-08-27 Logging for the invalid-range rejection path uses the existing stdlib `logging` +
+  `JSONFormatter` (`services/api/app/core/logging.py`, ADR-0002); structlog is NOT added. Resolves the
+  2026-08-26 assumption above: PRD NFR-011 reads "Python `structlog`/`logging` JSON output" — either is
+  compliant, and the hand-rolled formatter already ships. Condition: `JSONFormatter.format` currently
+  emits only `{timestamp, level, logger, message, exc_info?}` and drops `record.__dict__` extras, so it
+  must be extended to pass through `extra` before `route`/`param`/`rejected_value` can be logged.
