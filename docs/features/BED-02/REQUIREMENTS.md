@@ -75,9 +75,15 @@ Not applicable — `integrations.design = none`. Backend / API / data feature.
 - **Examples / how-to**: none.
 
 ## Open questions
-None — research's `## Clarifications` section is empty (0 unresolved, verdict GO-WITH-CONDITIONS, score 78/100); all 5 conditions are addressed above.
 
-Decisions logged in `docs/stories/BED-02.md` § Decision log.
+<!-- None open. Research (docs/research/BED-02.md) carried 0 unresolved clarifications -->
+<!-- into this phase; all 5 GO-WITH-CONDITIONS conditions are addressed in            -->
+<!-- § Addressing Research Conditions above. Decisions are logged in                  -->
+<!-- docs/stories/BED-02.md § Decision log.                                           -->
+<!--                                                                                  -->
+<!-- Kept as a comment deliberately: the `phase-preconditions` clarification gate     -->
+<!-- treats ANY non-blank, non-comment line in this section as an unresolved open      -->
+<!-- question and aborts the next phase. Prose saying "None" trips it.                 -->
 
 ## Approvals
 - **2026-08-27** — Pratik Pawar (pratik.pawar@apexon.com), Product Gate: **APPROVE**
