@@ -1,19 +1,84 @@
 {
   "designSystem": {
-    "fileKey": "TODO",
-    "url": "TODO",
+    "provider": "html-mockup",
+    "fileKey": "n/a — html-mockup provider, no Figma file",
+    "url": "docs/design/mockups/",
+    "source": "Claude Design canvas exports, added 2026-08-27. See docs/design/README.md for how to read them.",
     "pages": {
-      "tokens": "",
+      "tokens": "docs/design/tokens.md",
       "atoms": "",
       "molecules": "",
       "organisms": "",
       "icons": "",
-      "features": {}
+      "features": {
+        "OVW": "docs/design/mockups/CIO Portfolio Dashboard.html",
+        "PGD": "docs/design/mockups/Program Detail.html",
+        "EMD": "docs/design/mockups/Engineering Manager Dashboard.html",
+        "ARC": "docs/design/mockups/Architect Dashboard.html",
+        "DEV": "docs/design/mockups/Developer Dashboard.html",
+        "PMD": "docs/design/mockups/Product Manager Dashboard.html"
+      }
     }
   },
   "tokens": {
-    "color": [],
-    "spacing": [],
-    "typography": []
+    "color": [
+      { "name": "primary", "value": "#2a6fdb" },
+      { "name": "primary-tint", "value": "#eef3fb" },
+      { "name": "ink", "value": "#0f1a2e" },
+      { "name": "success", "value": "#1f8a5b" },
+      { "name": "success-tint", "value": "#eaf6ef" },
+      { "name": "accent-purple", "value": "#6a4fd0" },
+      { "name": "accent-terracotta", "value": "#d97757" },
+      { "name": "text-700", "value": "#5b6472" },
+      { "name": "text-600", "value": "#7a828f" },
+      { "name": "text-500", "value": "#8a93a1" },
+      { "name": "text-400", "value": "#9aa2ae" },
+      { "name": "text-300", "value": "#a2abb8" },
+      { "name": "border-300", "value": "#e4e7ec" },
+      { "name": "border-200", "value": "#e6e9ef" },
+      { "name": "border-100", "value": "#e9ebef" },
+      { "name": "surface-300", "value": "#eef0f3" },
+      { "name": "surface-200", "value": "#f0f1f4" },
+      { "name": "surface-150", "value": "#f2f4f7" },
+      { "name": "surface-100", "value": "#f4f5f7" },
+      { "name": "surface-50", "value": "#fafbfc" }
+    ],
+    "spacing": [
+      { "name": "content-padding-x", "value": "34px" },
+      { "name": "content-padding-top", "value": "24px" },
+      { "name": "content-padding-bottom", "value": "44px" },
+      { "name": "section-gap", "value": "24px" },
+      { "name": "card-padding", "value": "18px 19px" },
+      { "name": "grid-gap", "value": "16px" },
+      { "name": "content-max-width", "value": "1360px" },
+      { "name": "kpi-min-column", "value": "190px" }
+    ],
+    "typography": [
+      { "name": "font-sans", "value": "'Plus Jakarta Sans', system-ui, sans-serif" },
+      { "name": "font-mono", "value": "'JetBrains Mono', monospace" },
+      { "name": "size-kpi", "value": "25px" },
+      { "name": "size-h1", "value": "22px" },
+      { "name": "size-h2", "value": "20px" },
+      { "name": "size-page-title", "value": "19px" },
+      { "name": "size-brand", "value": "15px" },
+      { "name": "size-body", "value": "13px" },
+      { "name": "size-body-sm", "value": "12.5px" },
+      { "name": "size-secondary", "value": "12px" },
+      { "name": "size-caption", "value": "11px" },
+      { "name": "size-caption-sm", "value": "10.5px" }
+    ],
+    "radius": [
+      { "name": "card", "value": "16px" },
+      { "name": "pill", "value": "20px" },
+      { "name": "icon-tile", "value": "11px" },
+      { "name": "brand-mark", "value": "9px" },
+      { "name": "control", "value": "8px" },
+      { "name": "chip", "value": "6px" },
+      { "name": "dot", "value": "4px" },
+      { "name": "avatar", "value": "50%" }
+    ],
+    "shadow": [
+      { "name": "card", "value": "0 1px 2px rgba(15,26,46,.04)" }
+    ]
   }
 }
