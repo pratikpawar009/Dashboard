@@ -84,4 +84,6 @@ Title: `type(scope): summary`. Body sections: Summary, Test plan, Migration (if 
 
 ## Design system
 
-No Figma/formal design system. Reference: html-mockup pages at `docs/design/` (fileKey/url TODO — see `docs/design/schema.json`; pages not yet created).
+No Figma. Provider is `html-mockup`: six canvas exports in `docs/design/mockups/` are the authoritative UI reference, mapped to RTM epics in `docs/design/schema.json`. Tokens in `docs/design/tokens.md`.
+
+**Read `docs/design/README.md` first** — the mockups are bundler outputs, not readable HTML, and the markup must be extracted before you can diff or grep it. It also records two decisions the mockups imply (values arrive pre-formatted; the templates bind CSS as well as data) and notes they are desktop-only despite the responsive target.
