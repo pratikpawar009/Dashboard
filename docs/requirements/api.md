@@ -4,11 +4,29 @@
 produced_by: BED-02
 consumed_by: [OVW-01, OVW-02, OVW-03, OVW-04, PGD-01, PGD-02, PGD-03, PGD-04, PGD-05, PGD-06, SHP-02, SHP-03, SHP-04, SHP-05, SHP-06]
 shape:
-  range: "range=7d|30d|90d on every time-series/list endpoint; 400 via explicit check (never FastAPI's default 422) on an invalid value (FR-BE-02)"
-  pagination: "offset/limit (max 50, per-endpoint) and page/page_size (max 100) where applicable (FR-BE-03)"
-  derived_values: "adoption %, deltas, averages, 'X/Y passing' computed server-side only, never client-side (FR-BE-04)"
-  formatting: "M/K numeric and h/m time formatting applied consistently — pick one layer (frontend display-only or backend pre-formatted) and do not mix (FR-BE-08)"
+  range:
+    dependency: "validate_range(request: Request, range: str = Query(...)) -> str @ app.dependencies.range — Depends(), not middleware, not per-router inline checks (FR-1)"
+    allowed_values: ["7d", "30d", "90d"]
+    rejection: "HTTPException(400, 'invalid_range') -> {\"error\": {\"code\": \"http_400\", \"message\": \"invalid_range\", \"details\": null}} via app.core.errors.error_body()/register_exception_handlers() — never FastAPI's default 422 (AC 2, FR-1)"
+    window_helper: "range_to_start(range_value: str, now: datetime | None = None) -> datetime @ app.dependencies.range — start = now - timedelta(days={7,30,90}[range_value])"
+    logging: "on rejection: logger.warning('invalid_range', extra={route, param: 'range', rejected_value}) — surfaced via JSONFormatter's extras merge (FR-3)"
+    consistency: "identical 400 status + error body across every consumer of validate_range() (AC 7)"
+  pagination:
+    offset_limit: "get_offset_limit(offset: int = Query(0, ge=0), limit: int = Query(50, ge=1)) -> tuple[int, int] @ app.dependencies.pagination — clamps limit to 50 (MAX_OFFSET_LIMIT), never rejects an over-max value (AC 3)"
+    page_size: "get_page_params(page: int = Query(1, ge=1), page_size: int = Query(100, ge=1)) -> tuple[int, int] @ app.dependencies.pagination — clamps page_size to 100 (MAX_PAGE_SIZE), kept equal to app.api.activities.MAX_PAGE_SIZE (AC 4)"
+  derived_values:
+    adoption_percent: "compute_adoption_percent(rollup: OrgSummaryRollup) -> dict @ app.services.rollup_compute — adoption_percent = programs_using_ai_count / programs_total * 100"
+    period_delta: "compute_period_delta(current_total, prior_total) -> dict @ app.services.rollup_compute — delta = (current_total - prior_total) / prior_total * 100 (percent change; None when prior_total == 0)"
+    average: "compute_average(total, count) -> float @ app.services.rollup_compute — average = total / count (0.0 when count == 0)"
+    guardrail_summary: "compute_guardrail_summary(guardrails: Sequence[ProgramGuardrail]) -> dict @ app.services.guardrail_compute — 'X/Y passing' where passing = status == 'Enforced' (D-05, docs/features/BED-02/DECISIONS.md)"
+    layer: "services/api/app/services/*.py only — never left for the frontend to compute (AC 5)"
+  formatting:
+    numeric: "format_number(value: int | float) -> str @ app.utils.format — M/K suffix (e.g. 2500 -> '2.5K', 1_500_000 -> '1.5M')"
+    duration: "format_duration(minutes: int) -> str @ app.utils.format — h/m suffix (e.g. 125 -> '2h 5m')"
+    layer: "backend-only (FR-2) — no equivalent frontend formatting utility exists or should be added (AC 6)"
 ```
+
+Wiring into consumer routers (OVW/PGD/SHP endpoints) is explicitly each downstream story's own scope — this shape is the contract they build against, not yet mounted on any route.
 
 ### freshness-api
 

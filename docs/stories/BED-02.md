@@ -8,6 +8,7 @@
 **Tracker**: pratikpawar009/Dashboard#12 (https://github.com/pratikpawar009/Dashboard/issues/12)
 **Tracker Research**: pratikpawar009/Dashboard#63 (https://github.com/pratikpawar009/Dashboard/issues/63)
 **Tracker Plan Requirements**: pratikpawar009/Dashboard#64 (https://github.com/pratikpawar009/Dashboard/issues/64)
+**Tracker Plan Implementation**: pratikpawar009/Dashboard#82 (https://github.com/pratikpawar009/Dashboard/issues/82)
 
 ## User story
 

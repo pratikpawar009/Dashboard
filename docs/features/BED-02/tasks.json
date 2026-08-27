@@ -1,0 +1,503 @@
+{
+  "schema_version": 1,
+  "story_id": "BED-02",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-27T16:20:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/dependencies/__init__.py",
+      "reason": "barrel export for the new dependencies package (matches app/models/__init__.py convention); the entry-registration site for range.py + pagination.py"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/dependencies/range.py",
+      "reason": "FR-1: validate_range() Depends() function + range_to_start() window helper (AC 1, AC 2, AC 7)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/dependencies/pagination.py",
+      "reason": "offset/limit (max 50) and page/page_size (max 100) clamp-not-reject helpers (AC 3, AC 4, D-01)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/services/__init__.py",
+      "reason": "barrel export for the new services package; entry-registration site for rollup_compute.py + guardrail_compute.py"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/app/services/rollup_compute.py",
+      "reason": "compute_adoption_percent, compute_period_delta, compute_average (AC 5, FR-4, D-02, D-03)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/app/services/guardrail_compute.py",
+      "reason": "compute_guardrail_summary ('X/Y passing') over program_guardrails rows (AC 5, FR-4, D-03, D-05)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/app/utils/__init__.py",
+      "reason": "barrel export for the new utils package; entry-registration site for format.py"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "services/api/app/utils/format.py",
+      "reason": "FR-2: format_number (M/K) and format_duration (h/m), backend-side only (AC 6)"
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/app/core/logging.py",
+      "reason": "FR-3: JSONFormatter.format merges LogRecord extras (route/param/rejected_value), excluding a hardcoded reserved-attrs set (D-04)"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/unit/__init__.py",
+      "reason": "package marker for the new tests/unit/ subdirectory (tests/ is already a package per tests/__init__.py, BED-01)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_range_validation.py",
+      "reason": "BED-02-TC-01,02,03,04,14,19,20 \u2014 throwaway test routers built on Depends(validate_range); named in PRD Rollout plan Success signal"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_pagination.py",
+      "reason": "BED-02-TC-05,06,07,08 \u2014 offset/limit + page/page_size clamp behaviour; named in PRD Rollout plan Success signal"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_derived_values.py",
+      "reason": "BED-02-TC-09,10,17 \u2014 derived-value computation + docstring-formula introspection; named in PRD Rollout plan Success signal; uses BED-01's tests/conftest.py migrated_db/test_session fixtures"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_format.py",
+      "reason": "BED-02-TC-11,12,13 \u2014 M/K + h/m formatting boundaries, and FR-2 single-layer (no apps/web duplicate) check"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_logging.py",
+      "reason": "BED-02-TC-15,16 \u2014 JSONFormatter extras-merge + reserved-attr exclusion (must fail pre-fix, pass post-fix per TC-15)"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/perf/__init__.py",
+      "reason": "package marker for the new tests/perf/ subdirectory"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_range_pagination_perf.py",
+      "reason": "BED-02-TC-18 \u2014 p95 < 2s over 50 sequential requests exercising validate_range + pagination + a services call (NFR-002); runs under the existing pytest runner, no new runner installed"
+    },
+    "F-18": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "PRD Documentation requirements: document dependencies/services/utils modules + the convention that new routers import them rather than reimplement"
+    },
+    "F-19": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill the api-conventions contract's decomposition-time sketch with the concrete shape this plan designs (plan-authoring step 10)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Create app/dependencies/range.py (validate_range Depends(), range_to_start helper)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "BED-02-AC-1",
+        "BED-02-AC-2",
+        "BED-02-FR-1",
+        "BED-02-NFR-observability",
+        "BED-02-NFR-security"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-04"
+      ],
+      "notes": "Depends()-not-middleware per FR-1/C-2 (module docstring states this); raises HTTPException(400, 'invalid_range') routed through existing error_body()/register_exception_handlers(); logs route/param/rejected_value via logger.warning(..., extra={...}) on rejection.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Create app/dependencies/pagination.py (offset/limit max 50, page/page_size max 100)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "BED-02-AC-3",
+        "BED-02-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "D-01: clamp via min(value, MAX) in the function body, Query() with ge= only (no le=) so an over-max value clamps instead of 422ing. MAX_PAGE_SIZE=100 kept equal to app.api.activities.MAX_PAGE_SIZE (TC-08).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Create app/dependencies/__init__.py barrel export",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "from app.dependencies.range import validate_range, range_to_start; from app.dependencies.pagination import get_offset_limit, get_page_params \u2014 the entry-registration site for both new modules (Wiring dimension).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Extend JSONFormatter.format to merge LogRecord extras",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "BED-02-FR-3"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "D-04: hardcoded _RESERVED_LOGRECORD_ATTRS frozenset; payload.update({k: v for k, v in record.__dict__.items() if k not in _RESERVED_LOGRECORD_ATTRS}) after the existing fixed-key payload is built.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Create app/services/rollup_compute.py (adoption_percent, period_delta, average)",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "BED-02-AC-5",
+        "BED-02-FR-4"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "D-02: functions accept pre-fetched OrgSummaryRollup rows / raw totals, return dict merging raw + computed field. Docstrings state formulas verbatim: 'adoption_percent = programs_using_ai_count / programs_total * 100', 'delta = (current_total - prior_total) / prior_total * 100', 'average = total / count' (FR-4 / TC-17 markers).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Create app/services/guardrail_compute.py (X/Y passing)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "BED-02-AC-5",
+        "BED-02-FR-4"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "D-05: PASSING_STATUS = 'Enforced'; compute_guardrail_summary(guardrails) -> {passing_count, total_count, summary: f'{passing_count}/{total_count} passing'}. Docstring states the formula and the Enforced-only mapping.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Create app/services/__init__.py barrel export",
+      "complexity": "S",
+      "predecessors": [
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "from app.services.rollup_compute import compute_adoption_percent, compute_period_delta, compute_average; from app.services.guardrail_compute import compute_guardrail_summary \u2014 entry-registration site for both new modules.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Create app/utils/format.py (M/K numeric, h/m duration)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "BED-02-AC-6",
+        "BED-02-FR-2"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "format_number: >=1_000_000 -> '{v/1e6:.1f}M'; >=1_000 -> '{v/1e3:.1f}K'; else bare int string (0 -> '0', 999 -> '999'). format_duration: divmod(minutes, 60) -> '{h}h {m}m' / '{h}h' / '{m}m' per zero-branch.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Create app/utils/__init__.py barrel export",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "from app.utils.format import format_number, format_duration \u2014 entry-registration site for the new module.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Create tests/unit/__init__.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Package marker so tests/unit/* is importable, matching tests/__init__.py's existing package-ified convention (pytest-patterns).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Write tests/unit/test_range_validation.py",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-03",
+        "T-04",
+        "T-10"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "BED-02-AC-1",
+        "BED-02-AC-2",
+        "BED-02-AC-7",
+        "BED-02-FR-1",
+        "BED-02-NFR-security",
+        "BED-02-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-07"
+      ],
+      "notes": "TC-01,02,03,04,14,19,20. Two throwaway routers (router_a/router_b) both Depends(validate_range) for TC-14/AC-7; httpx ASGITransport + AsyncClient per pytest-patterns example; TC-19/20 capture stdout JSON log lines via a test logging.Handler around the real validate_range() dependency (not a synthetic LogRecord) wired with configure_logging() + register_exception_handlers().",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Write tests/unit/test_pagination.py",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-10"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "BED-02-AC-3",
+        "BED-02-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "TC-05,06,07,08. TC-08 is a pure import-and-compare (app.api.activities.MAX_PAGE_SIZE vs app.dependencies.pagination.MAX_PAGE_SIZE), no client needed.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Write tests/unit/test_derived_values.py",
+      "complexity": "L",
+      "predecessors": [
+        "T-05",
+        "T-06",
+        "T-07",
+        "T-10"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "BED-02-AC-5",
+        "BED-02-FR-4"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "TC-09,10,17. Uses BED-01's tests/conftest.py migrated_db + test_session fixtures against the disposable _test-suffixed Postgres DB; seeds org_summary_rollup (TC-09) and program_guardrails (TC-10) rows directly via test_session, then calls the services functions. TC-17 introspects __doc__ on every services function for the formula markers (no DB needed).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Write tests/unit/test_format.py",
+      "complexity": "M",
+      "predecessors": [
+        "T-08",
+        "T-09",
+        "T-10"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "BED-02-AC-6",
+        "BED-02-FR-2"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "TC-11,12 pure boundary-value assertions on format_number/format_duration. TC-13 recursively scans apps/web/src for forbidden_patterns (formatNumber, formatMK, formatDuration, formatHoursMinutes) and any independent K/M or h/m string-construction logic \u2014 proves FR-2's single-layer decision holds.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Write tests/unit/test_logging.py",
+      "complexity": "S",
+      "predecessors": [
+        "T-04",
+        "T-10"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "BED-02-FR-3"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "TC-15 (extras surfaced) + TC-16 (reserved attrs excluded) construct LogRecord objects directly and call JSONFormatter().format(record); no live server.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "Write tests/perf/test_range_pagination_perf.py",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-02",
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-16",
+        "F-17"
+      ],
+      "ac_refs": [
+        "BED-02-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "TC-18. Uses migrated_db/test_session (BED-01 conftest.py) to seed representative rollup/guardrail row counts; endpoint composed from validate_range + get_offset_limit/get_page_params + one services call; 5 unmeasured warmup + 50 measured sequential ASGI requests; asserts p95 < 2000ms. Runs under the project's existing pytest runner (fastapi-2 stack's declared test_runner) \u2014 no new runner installed (Runner-setup dimension: N/A, no new tool).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "Update services/api/README.md with the shared-modules convention",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-07",
+        "T-09"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "PRD Documentation requirements: document app/dependencies, app/services, app/utils and the rule that new routers import them (from app.dependencies / app.services / app.utils) rather than reimplementing range/pagination/derived-value/formatting logic.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "Reconcile the api-conventions contract in docs/requirements/api.md against the implemented signatures",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-06",
+        "T-07",
+        "T-08",
+        "T-09"
+      ],
+      "files": [
+        "F-19"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Initial fill is ALREADY DONE at planning time (plan-authoring step 10 / SKILL.md:227 assigns authoring a registered cross-story contract to the planner, not the implementer) \u2014 docs/requirements/api.md#api-conventions now carries concrete signatures for range, pagination, derived_values and formatting. This task is therefore a RECONCILIATION, not an authoring pass: after T-01..T-09 land, diff the real function names, parameter defaults and return types against the contract and correct any drift. The 13 consumer stories build against this file, so a stale signature here is a cross-story defect, not a docs nit.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    }
+  ]
+}
