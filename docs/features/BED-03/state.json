@@ -1,0 +1,20 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#13",
+  "tracker_research": "pratikpawar009/Dashboard#65",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/BED-03/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "plan-requirements-approved",
+  "last_updated": "2026-08-27T12:15:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#84",
+  "gate": "APPROVE"
+}

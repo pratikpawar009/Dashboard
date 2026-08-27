@@ -266,9 +266,11 @@ BED-03 is a **rebuild engine story** dependent on the stable 18-table schema fro
 
 ## Clarifications
 
-**Count: 0 unresolved**
+<!-- none open — the 2026-08-27 resolution is recorded under § Resolved clarifications below -->
 
-- **Schema count (17 vs 18)**: Resolved in Exploration Log above. Story prose says "17-table shape" but the db-schema contract itemization (data.md) lists 18 tables verbatim. The 18-table count is canonical per the acceptance_spec note; no action required on the story (AC1/AC2 reference counts correctly as written).
+## Resolved clarifications
+
+**2026-08-27 — schema count (17 vs 18).** Resolved in the Exploration Log above. Story prose says "17-table shape" but the `db-schema` contract itemization (`docs/requirements/data.md`) lists 18 tables verbatim. The 18-table count is canonical per the acceptance_spec note; no action required on the story — AC1/AC2 reference their per-table counts correctly as written.
 
 ---
 
