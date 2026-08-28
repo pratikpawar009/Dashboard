@@ -1,0 +1,45 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#16",
+  "tracker_research": "pratikpawar009/Dashboard#108",
+  "tracker_prd": "pratikpawar009/Dashboard#109",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-02/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "plan-implementation",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/AUTH-02/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-02/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/AUTH-02/tasks.json"
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "R-09-persona-resolver-per-request-memoization",
+      "kind": "risk",
+      "reason": "N+1 query risk if the persona resolver is called per-route/per-resource within a single request; deferred to AUTH-03 to consider memoizing persona resolution across a single request scope \u2014 accepted per docs/research/AUTH-02.md Risk Register #9 (MEDIUM)",
+      "owner": "AUTH-03 implementer",
+      "added_at": "2026-08-28T13:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "last_updated": "2026-08-28T13:00:00Z",
+  "tracker_plan": "pratikpawar009/Dashboard#107"
+}

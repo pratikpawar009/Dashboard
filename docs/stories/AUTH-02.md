@@ -6,6 +6,9 @@
 **Owner**: —
 **Updated**: 2026-08-26
 **Tracker**: pratikpawar009/Dashboard#16 (https://github.com/pratikpawar009/Dashboard/issues/16)
+**Tracker Research:** pratikpawar009/Dashboard#108 (https://github.com/pratikpawar009/Dashboard/issues/108)
+**Tracker Plan Requirements:** pratikpawar009/Dashboard#109
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#107
 
 ## User story
 
@@ -70,8 +73,31 @@ change or deploy when a role mapping changes.
 
 ## Clarifications
 
+- 2026-08-28 **Tier-1 (env source) format** — RESOLVED. Single JSON-dict env var
+  `PERSONA_ROLE_MAP` (e.g. `PERSONA_ROLE_MAP='{"cio":"cio","admin":"cio"}'`). Parsed once
+  at Settings load; unparseable value logs a warning and treats Tier-1 as empty
+  (fail-open on parse error → falls through to Tier-2/3; final unmapped role still
+  raises per AC-4). Documented in `.env.example`.
+- 2026-08-28 **Tier-2 (config file) format, location, reload** — RESOLVED. Required for
+  MVP (satisfies AC-2). Format: **YAML**. Location: `services/api/config/persona_role_map.yaml`.
+  Load semantics: **static load-once at process startup**; missing file is a startup
+  error (fail-fast, since Tier-2 is required for MVP). Hot-reload deferred to a future
+  story.
+- 2026-08-28 **AC-7 executive role slugs (`cxo`, `board_member`)** — RESOLVED. Treated
+  as **illustrative examples**, not hardcoded production slugs. Resolver is fully
+  data-driven: any role→persona mapping (including exec-role→`cio`) comes from Tier-1/2/3
+  data. AC-7 unit test uses a representative custom slug (e.g. `board_member`) mapped
+  via Tier-2 fixture to verify data-driven behaviour; no `if role in {"cxo", ...}` branches
+  anywhere in the resolver.
+
 ## Decision log
 
 - 2026-08-26 Tier-3 Postgres query timeout: 3s — assumption, source (`persona-resolver`
   contract, PRD) gives no explicit I/O budget; chosen conservatively per
   `.claude/rules/performance-baseline.md`'s explicit-timeout rule.
+- 2026-08-28 Tier-1 env var name = `PERSONA_ROLE_MAP`, JSON dict; unparseable → warn +
+  treat as empty (see Clarifications above).
+- 2026-08-28 Tier-2 config file = `services/api/config/persona_role_map.yaml`, YAML,
+  required for MVP, static load-once, missing file is a startup error (see
+  Clarifications above).
+- 2026-08-28 AC-7 exec roles data-driven, not hardcoded (see Clarifications above).
