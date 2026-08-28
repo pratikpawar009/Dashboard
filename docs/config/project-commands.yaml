@@ -29,3 +29,4 @@ preflight:
   - "cd services/api && uv run python -c \"import app.main\"   # smoke-import once app/main.py exists"
   - "cd services/api && uv run python -c \"import authlib; print(authlib.__version__)\"   # smoke-import — authlib is a [project].dependencies pin (ADR-0004), research condition C-1 mitigation"
   - "cd services/api && uv run python -c \"import respx; print(respx.__version__)\"   # smoke-import — respx is a dev-only [dependency-groups].dev dependency (D-06), research condition C-1 mitigation"
+  - "cd services/api && uv run python -c \"import yaml; print(yaml.__version__)\"   # smoke-import — pyyaml is a production [project].dependencies pin (AUTH-02 D-09), imported at module level by app/core/persona_resolver.py, previously only present transitively via uvicorn[standard]"

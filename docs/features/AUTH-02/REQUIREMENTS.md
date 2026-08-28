@@ -87,7 +87,7 @@ The cache is a dict `self._cache: dict[str, tuple[str, float]]` where key is `ro
 
 **AUTH-02-FR-5** — Log-event field schema *(extends story NFR observability + parent PRD NFR-011 with: exact field allowlist `{role, persona, tier, timestamp}`, no user context)*
 
-Every `resolve()` call (cache hit or miss) emits `logger.info("persona_mapping_loaded", extra={"role": role, "persona": persona, "tier": tier_name, "timestamp": datetime.utcnow().isoformat() + "Z"})`. The `tier_name` is one of `"tier-1-env"`, `"tier-2-yaml"`, `"tier-3-postgres"`. No `user_id`, `email`, `groups`, `session_id`, or any request-scoped context is added to the `extra` dict. The JSONFormatter from `app/core/logging.py` adds its own meta fields (`level`, `logger`, `message`, `timestamp` from the formatter itself); those are acceptable. The event schema contract is `{role: str, persona: str, tier: str, timestamp: str}` from the resolver, plus formatter meta — nothing else.
+Every `resolve()` call (cache hit or miss) emits `logger.info("persona_mapping_loaded", extra={"role": role, "persona": persona, "tier": tier_name, "timestamp": datetime.utcnow().isoformat() + "Z"})`. The `tier_name` is one of `"tier-1-env"`, `"tier-2-yaml"`, `"tier-3-postgres"`. No `user_id`, `email`, `groups`, `session_id`, or any request-scoped context is added to the `extra` dict. The JSONFormatter from `app/core/logging.py` adds its own meta fields (`level`, `logger`, `message`, `timestamp` from the formatter itself); those are acceptable. The event schema contract is `{role: str, persona: str, tier: str, timestamp: str}` from the resolver, plus formatter meta. **"Nothing else" here bars user context — it is a PII allowlist, not a ban on non-PII operational fields.** Exactly one such field is added, and only on a fresh Tier-3 query: `tier3_latency_ms`, required by C-4 above, by the § NFR 200ms-p95 alert, and by the `persona-resolver` contract in `docs/requirements/auth.md`. See `DECISIONS.md` D-11 for the adjudication. No further field may be added on that reasoning.
 
 ## Non-functional requirements
 
@@ -101,7 +101,7 @@ Every `resolve()` call (cache hit or miss) emits `logger.info("persona_mapping_l
 
 - **Security (fail-closed)**: Unmapped role (all 3 tiers return None) raises `PersonaNotFoundError(role)`, never returns a default persona. Enforced by AC-4 unit test (all sources empty → exception raised, not a string returned). Zero defaults; count of default-persona returns = 0 across all code paths.
 
-- **Observability (log event)**: Every resolution emits `persona_mapping_loaded` at INFO level with exactly `{role, persona, tier, timestamp}` (plus JSONFormatter meta). Enforced by FR-5 above. Unit test asserts field allowlist (PII audit test, see C-7).
+- **Observability (log event)**: Every resolution emits `persona_mapping_loaded` at INFO level with `{role, persona, tier, timestamp}` (plus JSONFormatter meta), and additionally `tier3_latency_ms` on a **fresh Tier-3 resolution** only — see D-11. Enforced by FR-5 above. Unit test asserts field allowlist (PII audit test, see C-7; TC-16a/b/c pin the fresh-vs-warm distinction).
 
 - **Concurrency (cache lock)**: N concurrent `resolve()` calls for the same role (cold cache) → exactly 1 Tier-3 query executed. Enforced by `asyncio.Lock` guarding cache read+write. Unit test with N=10 concurrent coroutines asserts query count = 1.
 

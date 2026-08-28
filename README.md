@@ -38,7 +38,7 @@ FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table
 
 ## Environment variables
 
-New in AUTH-01 (`services/api/.env.example`):
+New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02:
 
 | Name | Default | Notes |
 |---|---|---|
@@ -49,6 +49,8 @@ New in AUTH-01 (`services/api/.env.example`):
 | `OIDC_SCOPE` | `openid profile email groups` | Every scope must exist on the realm — Keycloak rejects the whole authorization request with `invalid_scope` otherwise. `groups` is **not** a default Keycloak scope: it needs a client scope with a Group Membership mapper (claim name `groups`, *Full group path* OFF), or `PROGRAM_GROUP_PREFIX` parsing has no claim to read and `programs` is always empty. |
 | `PROGRAM_GROUP_PREFIX` | `program-` | A `groups` claim entry starting with this prefix becomes a program-membership entry (remainder after the prefix); non-matching entries are dropped from the parsed list but stay in the raw `groups` claim. |
 | `CORS_ORIGINS` | `[]` (no origins allowed) | A single origin, or a comma-separated list of origins — not a JSON array. |
+| `PERSONA_ROLE_MAP` | `None` (unset) | Optional. Tier-1 override for persona resolution: a JSON object mapping an IdP role claim to one of the five personas (`cio`, `architect`, `developer`, `product-manager`, `engineering-manager`), e.g. `{"cio":"cio","admin":"cio"}`. Resolution order is Tier-1 (this var) → Tier-2 YAML (`services/api/config/persona_role_map.yaml`, requires an app restart to pick up changes — no hot-reload) → Tier-3 Postgres `persona_config` (system of record). Unset means Tier-1 is empty, not an error. Invalid JSON, a non-object value, or an object with non-string values are also treated as empty — a `persona_role_map_parse_error` warning is logged and resolution falls through to Tier-2/3; this fail-open parse behaviour is distinct from an unmapped role, which still raises once all three tiers come up empty. |
+| `PERSONA_CONFIG_FILE` | `None` (unset) | Optional. Tier-2 YAML path override. Unset, the resolver uses its own `__file__`-anchored default (`services/api/config/persona_role_map.yaml`), independent of process cwd. |
 
 ## Keycloak client requirements
 

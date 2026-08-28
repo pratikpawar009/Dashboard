@@ -20,7 +20,7 @@
         "tier3_rows": []
       },
       "steps": [
-        "Configure PERSONA_ROLE_MAP='{\u0022cio\u0022: \u0022cio\u0022}'",
+        "Configure PERSONA_ROLE_MAP='{\"cio\": \"cio\"}'",
         "Initialize PersonaResolver instance",
         "Call resolver.resolve('cio')",
         "Verify no Tier-2 file read occurred",
@@ -38,7 +38,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["happy-path", "tier-1", "env-source"]
+      "tags": [
+        "happy-path",
+        "tier-1",
+        "env-source"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-02",
@@ -76,7 +99,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["happy-path", "tier-2", "yaml-fallback"]
+      "tags": [
+        "happy-path",
+        "tier-2",
+        "yaml-fallback"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 4,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 4,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-03",
@@ -94,7 +140,10 @@
         "tier1_map": "{}",
         "tier2_map": "{}",
         "tier3_rows": [
-          {"role": "architect", "persona": "architect"}
+          {
+            "role": "architect",
+            "persona": "architect"
+          }
         ]
       },
       "steps": [
@@ -117,7 +166,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["happy-path", "tier-3", "postgres-fallback"]
+      "tags": [
+        "happy-path",
+        "tier-3",
+        "postgres-fallback"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 105,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 105,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-04",
@@ -155,7 +227,30 @@
       "category": "negative",
       "automatable": true,
       "priority": "P1",
-      "tags": ["edge-case", "fail-closed", "unmapped-role"]
+      "tags": [
+        "edge-case",
+        "fail-closed",
+        "unmapped-role"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-05",
@@ -194,7 +289,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["cache-hit", "performance", "ttl"]
+      "tags": [
+        "cache-hit",
+        "performance",
+        "ttl"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-06",
@@ -234,7 +352,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["cache-expiry", "ttl", "refresh"]
+      "tags": [
+        "cache-expiry",
+        "ttl",
+        "refresh"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 4,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 4,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-07",
@@ -270,7 +411,30 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["data-driven", "executive-role", "custom-mapping"]
+      "tags": [
+        "data-driven",
+        "executive-role",
+        "custom-mapping"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-08",
@@ -286,7 +450,10 @@
         "role": "cio",
         "expected_persona": "cio",
         "tier3_rows": [
-          {"role": "cio", "persona": "cio"}
+          {
+            "role": "cio",
+            "persona": "cio"
+          }
         ]
       },
       "steps": [
@@ -310,7 +477,31 @@
       "category": "negative",
       "automatable": true,
       "priority": "P1",
-      "tags": ["error-handling", "tier-1", "parse-error", "research-C-1"]
+      "tags": [
+        "error-handling",
+        "tier-1",
+        "parse-error",
+        "research-C-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-09",
@@ -341,7 +532,31 @@
       "category": "negative",
       "automatable": true,
       "priority": "P1",
-      "tags": ["startup-error", "tier-2", "fail-fast", "research-C-2"]
+      "tags": [
+        "startup-error",
+        "tier-2",
+        "fail-fast",
+        "research-C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-10",
@@ -372,7 +587,32 @@
       "category": "negative",
       "automatable": true,
       "priority": "P1",
-      "tags": ["startup-error", "tier-2", "fail-fast", "yaml-parse-error", "research-C-2"]
+      "tags": [
+        "startup-error",
+        "tier-2",
+        "fail-fast",
+        "yaml-parse-error",
+        "research-C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 5,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 5,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-11",
@@ -407,7 +647,31 @@
       "category": "negative",
       "automatable": true,
       "priority": "P1",
-      "tags": ["timeout", "tier-3", "error-handling", "nfr-timeout"]
+      "tags": [
+        "timeout",
+        "tier-3",
+        "error-handling",
+        "nfr-timeout"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 72,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 72,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-12",
@@ -441,7 +705,35 @@
       "category": "positive",
       "automatable": true,
       "priority": "P2",
-      "tags": ["latency-baseline", "cache-hit", "performance", "research-C-4"]
+      "tags": [
+        "latency-baseline",
+        "cache-hit",
+        "performance",
+        "research-C-4"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 15,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 15,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p99 < 1ms (100 iterations, warm cache hit)",
+          "measured": "p99 < 1ms, assertion passed this run (stdout redirected to file, non-tty — see AF-03)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-13",
@@ -477,7 +769,36 @@
       "category": "positive",
       "automatable": true,
       "priority": "P2",
-      "tags": ["latency-baseline", "cold-cache", "tier-3", "performance", "research-C-4"]
+      "tags": [
+        "latency-baseline",
+        "cold-cache",
+        "tier-3",
+        "performance",
+        "research-C-4"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 78,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 78,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 100ms (10 iterations, cold Tier-3 hit)",
+          "measured": "p95 < 100ms, assertion passed this run against live Postgres (localhost:5443)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-14",
@@ -513,7 +834,32 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["concurrency", "lock", "cache", "tier-3", "research-C-6"]
+      "tags": [
+        "concurrency",
+        "lock",
+        "cache",
+        "tier-3",
+        "research-C-6"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 45,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 45,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "AUTH-02-TC-15",
@@ -526,7 +872,15 @@
       ],
       "test_data": {
         "role": "cio",
-        "allowed_fields": ["role", "persona", "tier", "timestamp", "level", "logger", "message"]
+        "allowed_fields": [
+          "role",
+          "persona",
+          "tier",
+          "timestamp",
+          "level",
+          "logger",
+          "message"
+        ]
       },
       "steps": [
         "Configure log capture (pytest caplog or mock logger)",
@@ -547,74 +901,326 @@
       "category": "positive",
       "automatable": true,
       "priority": "P1",
-      "tags": ["pii-audit", "logging", "observability", "security", "research-C-7"]
+      "tags": [
+        "pii-audit",
+        "logging",
+        "observability",
+        "security",
+        "research-C-7"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T10:34:16Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-02-TC-16a",
+      "requirement_id": "AUTH-02-FR-5",
+      "title": "Fresh Tier-3 resolution emits tier3_latency_ms",
+      "objective": "Verify a fresh Tier-3 query adds tier3_latency_ms to persona_mapping_loaded and adds nothing else beyond TC-15's allowlist.",
+      "preconditions": [
+        "PersonaResolver constructed with a Tier-2 YAML stub",
+        "Cache empty unless a step says otherwise"
+      ],
+      "test_data": {
+        "tier3_persona": "architect",
+        "tier1_map": {
+          "cio": "cio"
+        },
+        "tier2_map": {
+          "qa-lead": "developer"
+        }
+      },
+      "steps": [
+        "Configure Tier-1 and Tier-2 to miss the role",
+        "Back Tier-3 with a persona",
+        "Call resolve() once",
+        "Format the captured log record"
+      ],
+      "expected_results": [
+        "Event tier == 'tier-3-postgres'",
+        "tier3_latency_ms present, numeric, >= 0",
+        "Key set is exactly TC-15's 7 keys plus tier3_latency_ms — no PII"
+      ],
+      "given": "the persona_mapping_loaded event schema (FR-5 base + D-11's tier3_latency_ms)",
+      "when": "a persona is resolved from a given tier",
+      "then": "tier3_latency_ms is present only for a fresh Tier-3 query",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "P1",
+      "tags": [
+        "observability",
+        "tier3-latency",
+        "d-11",
+        "fix-loop"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T16:20:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "implemented_by": "services/api/tests/unit/test_persona_resolver.py::test_fresh_tier3_hit_carries_tier3_latency_ms_tc16"
+    },
+    {
+      "id": "AUTH-02-TC-16b",
+      "requirement_id": "AUTH-02-FR-5",
+      "title": "Tier-1 and Tier-2 resolutions omit tier3_latency_ms",
+      "objective": "Verify the field is absent when no Tier-3 query ran.",
+      "preconditions": [
+        "PersonaResolver constructed with a Tier-2 YAML stub",
+        "Cache empty unless a step says otherwise"
+      ],
+      "test_data": {
+        "tier3_persona": "architect",
+        "tier1_map": {
+          "cio": "cio"
+        },
+        "tier2_map": {
+          "qa-lead": "developer"
+        }
+      },
+      "steps": [
+        "Map a role in Tier-1 and another in Tier-2",
+        "Call resolve() for each",
+        "Format both captured log records"
+      ],
+      "expected_results": [
+        "Two events emitted",
+        "Neither carries tier3_latency_ms"
+      ],
+      "given": "the persona_mapping_loaded event schema (FR-5 base + D-11's tier3_latency_ms)",
+      "when": "a persona is resolved from a given tier",
+      "then": "tier3_latency_ms is present only for a fresh Tier-3 query",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "P1",
+      "tags": [
+        "observability",
+        "tier3-latency",
+        "d-11",
+        "fix-loop"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T16:20:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "implemented_by": "services/api/tests/unit/test_persona_resolver.py::test_tier1_and_tier2_hits_omit_tier3_latency_ms_tc16"
+    },
+    {
+      "id": "AUTH-02-TC-16c",
+      "requirement_id": "AUTH-02-FR-5",
+      "title": "Warm hit reusing tier-3-postgres omits tier3_latency_ms",
+      "objective": "Verify a cached Tier-3 value does not re-emit the original measurement, which would dilute the 200ms p95 alert.",
+      "preconditions": [
+        "PersonaResolver constructed with a Tier-2 YAML stub",
+        "Cache empty unless a step says otherwise"
+      ],
+      "test_data": {
+        "tier3_persona": "architect",
+        "tier1_map": {
+          "cio": "cio"
+        },
+        "tier2_map": {
+          "qa-lead": "developer"
+        }
+      },
+      "steps": [
+        "Resolve a Tier-3-backed role (cold)",
+        "Resolve the same role again within the TTL",
+        "Format both captured log records"
+      ],
+      "expected_results": [
+        "Exactly 1 Tier-3 query executed",
+        "Cold event carries tier3_latency_ms",
+        "Warm event keeps tier == 'tier-3-postgres' but omits tier3_latency_ms"
+      ],
+      "given": "the persona_mapping_loaded event schema (FR-5 base + D-11's tier3_latency_ms)",
+      "when": "a persona is resolved from a given tier",
+      "then": "tier3_latency_ms is present only for a fresh Tier-3 query",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "P1",
+      "tags": [
+        "observability",
+        "tier3-latency",
+        "d-11",
+        "fix-loop"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T16:20:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "implemented_by": "services/api/tests/unit/test_persona_resolver.py::test_warm_hit_reusing_tier3_omits_tier3_latency_ms_tc16"
     }
   ],
   "coverage_audit": {
     "acceptance_criteria": [
       {
         "id": "AUTH-02-AC-1",
-        "covered_by": ["AUTH-02-TC-01"]
+        "covered_by": [
+          "AUTH-02-TC-01"
+        ]
       },
       {
         "id": "AUTH-02-AC-2",
-        "covered_by": ["AUTH-02-TC-02"]
+        "covered_by": [
+          "AUTH-02-TC-02"
+        ]
       },
       {
         "id": "AUTH-02-AC-3",
-        "covered_by": ["AUTH-02-TC-03"]
+        "covered_by": [
+          "AUTH-02-TC-03"
+        ]
       },
       {
         "id": "AUTH-02-AC-4",
-        "covered_by": ["AUTH-02-TC-04"]
+        "covered_by": [
+          "AUTH-02-TC-04"
+        ]
       },
       {
         "id": "AUTH-02-AC-5",
-        "covered_by": ["AUTH-02-TC-05"]
+        "covered_by": [
+          "AUTH-02-TC-05"
+        ]
       },
       {
         "id": "AUTH-02-AC-6",
-        "covered_by": ["AUTH-02-TC-06"]
+        "covered_by": [
+          "AUTH-02-TC-06"
+        ]
       },
       {
         "id": "AUTH-02-AC-7",
-        "covered_by": ["AUTH-02-TC-07"]
+        "covered_by": [
+          "AUTH-02-TC-07"
+        ]
       }
     ],
     "functional_requirements": [
       {
         "id": "AUTH-02-FR-1",
-        "covered_by": ["AUTH-02-TC-01", "AUTH-02-TC-08"]
+        "covered_by": [
+          "AUTH-02-TC-01",
+          "AUTH-02-TC-08"
+        ]
       },
       {
         "id": "AUTH-02-FR-2",
-        "covered_by": ["AUTH-02-TC-02", "AUTH-02-TC-09", "AUTH-02-TC-10"]
+        "covered_by": [
+          "AUTH-02-TC-02",
+          "AUTH-02-TC-09",
+          "AUTH-02-TC-10"
+        ]
       },
       {
         "id": "AUTH-02-FR-3",
-        "covered_by": ["AUTH-02-TC-03", "AUTH-02-TC-11"]
+        "covered_by": [
+          "AUTH-02-TC-03",
+          "AUTH-02-TC-11"
+        ]
       },
       {
         "id": "AUTH-02-FR-4",
-        "covered_by": ["AUTH-02-TC-05", "AUTH-02-TC-06"]
+        "covered_by": [
+          "AUTH-02-TC-05",
+          "AUTH-02-TC-06"
+        ]
       },
       {
         "id": "AUTH-02-FR-5",
-        "covered_by": ["AUTH-02-TC-15"]
+        "covered_by": [
+          "AUTH-02-TC-15",
+          "AUTH-02-TC-16a",
+          "AUTH-02-TC-16b",
+          "AUTH-02-TC-16c"
+        ]
       }
     ],
     "non_functional_requirements": [
       {
         "id": "AUTH-02-NFR-performance",
-        "covered_by": ["AUTH-02-TC-12", "AUTH-02-TC-13"]
+        "covered_by": [
+          "AUTH-02-TC-12",
+          "AUTH-02-TC-13"
+        ]
       },
       {
         "id": "AUTH-02-NFR-security",
-        "covered_by": ["AUTH-02-TC-04", "AUTH-02-TC-15"]
+        "covered_by": [
+          "AUTH-02-TC-04",
+          "AUTH-02-TC-15"
+        ]
       },
       {
         "id": "AUTH-02-NFR-observability",
-        "covered_by": ["AUTH-02-TC-14", "AUTH-02-TC-15"]
+        "covered_by": [
+          "AUTH-02-TC-14",
+          "AUTH-02-TC-15"
+        ]
       }
     ],
     "uncovered": []

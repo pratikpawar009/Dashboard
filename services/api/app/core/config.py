@@ -1,8 +1,13 @@
+import json
+import logging
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Request
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 # Dev-bypass gating (D-01) is fail-closed: allow-list membership, never a
 # `!= "production"` deny-check. A deny-check silently admits any unanticipated
@@ -11,6 +16,22 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 NON_PRODUCTION_ENVIRONMENTS: frozenset[str] = frozenset(
     {"local", "development", "dev", "test", "ci"}
 )
+
+# AUTH-02-FR-1 / D-01: PERSONA_ROLE_MAP is not itself a secret, but
+# .claude/rules/security-baseline.md and AUTH-01's
+# tests/unit/test_auth_logging_security.py establish that raw config values
+# are never logged verbatim. Same bounded-excerpt idiom as
+# app/dependencies/range.py's `_capped_rejected_value`: a fixed-length
+# excerpt with an explicit truncation marker keeps a genuine parse-error
+# typo legible while bounding a hostile/oversized value to a small, fixed
+# cost per log line.
+_MAX_LOGGED_PERSONA_ROLE_MAP_LEN = 64
+
+
+def _masked_excerpt(value: str) -> str:
+    if len(value) <= _MAX_LOGGED_PERSONA_ROLE_MAP_LEN:
+        return value
+    return f"{value[:_MAX_LOGGED_PERSONA_ROLE_MAP_LEN]}...<truncated>"
 
 
 class Settings(BaseSettings):
@@ -41,6 +62,19 @@ class Settings(BaseSettings):
     # below does the actual split.
     cors_origins: Annotated[list[str], NoDecode] = []
 
+    # AUTH-02-FR-1 / D-01: Tier-1 override for PersonaResolver, parsed from a
+    # JSON-dict env var. `NoDecode` opts this out of pydantic-settings'
+    # default JSON-decode-from-env behavior (would raise on invalid JSON
+    # before the validator below ever ran, defeating fail-open parsing);
+    # the validator below does the actual `json.loads()` and is fail-open
+    # on any parse error (see D-01).
+    persona_role_map: Annotated[dict[str, str] | None, NoDecode] = None
+    # D-05: Tier-2 YAML path override -- unused by default. `PersonaResolver`
+    # computes its own `__file__`-anchored default path; this field exists
+    # only so a future caller can override it explicitly. Deliberately NOT
+    # given a `services/api/`-prefixed literal default (see D-05).
+    persona_config_file: Path | None = None
+
     @field_validator("environment", mode="after")
     @classmethod
     def _normalize_environment(cls, value: str) -> str:
@@ -70,6 +104,41 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @field_validator("persona_role_map", mode="before")
+    @classmethod
+    def _parse_persona_role_map(cls, value: Any) -> Any:
+        """Fail-open JSON parse (AUTH-02-FR-1 / D-01).
+
+        Any parse failure -- invalid JSON, valid JSON that isn't an object,
+        or an object whose values aren't all strings -- logs a warning and
+        resolves the field to `None` (Tier-1 is then treated as empty; the
+        resolver falls through to Tier-2/3). Never raises: this is
+        deliberately fail-open at parse time, distinct from the fail-closed
+        unmapped-role case the resolver itself enforces later (AC-4).
+        """
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "persona_role_map_parse_error",
+                    extra={"raw_value": _masked_excerpt(value)},
+                )
+                return None
+        else:
+            parsed = value
+        if not isinstance(parsed, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) for k, v in parsed.items()
+        ):
+            logger.warning(
+                "persona_role_map_parse_error",
+                extra={"raw_value": _masked_excerpt(str(value))},
+            )
+            return None
+        return parsed
 
     @property
     def dev_bypass_enabled(self) -> bool:
