@@ -24,6 +24,11 @@ dependencies = [
     # OIDC/JWT client for Keycloak auth (ADR-0004): 0.x pin for a stable API
     # surface ahead of Authlib's not-yet-released 1.0.
     "authlib>=0.15,<1.0",
+    # YAML parser for Tier-2 persona-role config (D-09). PRODUCTION dependency,
+    # not dev-only: app/core/persona_resolver.py imports it at module level.
+    # Already resolved transitively via uvicorn[standard]'s pyyaml==6.0.3 pin
+    # (uv.lock unchanged) — a direct import needs a direct declaration.
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]

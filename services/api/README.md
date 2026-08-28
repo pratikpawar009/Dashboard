@@ -83,6 +83,79 @@ The token is signed by an ephemeral RSA keypair generated once per process, at f
 - **The same token is rejected (401) in production** — the signing key is process-local and the `kid` never resolves outside an allow-listed environment, by design.
 - **Each worker holds its own key** — under `uvicorn --workers N`, gunicorn, or several API instances, a token 401s on any worker that did not mint it. The `Dockerfile` runs a single uvicorn process, so this only bites if you add workers yourself.
 
+## Persona resolution
+
+`app.state.persona_resolver` (`app/core/persona_resolver.py`) maps a session's Keycloak `role` to one
+of five personas — `cio`, `architect`, `developer`, `product-manager`, `engineering-manager` — through
+three sources. Env var names and defaults are in the root `README.md` § Environment variables; this
+section is the operational side only.
+
+### Changing a mapping
+
+Precedence is Tier-1 → Tier-2 → Tier-3; the first tier holding the role wins. Only Tier-3 is
+editable on a running service.
+
+| Tier | Source | To take effect |
+|---|---|---|
+| 1 | `PERSONA_ROLE_MAP` env var (JSON object) | **Restart** |
+| 2 | `services/api/config/persona_role_map.yaml` | **Restart** — loaded once at boot, no hot-reload (D-02) |
+| 3 | Postgres `persona_config` table | **No restart** — picked up within the 5-minute TTL |
+
+That asymmetry is the thing to remember on call: to change a mapping without a deploy, write it to
+`persona_config`. Editing the YAML on a live box does nothing until the process is restarted.
+
+### The service will not start
+
+**Symptom** — `uvicorn` exits non-zero and the boot traceback ends in `FileNotFoundError` or
+`yaml.YAMLError` inside `PersonaResolver.__init__`.
+
+**Cause** — `services/api/config/persona_role_map.yaml` is missing or malformed. `create_app()`
+constructs the resolver synchronously with no try/except, so a bad Tier-2 file stops the process
+(D-02/D-07). This is deliberate fail-closed behaviour, not a crash to work around.
+
+**Fix** — restore the file. An empty mapping is valid and must be written as `{}`; a zero-byte file
+parses to `None` and will not do.
+
+### A user cannot reach any dashboard
+
+**`PersonaNotFoundError`** — the role resolved to no persona in any of the three tiers. The resolver
+never falls back to a default (AC-4), so such a user reaches nothing. Add the mapping to whichever
+tier is appropriate: Tier-3 for a live fix, Tier-1/2 for a deployed one.
+
+Note the empty-role case: AUTH-01 hands over `role == ""` when every role on the token is a Keycloak
+system role (`default-roles-*`, `offline_access`, `uma_authorization`). That surfaces here as an
+ordinary `PersonaNotFoundError` with an empty role, and the real fix is in Keycloak group
+configuration, not in a persona mapping.
+
+**`PersonaResolutionError`** — a different failure, and a different fix path: Tier-3 itself is in
+trouble. The Postgres query timed out at 3.0s or the database is unreachable. Check database health;
+do not add mappings.
+
+### Reading the logs
+
+Every `resolve()` call that returns a persona emits `persona_mapping_loaded` at INFO with
+`{role, persona, tier, timestamp}` and no user context. `tier` is one of `tier-1-env`,
+`tier-2-yaml`, `tier-3-postgres` and tells you which source the answer actually came from.
+
+A **fresh** Tier-3 resolution carries one extra field, `tier3_latency_ms` — the measured query time.
+That is the field to alert on; the documented threshold is p95 > 200ms. Because only fresh queries
+carry it, its p95 is not diluted by cached reads.
+
+Two things that mislead if you don't know them:
+
+- A warm cache hit **also** emits the event, reusing the tier recorded when the value was first
+  resolved. So the event is per-call, and a `tier-3-postgres` line is not proof that a query just
+  ran — the presence of `tier3_latency_ms` is. A `tier-3-postgres` event without it is a cache hit.
+- Nothing is logged when the resolver raises — an absent event is the signal for a rejected user, not
+  an error line.
+
+### A mapping change did not take effect
+
+The cache is per-role, 5-minute TTL, and **per process**. Under multiple workers or multiple API
+instances each holds its own cache, so different requests can legitimately return the old and new
+mapping for up to the TTL window after a Tier-3 edit. Wait out the five minutes, or restart to flush
+every cache at once.
+
 ## Shared modules
 
 `app/dependencies/`, `app/services/`, `app/utils/` are the shared layer for router-facing derived values. Reach for these instead of re-implementing range/pagination/rollup/format logic per router — 13 downstream stories (OVW-01..04, PGD-01..06, SHP-02..06) depend on them behaving identically.

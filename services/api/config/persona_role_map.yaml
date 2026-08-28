@@ -1,0 +1,18 @@
+# Persona role map (Tier-2 source)
+#
+# Schema: role (string) -> persona (string)
+# Valid personas: cio, architect, developer, product-manager, engineering-manager
+#
+# Three-tier lookup order (see app/core/persona_resolver.py):
+#   Tier-1: PERSONA_ROLE_MAP env var (JSON dict) — overrides this file
+#   Tier-2: this file (static load-once at startup)
+#   Tier-3: Postgres persona_config table — fallback when a role is absent here
+#
+# Changes require an app restart (no hot-reload in MVP — load-once at startup).
+#
+# Example:
+#   cio: cio
+#   admin: cio
+#   board_member: cio
+#   dev: developer
+{}

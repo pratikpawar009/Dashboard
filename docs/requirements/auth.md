@@ -22,10 +22,14 @@ shape:
 produced_by: AUTH-02
 consumed_by: [AUTH-03, SHP-01]
 shape:
-  mechanism: "3-tier cached resolver (env JSON -> config file -> Postgres persona_config), 5-minute cache; raises if all 3 sources empty for a role"
-  input: "session.role"
-  output: "persona: cio | architect | developer | product-manager | engineering-manager"
-  note: "config-driven additional executive roles (FR-SH-20) resolve to `cio` via any of the 3 sources, no code change"
+  mechanism: "PersonaResolver instance on app.state.persona_resolver, constructed synchronously in create_app() (mirrors JwksCache, AUTH-01 D-07). Per resolve() call: Tier-1 env-JSON dict (Settings.persona_role_map, parsed once at Settings load from PERSONA_ROLE_MAP; unparseable -> logged warning + treated as empty, falls through) -> Tier-2 YAML (services/api/config/persona_role_map.yaml, loaded once at PersonaResolver.__init__; missing/malformed file is a startup error that propagates uncaught through create_app(), aborting Uvicorn boot -- fail-fast, no lifespan wrapper) -> Tier-3 Postgres persona_config table (role PK point lookup via an injectable session_factory defaulting to app.core.db.SessionLocal, 3.0s asyncio.wait_for timeout). All 3 tiers empty raises PersonaNotFoundError(role) -- fail-closed, never a default persona."
+  interface: "async def resolve(self, role: str) -> str  (raises PersonaNotFoundError | PersonaResolutionError)"
+  input: "role: str -- the session contract's role field (docs/requirements/auth.md#session, CurrentUser.role)"
+  output: "persona: str -- typically one of cio | architect | developer | product-manager | engineering-manager, but the resolver is fully data-driven: any string an ops-configured tier maps a role to is returned verbatim, no hardcoded persona enum or exec-role branch"
+  cache: "per-role in-process dict {role: (persona, expiry_ts)}, 300s TTL, asyncio.Lock-guarded read+miss+write critical section (no threading.Lock -- no synchronous call path exists in this story's or its consumers' scope). Per-worker/per-process, no cross-worker coherence; Postgres is the source of truth; an app restart is the ops-level hard-refresh lever."
+  errors: "PersonaResolutionError(role, reason) is the base class (Tier-3 timeout or connectivity failure); PersonaNotFoundError(role) is the fail-closed subclass raised when all 3 tiers miss. Callers (AUTH-03) must catch and decide fail-request vs. deny-and-log."
+  observability: "every resolve() call (cache hit or miss) emits logger.info('persona_mapping_loaded', extra={role, persona, tier, timestamp}) with tier in {tier-1-env, tier-2-yaml, tier-3-postgres}; a FRESH tier-3 query additionally carries tier3_latency_ms (the measured query time, rounded to 3dp) -- a warm cache hit whose stored tier is tier-3-postgres deliberately omits it, since no query ran and re-emitting the original measurement would dilute the p95 the 200ms alert is built on; presence of the field is therefore the reliable signal that a query actually executed (AUTH-02 D-11). No user_id/email/groups/session context is ever included (PII invariant, unit-tested)."
+  note: "config-driven additional executive roles (FR-SH-20) resolve to `cio` via any of the 3 sources, no code change -- the resolver contains zero `if role in {...}` branches, verified by a dedicated test case (AUTH-02-TC-07) using a custom slug, not a hardcoded exec-role example."
 ```
 
 ### rbac-checks

@@ -12,6 +12,7 @@ from app.core.config import Settings, settings
 from app.core.db import engine
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
+from app.core.persona_resolver import PersonaResolver
 
 configure_logging()
 
@@ -36,6 +37,10 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.state.settings = cfg
     app.state.jwks_cache = JwksCache(cfg)
     app.state.oauth_state_store = OAuthStateStore()
+    # D-07: constructed synchronously, no try/except -- a missing/malformed
+    # Tier-2 YAML raises uncaught, failing `create_app()` at import time so
+    # Uvicorn's own process-exit-on-import-failure is the fail-fast behavior.
+    app.state.persona_resolver = PersonaResolver(cfg)
 
     register_exception_handlers(app)
 

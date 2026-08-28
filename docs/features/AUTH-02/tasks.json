@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-02",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-28T13:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/core/persona_resolver.py",
+      "reason": "PersonaResolver class: 3-tier fallthrough (env-JSON -> YAML -> Postgres), per-role TTL cache, PersonaResolutionError/PersonaNotFoundError, PII-safe persona_mapping_loaded logging (AUTH-02-FR-1..5, D-01..D-08)"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/core/config.py",
+      "reason": "add persona_role_map (Tier-1, PERSONA_ROLE_MAP env-JSON, NoDecode + field_validator warn-and-empty on parse error, D-01) and persona_config_file (optional Tier-2 path override) Settings fields"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "wiring: app.state.persona_resolver = PersonaResolver(cfg) in create_app(), synchronous, mirrors JwksCache (D-07)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/config/persona_role_map.yaml",
+      "reason": "Tier-2 stub: empty-but-valid {} + schema-documenting comment (D-02, AUTH-02-FR-2)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_persona_resolver.py",
+      "reason": "AUTH-02-TC-01,02,03,04,05,06,07,08,09,10,11,14,15 (D-10)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_persona_resolver_perf.py",
+      "reason": "AUTH-02-TC-12,13 (warm/cold latency baselines, D-10)"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "document PERSONA_ROLE_MAP (docs T3)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add PERSONA_ROLE_MAP to root Environment variables table (docs T3)"
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "new \"Persona resolution\" section: 3-tier order, TTL semantics, fail-closed contract, ops runbook (how to add a mapping, how to force-refresh, how to monitor tier distribution)"
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "services/api/pyproject.toml",
+      "reason": "add pyyaml>=6.0 to [project].dependencies (D-09, production — persona_resolver.py imports it at module level)"
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "docs/config/project-commands.yaml",
+      "reason": "preflight: smoke-import for pyyaml (config-drift C1, D-09)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add explicit pyyaml dependency pin",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "D-09: pyyaml>=6.0 to [project].dependencies (production, not dev-only); uv sync to confirm uv.lock unchanged (already resolves pyyaml==6.0.3 transitively via uvicorn[standard])",
+      "status": "done",
+      "completed_at": "2026-08-28T09:05:00Z",
+      "files_touched": [
+        "services/api/pyproject.toml",
+        "services/api/uv.lock"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add pyyaml smoke-import to preflight",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "config-drift C1; append `cd services/api && uv run python -c \"import yaml; print(yaml.__version__)\"` to preflight:, matching the existing authlib/respx smoke-import lines",
+      "status": "done",
+      "completed_at": "2026-08-28T09:20:00Z",
+      "files_touched": [
+        "docs/config/project-commands.yaml"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Extend Settings with Tier-1 PERSONA_ROLE_MAP field + Tier-2 path override",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-02-FR-1"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "D-01: persona_role_map: Annotated[dict[str,str] | None, NoDecode] = None, mode=\"before\" field_validator json.loads()'s the raw string; on any parse failure (invalid JSON, not a dict, non-string values) logger.warning(\"persona_role_map_parse_error\", extra={\"raw_value\": <masked excerpt>}) and return None. Also add persona_config_file: Path | None = None (D-05, unused by default).",
+      "status": "done",
+      "completed_at": "2026-08-28T09:05:00Z",
+      "files_touched": [
+        "services/api/app/core/config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Ship Tier-2 YAML stub",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-02-FR-2"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "D-02: services/api/config/persona_role_map.yaml, content per REQUIREMENTS.md § Documentation requirements (empty-but-valid `{}` + schema comment naming the 5 personas and the no-hot-reload note)",
+      "status": "done",
+      "completed_at": "2026-08-28T09:05:00Z",
+      "files_touched": [
+        "services/api/config/persona_role_map.yaml"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Implement PersonaResolver (3-tier resolution, cache, exceptions, PII-safe logging)",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "AUTH-02-AC-1",
+        "AUTH-02-AC-2",
+        "AUTH-02-AC-3",
+        "AUTH-02-AC-4",
+        "AUTH-02-AC-5",
+        "AUTH-02-AC-6",
+        "AUTH-02-AC-7",
+        "AUTH-02-FR-3",
+        "AUTH-02-FR-4",
+        "AUTH-02-FR-5"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05",
+        "R-07",
+        "R-08",
+        "R-10"
+      ],
+      "notes": "PersonaResolutionError(role, reason) base + PersonaNotFoundError(role) subclass; Tier-2 loaded via __file__-anchored path (D-05), FileNotFoundError/yaml.YAMLError propagate uncaught; Tier-3 via injectable session_factory (D-06, default app.core.db.SessionLocal), asyncio.wait_for 3.0s timeout -> PersonaResolutionError with message containing \"Tier-3 query timeout after 3.0s\"; per-role cache {role: (persona, expiry_ts)}, asyncio.Lock only (D-04); persona_mapping_loaded log event per resolution incl. tier3_latency_ms on Tier-3 hits (extra={\"timestamp\":...} is inert per D-08, keep per FR-5's literal spec); module docstring documents per-worker cache scope, fail-closed contract, PII invariant, 300s TTL per REQUIREMENTS.md § Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-08-28T09:30:00Z",
+      "files_touched": [
+        "services/api/app/core/persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Wire PersonaResolver into create_app()",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "AUTH-02-FR-2"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "D-07: app.state.persona_resolver = PersonaResolver(cfg) added alongside the existing app.state.jwks_cache construction in create_app(), no try/except wrapper — construction failure propagates uncaught",
+      "status": "done",
+      "completed_at": "2026-08-28T09:55:00Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Unit test suite: tier precedence, fail-closed, cache TTL, concurrency, PII audit",
+      "complexity": "L",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "AUTH-02-AC-1",
+        "AUTH-02-AC-2",
+        "AUTH-02-AC-3",
+        "AUTH-02-AC-4",
+        "AUTH-02-AC-5",
+        "AUTH-02-AC-6",
+        "AUTH-02-AC-7"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-05",
+        "R-06",
+        "R-07",
+        "R-08"
+      ],
+      "notes": "AUTH-02-TC-01,02,04,05,06,07,08 pure-mock (no live DB); AUTH-02-TC-03,09,10,11 use migrated_db + test_session (tests/conftest.py) with PersonaResolver(session_factory=async_sessionmaker(bind=test_engine)) per D-06; AUTH-02-TC-14 spawns 10 asyncio.create_task(resolver.resolve(role)) against a cold cache, asserts exactly 1 Tier-3 query; AUTH-02-TC-15 uses caplog to assert the persona_mapping_loaded event's field set is exactly the allowlist",
+      "status": "done",
+      "completed_at": "2026-08-28T09:55:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Perf test suite: warm/cold latency baselines",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-02-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-09"
+      ],
+      "notes": "AUTH-02-TC-12 (warm cache, 100 iterations, p99 < 1ms) and AUTH-02-TC-13 (cold Tier-3 via migrated_db, 10 iterations, p95 < 100ms), time.perf_counter()-based, matching tests/perf/test_auth_jwks_perf.py's existing wall-clock convention — no new perf tool",
+      "status": "done",
+      "completed_at": "2026-08-28T09:55:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_persona_resolver_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Document PERSONA_ROLE_MAP (.env.example + root README env table)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-07",
+        "F-08"
+      ],
+      "ac_refs": [
+        "AUTH-02-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "docs T3: services/api/.env.example gains the PERSONA_ROLE_MAP example line (REQUIREMENTS.md § Documentation requirements verbatim); root README.md's `/auth/*` environment-variables table gains a PERSONA_ROLE_MAP row (default unset, notes: optional Tier-1 override, unparseable -> warn + fall through)",
+      "status": "done",
+      "completed_at": "2026-08-28T09:20:00Z",
+      "files_touched": [
+        "services/api/.env.example",
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Document Persona resolution ops runbook",
+      "complexity": "S",
+      "predecessors": [
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "services/api/README.md new \"Persona resolution\" section after \"Auth\": 3-tier order, 5-min per-role TTL, fail-closed contract, PII invariant; ops runbook: how to add a mapping (edit YAML or persona_config row, restart), how to force refresh (restart = hard flush, per-worker cache), monitoring note (all-Tier-3 distribution in persona_mapping_loaded events may signal Tier-1/2 misconfiguration)",
+      "status": "done",
+      "completed_at": "2026-08-28T10:10:00Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": null
+    }
+  ]
+}
