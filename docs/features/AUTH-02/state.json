@@ -32,14 +32,24 @@
     {
       "item_id": "R-09-persona-resolver-per-request-memoization",
       "kind": "risk",
-      "reason": "N+1 query risk if the persona resolver is called per-route/per-resource within a single request; deferred to AUTH-03 to consider memoizing persona resolution across a single request scope \u2014 accepted per docs/research/AUTH-02.md Risk Register #9 (MEDIUM)",
+      "reason": "N+1 query risk if the persona resolver is called per-route/per-resource within a single request; deferred to AUTH-03 to consider memoizing persona resolution across a single request scope — accepted per docs/research/AUTH-02.md Risk Register #9 (MEDIUM)",
       "owner": "AUTH-03 implementer",
       "added_at": "2026-08-28T13:00:00Z",
       "added_by": "plan-implementation/03-tasks (risk accepted)",
       "resolved_at": null,
       "evidence": null
+    },
+    {
+      "item_id": "AUTH-02-empty-role-short-circuit",
+      "kind": "risk",
+      "reason": "AUTH-01 D-05's `_parse_role` returns `\"\"` when every role in the Keycloak token is a system role (`default-roles-*`, `offline_access`, `uma_authorization`). AUTH-02's resolver has no short-circuit for that input, so `\"\"` falls through Tier-1, Tier-2 and Tier-3 and then raises `PersonaNotFoundError`. That outcome is CORRECT and fail-closed (AC-4 holds), so nothing ships broken -- this is a cost and observability gap, not a security one. Cost: the cache memoises only successful resolutions, so every request from such a principal re-pays a Tier-2 dict lookup and a Tier-3 Postgres query before failing. Observability: `PersonaNotFoundError(\"\")` is indistinguishable in logs from `PersonaNotFoundError(\"some-real-role\")`, but they are different operational problems -- the first points at Keycloak group configuration, the second at a missing persona mapping. Suggested fix if picked up: `if not role: raise PersonaNotFoundError(role, reason=\"empty_role\")` ahead of Tier-1, plus one unit test. Not addressed in REQUIREMENTS.md, PLAN.md, DECISIONS.md or docs/test-cases/AUTH-02.json.",
+      "owner": "AUTH-02 implementer (or AUTH-03 if deferred)",
+      "added_at": "2026-08-28T08:50:00Z",
+      "added_by": "/arh-research AUTH-02 re-run (gap found, plan left unamended by user decision)",
+      "resolved_at": null,
+      "evidence": null
     }
   ],
-  "last_updated": "2026-08-28T13:00:00Z",
+  "last_updated": "2026-08-28T08:50:00Z",
   "tracker_plan": "pratikpawar009/Dashboard#107"
 }
