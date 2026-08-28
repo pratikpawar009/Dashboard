@@ -42,7 +42,12 @@ from app.auth.jwks import JwksCache
 from app.core.auth import CurrentUser, _parse_programs, get_current_user
 from app.core.config import Settings
 from app.core.errors import register_exception_handlers
-from tests.conftest import TEST_OIDC_ISSUER, KeycloakMock, RSATestKeypair
+from tests.conftest import (
+    TEST_OIDC_CLIENT_ID,
+    TEST_OIDC_ISSUER,
+    KeycloakMock,
+    RSATestKeypair,
+)
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
@@ -73,14 +78,25 @@ def _build_app(settings: Settings) -> FastAPI:
 
 
 def _make_settings(**overrides: Any) -> Settings:
-    """`Settings` for this file's tests. Both fields the route path touches
-    (`oidc_issuer`, `program_group_prefix`) are always passed explicitly as
-    constructor kwargs, which win over any ambient env var / `.env` value
-    under pydantic-settings' documented precedence — so no full hermetic-env
-    dance like `test_auth_config.py`'s is needed here (mirrors
-    `tests/perf/test_auth_jwks_perf.py::_settings`'s narrower rationale)."""
+    """`Settings` for this file's tests. Every field the route path touches is
+    passed explicitly as a constructor kwarg, which wins over any ambient env
+    var / `.env` value under pydantic-settings' documented precedence — so no
+    full hermetic-env dance like `test_auth_config.py`'s is needed here
+    (mirrors `tests/perf/test_auth_jwks_perf.py::_settings`'s narrower
+    rationale).
+
+    `oidc_client_id` belongs in that list even though nothing here asserts on
+    it: review finding F-1 made `app/core/auth.py::_claims_options` enforce
+    `aud` against it, so it became part of the route path after this helper
+    was written. Left unpinned it fell through to whatever sits in the
+    developer's real `.env` — harmless while that was empty, but the moment
+    a real Keycloak client id is configured locally every test in this file
+    401s on an `aud` mismatch against `build_access_token`'s
+    `TEST_OIDC_CLIENT_ID`. Pinning it keeps the suite independent of local
+    configuration."""
     defaults: dict[str, Any] = {
         "oidc_issuer": TEST_OIDC_ISSUER,
+        "oidc_client_id": TEST_OIDC_CLIENT_ID,
         "program_group_prefix": "program-",
     }
     return Settings(**{**defaults, **overrides})

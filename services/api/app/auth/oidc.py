@@ -17,19 +17,24 @@ outbound-call shape (5s timeout, bounded retry, 4xx never retries). Authlib
 is still used for JWT decoding (`authlib.jose.jwt`), which is genuinely
 stateless.
 
-State parameter (see this task's returned `state_param_handling`): a random,
-unpredictable `state` is generated per `/auth/login` call and included in the
-redirect so a static/guessable value is never sent. There is nowhere in this
-stateless, no-cookie architecture to persist it, so `/auth/callback` cannot
-compare the `state` it receives back against the one that started the flow --
-it is accepted as an incoming query parameter and otherwise unused. This is a
-known CSRF-hardening gap (an attacker-initiated authorization code could be
-injected into a victim's callback request), reported rather than silently
-dropped; see this task's returned `flags`.
+State + PKCE: `/auth/login` mints an unguessable `state` and a companion
+`code_verifier` through `app/auth/state_store.py`, sending the state and the
+verifier's S256 `code_challenge` to the IdP. `/auth/callback` consumes the
+state -- rejecting absent, unknown, replayed, or expired values with 400
+`invalid_state` -- and replays the stored verifier in the token exchange.
+Together these close the authorization-code injection gap that existed while
+`state` was generated but never checked: the state must be one this server
+issued, and the code cannot be redeemed without the verifier that never left
+this server. PKCE (RFC 7636) is sent unconditionally, per OAuth 2.1, and is
+additionally *required* by the Keycloak client this integration targets, which
+rejects a non-PKCE authorization request outright.
+
+The store holds only an opaque string, its expiry, and the verifier -- no
+identity, no token, no cookie -- so the bearer-only session contract is
+unchanged; see that module's docstring for the multi-replica caveat.
 """
 
 import logging
-import secrets
 from urllib.parse import urlencode
 
 import httpx
@@ -41,6 +46,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.auth.jwks import JwksCache, get_jwks_cache
+from app.auth.state_store import OAuthStateStore, get_oauth_state_store
 from app.core.config import Settings, get_settings
 from app.core.retry import retry_with_backoff
 from app.schemas.auth import TokenResponse
@@ -197,6 +203,7 @@ async def _log_dashboard_login(access_token: str, jwks_cache: JwksCache) -> None
 async def oidc_login(
     request: Request,
     settings: Settings = Depends(get_settings),
+    state_store: OAuthStateStore = Depends(get_oauth_state_store),
 ) -> RedirectResponse:
     """Redirect to Keycloak's authorization endpoint (AUTH-01-FR-2, AC-1/AC-2).
 
@@ -204,9 +211,13 @@ async def oidc_login(
     never a startup crash. No outbound Keycloak call is made here -- the
     browser itself is redirected, so unlike callback/refresh this route
     carries no retry/timeout concern.
+
+    The `state` is issued by the per-app store so `/auth/callback` can verify
+    it; the config gate runs FIRST, so an unconfigured deployment still 501s
+    without leaving an orphan entry behind on every probe.
     """
     client_id, _client_secret, issuer = _require_oidc_configured(settings)
-    state = secrets.token_urlsafe(24)
+    pending = state_store.issue()
     redirect_uri = _resolve_redirect_uri(request, settings)
     query = urlencode(
         {
@@ -214,7 +225,12 @@ async def oidc_login(
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": settings.oidc_scope,
-            "state": state,
+            "state": pending.state,
+            # PKCE (RFC 7636), always sent -- see module docstring. Only the
+            # S256 hash goes to the IdP; the verifier stays server-side until
+            # the token exchange.
+            "code_challenge": pending.code_challenge,
+            "code_challenge_method": "S256",
         }
     )
     return RedirectResponse(
@@ -225,15 +241,27 @@ async def oidc_login(
 @router.get("/callback", response_model=TokenResponse)
 async def oidc_callback(
     request: Request,
-    code: str,
+    code: str | None = None,
     state: str | None = None,
+    error: str | None = None,
     settings: Settings = Depends(get_settings),
     jwks_cache: JwksCache = Depends(get_jwks_cache),
+    state_store: OAuthStateStore = Depends(get_oauth_state_store),
 ) -> TokenResponse:
     """Exchange `code` for a token pair (AUTH-01-FR-3, AC-3).
 
-    `state` is accepted (Keycloak always sends it back) but not verified --
-    see this module's docstring "State parameter" section. Response is
+    An `error` query param (the IdP's own failure signal, sent instead of
+    `code`) is handled first and mapped to 401; `state` is verified against
+    the per-app store before the code is
+    exchanged: absent, unknown, replayed, or expired all reject with 400
+    `invalid_state` and no outbound call is made, so a forged callback never
+    reaches Keycloak. Kept as `str | None` rather than a required query param
+    so a missing `state` returns that same 400 envelope instead of FastAPI's
+    422. 400 rather than 401 deliberately: 401 is what this route returns for
+    an IdP-rejected code, and a frontend that reacts to 401 by restarting the
+    login flow would loop forever against a systematic state failure (the
+    multi-replica case), where a distinct 400 surfaces the misconfiguration.
+    Response is
     Keycloak's token-endpoint payload reshaped to exactly
     {access_token, refresh_token, expires_in} (extra fields such as
     `token_type` are dropped by `TokenResponse`'s default Pydantic
@@ -242,12 +270,37 @@ async def oidc_callback(
     function (TC-16).
     """
     client_id, client_secret, issuer = _require_oidc_configured(settings)
+    if error is not None:
+        # OIDC Core 3.1.2.6: the IdP reports an authorization failure by
+        # redirecting to `redirect_uri` with `error` and NO `code` -- a user
+        # cancelling consent, a misconfigured scope, a disabled account. This
+        # is an ordinary outcome of the flow, not a malformed request, so it
+        # must not surface as FastAPI's 422 for a missing required `code`
+        # (which is what a required `code: str` produced, and which reads as
+        # a bug in the caller rather than a decision by the IdP).
+        state_store.consume(state)  # the flow is over; don't leave the entry
+        # `error_description` is deliberately not echoed to the caller: it is
+        # IdP-authored text that can name realm internals (.claude/rules/
+        # security-baseline.md -- no internal detail in user-facing errors).
+        # The short, enumerated `error` code alone goes to the log.
+        logger.warning("oidc_callback_error", extra={"oidc_error": error})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="oidc_callback_failed")
+    code_verifier = state_store.consume(state)
+    if code_verifier is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_state")
+    if not code:
+        # Neither `code` nor `error`: not a callback Keycloak would ever send.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing_code")
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": _resolve_redirect_uri(request, settings),
         "client_id": client_id,
         "client_secret": client_secret,
+        # Proves this exchange belongs to the browser that started the flow:
+        # the IdP re-hashes this and compares against the `code_challenge`
+        # sent at /auth/login. An intercepted `code` is useless without it.
+        "code_verifier": code_verifier,
     }
     try:
         response = await _post_token_endpoint(issuer, data)

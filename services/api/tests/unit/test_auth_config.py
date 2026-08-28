@@ -216,3 +216,39 @@ def test_cors_origins_from_env_strips_whitespace_around_entries(
     monkeypatch.setenv("CORS_ORIGINS", " https://a.example.com , https://b.example.com ")
     settings = _build_settings()
     assert settings.cors_origins == ["https://a.example.com", "https://b.example.com"]
+
+
+def test_log_level_is_uppercased_so_a_lowercase_env_value_does_not_crash_startup() -> None:
+    """`LOG_LEVEL=info` in `.env` must not be a hard startup crash.
+
+    `configure_logging()` runs at `app.main` import time and passes this
+    value straight to `logging.Logger.setLevel`, which accepts only the
+    exact upper-case level names -- so before normalization a lower-case
+    value raised `ValueError: Unknown level: 'info'` and the API refused to
+    boot at all. Mirrors `environment`'s case handling.
+    """
+    for supplied, expected in [
+        ("info", "INFO"),
+        ("INFO", "INFO"),
+        ("Debug", "DEBUG"),
+        ("warning", "WARNING"),
+    ]:
+        assert Settings(log_level=supplied).log_level == expected
+
+
+def test_configure_logging_accepts_a_lowercase_log_level() -> None:
+    """The regression at its real call site: the normalized value is one
+    `setLevel` actually accepts."""
+    import logging
+
+    from app.core.logging import JSONFormatter
+
+    root = logging.getLogger()
+    original_level, original_handlers = root.level, root.handlers[:]
+    try:
+        root.setLevel(Settings(log_level="info").log_level)
+        assert root.level == logging.INFO
+        assert JSONFormatter() is not None
+    finally:
+        root.setLevel(original_level)
+        root.handlers = original_handlers

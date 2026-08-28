@@ -82,7 +82,13 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 
 from app.core.logging import JSONFormatter
-from tests.conftest import TEST_OIDC_CLIENT_ID, TEST_OIDC_ISSUER, KeycloakMock, RSATestKeypair
+from tests.conftest import (
+    TEST_OIDC_CLIENT_ID,
+    TEST_OIDC_ISSUER,
+    KeycloakMock,
+    RSATestKeypair,
+    issue_oauth_state,
+)
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
@@ -204,7 +210,8 @@ async def _drive_auth_route_sweep(
         mark = len(oidc_logger_records)
         keycloak_mock.token_error(status_code=400)
         responses["callback_failure"] = await client.get(
-            "/auth/callback", params={"code": _SEC_AUTH_CODE_FAILURE}
+            "/auth/callback",
+            params={"code": _SEC_AUTH_CODE_FAILURE, "state": issue_oauth_state(app)},
         )
         steps["callback_failure"] = oidc_logger_records[mark:]
 
@@ -215,7 +222,8 @@ async def _drive_auth_route_sweep(
             refresh_token=_SEC_REFRESH_TOKEN_CALLBACK_OUT,
         )
         responses["callback_success"] = await client.get(
-            "/auth/callback", params={"code": _SEC_AUTH_CODE_SUCCESS}
+            "/auth/callback",
+            params={"code": _SEC_AUTH_CODE_SUCCESS, "state": issue_oauth_state(app)},
         )
         steps["callback_success"] = oidc_logger_records[mark:]
 

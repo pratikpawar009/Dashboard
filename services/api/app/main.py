@@ -7,6 +7,7 @@ from app.api.ingest import router as ingest_router
 from app.auth.dev_bypass import router as dev_bypass_router
 from app.auth.jwks import JwksCache
 from app.auth.oidc import router as oidc_router
+from app.auth.state_store import OAuthStateStore
 from app.core.config import Settings, settings
 from app.core.db import engine
 from app.core.errors import register_exception_handlers
@@ -22,8 +23,10 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     frozen module-level singleton, so a test can boot the app under a
     different config each (ENVIRONMENT, OIDC-completeness, CORS_ORIGINS) with
     no `importlib.reload`. The effective config lands on `app.state.settings`
-    / `app.state.jwks_cache`, which `get_settings` (app/core/config.py) and
-    `get_jwks_cache` (app/auth/jwks.py) read at request time -- every route
+    / `app.state.jwks_cache` / `app.state.oauth_state_store`, which
+    `get_settings` (app/core/config.py), `get_jwks_cache` (app/auth/jwks.py)
+    and `get_oauth_state_store` (app/auth/state_store.py) read at request
+    time -- every route
     handler must reach config/JWKS through those dependencies, never the
     module singleton or a module-global cache, or a test's override is
     silently ignored (D-07 / D-07 addendum).
@@ -32,6 +35,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app = FastAPI(title=cfg.app_name)
     app.state.settings = cfg
     app.state.jwks_cache = JwksCache(cfg)
+    app.state.oauth_state_store = OAuthStateStore()
 
     register_exception_handlers(app)
 

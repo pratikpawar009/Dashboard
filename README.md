@@ -29,8 +29,8 @@ FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| GET | `/auth/login` | none | 302 redirect to the Keycloak authorization endpoint; 501 if OIDC config is incomplete |
-| GET | `/auth/callback` | query: `code` (required), `state` (optional) | 200 `{access_token, refresh_token, expires_in}`; 501 if OIDC config is incomplete; 401 on a failed code exchange |
+| GET | `/auth/login` | none | 302 redirect to the Keycloak authorization endpoint, carrying a single-use `state` and a PKCE `code_challenge` (S256); 501 if OIDC config is incomplete |
+| GET | `/auth/callback` | query: `state` (required — must be one `/auth/login` issued), plus either `code` or the IdP's `error` | 200 `{access_token, refresh_token, expires_in}`; 501 if OIDC config is incomplete; 400 `invalid_state` if `state` is absent, unknown, already used, or expired; 400 `missing_code` if neither `code` nor `error` is present; 401 on a failed code exchange or any IdP-reported `error` |
 | POST | `/auth/refresh` | body: `{refresh_token}` | 200 `{access_token, refresh_token, expires_in}`; 401 on any IdP-reported failure; 501 if OIDC config is incomplete |
 | POST | `/auth/dev-bypass` | body: `{role?, email?, programs?}` (all optional) | 200 `{access_token, refresh_token, expires_in}` |
 
@@ -46,8 +46,18 @@ New in AUTH-01 (`services/api/.env.example`):
 | `OIDC_CLIENT_SECRET` | `None` (unset) | Optional. Env/secret store only — never commit a real value. |
 | `OIDC_ISSUER` | `None` (unset) | Optional, e.g. `https://lab.apexonlab.com/apexonlogin/realms/Apexon`. |
 | `OIDC_REALM` | `None` (unset) | Optional. |
-| `OIDC_SCOPE` | `openid profile email groups` | |
+| `OIDC_SCOPE` | `openid profile email groups` | Every scope must exist on the realm — Keycloak rejects the whole authorization request with `invalid_scope` otherwise. `groups` is **not** a default Keycloak scope: it needs a client scope with a Group Membership mapper (claim name `groups`, *Full group path* OFF), or `PROGRAM_GROUP_PREFIX` parsing has no claim to read and `programs` is always empty. |
 | `PROGRAM_GROUP_PREFIX` | `program-` | A `groups` claim entry starting with this prefix becomes a program-membership entry (remainder after the prefix); non-matching entries are dropped from the parsed list but stay in the raw `groups` claim. |
 | `CORS_ORIGINS` | `[]` (no origins allowed) | A single origin, or a comma-separated list of origins — not a JSON array. |
+
+## Keycloak client requirements
+
+The API is a confidential, PKCE-enforcing client. Its Keycloak client must have:
+
+- **Client authentication** ON (the code exchange sends `client_secret`).
+- **Valid redirect URIs** containing the API's own callback — `http://localhost:8000/auth/callback` locally. A frontend-style URI (`.../api/auth/callback/keycloak`) is not interchangeable: this integration exchanges the code server-side, so the browser must be sent back to the API.
+- A **`groups` client scope** with a Group Membership mapper (claim name `groups`, *Full group path* OFF) if `OIDC_SCOPE` requests `groups`. It is not a Keycloak default.
+
+PKCE (S256) is sent on every authorization request per OAuth 2.1, so a client with *Proof Key for Code Exchange* required works as-is.
 
 `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_ISSUER` together are the feature flag: while any one is unset, `/auth/login` and `/auth/callback` return `501` and only `/auth/dev-bypass` is reachable; set all three to go live against Keycloak, unset any one to back out without a redeploy.

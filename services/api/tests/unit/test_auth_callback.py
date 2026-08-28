@@ -59,6 +59,7 @@ from tests.conftest import (
     KeycloakCallSpy,
     KeycloakMock,
     RSATestKeypair,
+    issue_oauth_state,
 )
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
@@ -89,9 +90,17 @@ def _configured_overrides(**overrides: Any) -> dict[str, Any]:
 async def _get_callback(
     async_client_for: AsyncClientFactory, app: FastAPI, code: str = "test-auth-code-1"
 ) -> Any:
-    """`GET /auth/callback?code=<code>` against `app`, via a fresh client."""
+    """`GET /auth/callback?code=<code>&state=<valid>` against `app`, via a fresh client.
+
+    The `state` is minted from `app`'s own store because the callback now
+    rejects an unverifiable one before it ever reaches the code exchange --
+    every test here is about what happens AFTER that gate, so each request
+    carries a freshly issued, single-use value.
+    """
     async with async_client_for(app) as client:
-        return await client.get("/auth/callback", params={"code": code})
+        return await client.get(
+            "/auth/callback", params={"code": code, "state": issue_oauth_state(app)}
+        )
 
 
 # -----------------------------------------------------------------------------

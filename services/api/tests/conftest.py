@@ -593,6 +593,28 @@ def build_app() -> Callable[..., FastAPI]:
     return _build
 
 
+def issue_oauth_state(app: FastAPI) -> str:
+    """Mint a valid, single-use OAuth `state` for `app`'s own state store.
+
+    `GET /auth/callback` verifies `state` against the per-app
+    `OAuthStateStore` (app/auth/state_store.py), so any test exercising the
+    callback must present a state that store actually issued. Reaching into
+    `app.state.oauth_state_store` mints one directly, which keeps a callback
+    test focused on the callback instead of first driving `/auth/login`
+    through a second request whose redirect it would only be parsing for the
+    state anyway.
+
+    Returns only the `state`; the companion PKCE `code_verifier` stays in the
+    store, which is exactly what the callback needs to find there.
+
+    Single-use: call once per callback request. A test asserting the
+    replay/expiry rejections should NOT use this helper -- it should reuse or
+    fabricate a value on purpose.
+    """
+    store: Any = app.state.oauth_state_store
+    return str(store.issue().state)
+
+
 @pytest.fixture
 def async_client_for() -> Callable[..., AbstractAsyncContextManager[httpx.AsyncClient]]:
     """`async_client_for(app) -> AsyncClient` async context manager, over

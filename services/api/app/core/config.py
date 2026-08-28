@@ -47,6 +47,23 @@ class Settings(BaseSettings):
         """Lowercase once at load so every call site compares against a normalized value."""
         return value.lower()
 
+    @field_validator("log_level", mode="after")
+    @classmethod
+    def _normalize_log_level(cls, value: str) -> str:
+        """Uppercase once at load, mirroring `_normalize_environment`.
+
+        `logging.Logger.setLevel` accepts only the exact upper-case names, so
+        a lower-case `LOG_LEVEL=info` in `.env` -- an entirely reasonable
+        thing to write, and what every log line itself prints -- raised
+        `ValueError: Unknown level: 'info'` inside `configure_logging()`.
+        That call runs at `app.main` import time, so the failure was a hard
+        startup crash with a traceback pointing at the logging module rather
+        than at the offending config value. Normalizing here keeps the
+        case-insensitivity rule for env-sourced values in one place, next to
+        `environment`'s, instead of pushing a `.upper()` onto every consumer.
+        """
+        return value.upper()
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _parse_cors_origins(cls, value: Any) -> Any:

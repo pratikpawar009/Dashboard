@@ -47,7 +47,12 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from httpx import AsyncClient, Response
 
-from tests.conftest import TEST_OIDC_CLIENT_ID, TEST_OIDC_ISSUER, KeycloakMock
+from tests.conftest import (
+    TEST_OIDC_CLIENT_ID,
+    TEST_OIDC_ISSUER,
+    KeycloakMock,
+    issue_oauth_state,
+)
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
@@ -147,7 +152,9 @@ async def test_callback_idp_error_is_not_html(
     keycloak_mock.token_error(status_code=400)
     app = build_app(**_CONFIGURED_OIDC)
     async with async_client_for(app) as client:
-        resp = await client.get("/auth/callback", params={"code": "bad-code"})
+        resp = await client.get(
+            "/auth/callback", params={"code": "bad-code", "state": issue_oauth_state(app)}
+        )
 
     assert resp.status_code == 401
     _assert_response_is_not_html(resp, label="GET /auth/callback (idp error)")
