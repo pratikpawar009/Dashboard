@@ -16,15 +16,24 @@ dependencies = [
     "greenlet>=3.0",
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
+    # Outbound HTTP for Keycloak calls (JWKS fetch, code exchange, refresh).
+    # PRODUCTION dependency, not dev-only: app/auth/jwks.py imports it at module
+    # level, and the Dockerfile builds with `uv sync --no-dev` — leaving it in
+    # [dependency-groups].dev made the container fail at boot (AF-03).
+    "httpx>=0.27",
+    # OIDC/JWT client for Keycloak auth (ADR-0004): 0.x pin for a stable API
+    # surface ahead of Authlib's not-yet-released 1.0.
+    "authlib>=0.15,<1.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.27",
     "ruff>=0.7",
     "mypy>=1.13",
+    # Mocks outbound Keycloak HTTP calls in tests (ADR-0004 / D-06).
+    "respx>=0.20",
 ]
 
 [tool.ruff]

@@ -1,0 +1,410 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#15",
+  "tracker_research": "pratikpawar009/Dashboard#87",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-01/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-08-28T03:41:21Z",
+  "tracker_prd": "pratikpawar009/Dashboard#88",
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#105",
+  "gate": "APPROVE",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/AUTH-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-01/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/AUTH-01/tasks.json"
+  },
+  "impl_evidence": {
+    "session_ended_at": "2026-08-28T03:22:49Z",
+    "rounds": 1,
+    "note": "Final re-run after the Validate ∥ Review gate went GREEN (V=PASS 42/42, R=PASS WITH WARNINGS) following the round-1 fix for review finding F-1 (HIGH): app/core/auth.py::_claims_options now enforces iss/aud as essential authlib claims_options; app/auth/jwks.py gained DEV_BYPASS_ISSUER/DEV_BYPASS_AUDIENCE; app/auth/dev_bypass.py mints tokens with those claims; tests/unit/test_auth_jwt_validation.py gained 3 new tests binding AUTH-01-TC-42 (42 TCs total, up from 39). Supersedes the 2026-08-28T02:42:56Z packet.",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck_for_py: / mypy",
+        "command": "cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-01/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-08-28T03:22:49Z",
+        "note": "Success: no issues found in 70 source files."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "cd services/api && TEST_DATABASE_URL=\"postgresql+psycopg://postgres:postgres@localhost:5443/dashboard_test\" uv run pytest -q",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-01/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-08-28T03:22:49Z",
+        "note": "296 passed, 0 failed, 162 warnings — matches the expected 296 (was 293 pre-fix, +3 for the F-1/TC-42 iss-aud enforcement tests). Warning count unchanged from the previous packet: the ~162 on_event DeprecationWarnings are pre-existing, not a regression. TEST_DATABASE_URL override targets bed03-manual on :5443 (default :5432 is a host-native PG rejecting postgres:postgres)."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-01/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-08-28T03:22:49Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run: (fastapi/api)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-08-28T03:22:49Z",
+        "stacks": [
+          {
+            "stack": "api-development",
+            "status": "PASS",
+            "command": "ENVIRONMENT=development uv run uvicorn app.main:app --port 8161",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-dev-boot.log",
+            "boot_log_scan": "clean",
+            "note": "GET /health -> 200 {status:ok}; POST /auth/dev-bypass -> 200 TokenResponse; GET /auth/login -> 501 oidc_not_configured (no OIDC config)."
+          },
+          {
+            "stack": "api-production",
+            "status": "PASS",
+            "command": "ENVIRONMENT=production uv run uvicorn app.main:app --port 8162",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-prod-boot.log",
+            "boot_log_scan": "clean",
+            "note": "POST /auth/dev-bypass -> 404 (dev-bypass router not registered, D-01 fail-closed); GET /auth/login -> 501 oidc_not_configured."
+          },
+          {
+            "stack": "api-d11-redirect-override",
+            "status": "PASS",
+            "command": "ENVIRONMENT=development OIDC_CLIENT_ID=dashboard-api OIDC_CLIENT_SECRET=test-secret OIDC_ISSUER=https://lab.apexonlab.com/apexonlogin/realms/Apexon OIDC_REDIRECT_URI=https://dashboard.example.com/auth/callback uv run uvicorn app.main:app --port 8163",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-d11-override.log",
+            "boot_log_scan": "clean",
+            "note": "D-11 regression re-check: GET /auth/login Location carries redirect_uri=https%3A%2F%2Fdashboard.example.com%2Fauth%2Fcallback — exact match to OIDC_REDIRECT_URI. No change from prior packet (F-1 fix did not touch oidc.py's redirect handling)."
+          },
+          {
+            "stack": "api-d11-redirect-fallback",
+            "status": "PASS",
+            "command": "ENVIRONMENT=development OIDC_CLIENT_ID=dashboard-api OIDC_CLIENT_SECRET=test-secret OIDC_ISSUER=https://lab.apexonlab.com/apexonlogin/realms/Apexon uv run uvicorn app.main:app --port 8164",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-d11-fallback.log",
+            "boot_log_scan": "clean",
+            "note": "D-11 fallback re-check: OIDC_REDIRECT_URI unset -> GET /auth/login Location carries redirect_uri=http%3A%2F%2F127.0.0.1%3A8164%2Fauth%2Fcallback — request-derived host:port, unchanged."
+          },
+          {
+            "stack": "api-f1-guarded-route-development",
+            "status": "PASS",
+            "command": "ENVIRONMENT=development uv run uvicorn runtime_guarded_probe:app --port 8165  # throwaway app.main.create_app() + Depends(get_current_user)-guarded /protected route, mirrors tests/unit/test_auth_dev_bypass.py TC-40 shape, run as a real boot rather than in-process ASGI",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-f1-guarded-route.log",
+            "boot_log_scan": "clean",
+            "note": "F-1 fix regression check (the reason for this re-run): minted a dev-bypass token (role=admin, programs=[alpha]) via POST /auth/dev-bypass, then GET /protected with it -> 200 {user_id, role:admin, groups:[program-alpha]}. Confirms _claims_options' new essential iss/aud enforcement (DEV_BYPASS_ISSUER/DEV_BYPASS_AUDIENCE) does not break the intended dev-bypass-on-guarded-route path."
+          },
+          {
+            "stack": "api-f1-guarded-route-production",
+            "status": "PASS",
+            "command": "ENVIRONMENT=production uv run uvicorn runtime_guarded_probe:app --port 8166",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-f1-guarded-route-prod.log",
+            "boot_log_scan": "clean",
+            "note": "F-1 fix regression check: presented the SAME dev-bypass token minted by the development instance above (different process, different ephemeral signing key, AF-14) to this production instance's /protected route -> 401 {code:http_401, message:invalid_token}, and POST /auth/dev-bypass -> 404 (router unregistered). Confirms JwksCache.get_signing_key's dev_bypass_enabled gate rejects the reserved kid outright under production regardless of key match."
+          },
+          {
+            "stack": "api-prod-dependency-set",
+            "status": "PASS",
+            "command": "uv sync --no-dev && uv run --no-dev python -c \"import app.main; print('prod import OK')\"",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-01/evidence/runtime-prod-import.log",
+            "note": "AF-03 regression guard re-run: production dependency set imports app.main cleanly with dev deps uninstalled (F-1 fix added no new prod deps). Dev environment restored afterward via `uv sync` (confirmed: 13 dev packages reinstalled)."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-01/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-08-28T03:22:49Z",
+        "note": "Re-run per anti-gaming rule (applicability is repo-config-driven, not story-scoped): build: is non-empty repo-wide. Next.js production build succeeded, static pages generated (5/5)."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-15",
+        "ran_at": null,
+        "note": "design_check: key empty in project-commands.yaml — no a11y/console-scan/perf tool declared. Legitimate N/A: AUTH-01 is backend-only, design: \"n/a\" in state.json, no DESIGN.md, no UI surface touched. Reused existing AF-15 rather than minting a duplicate."
+      }
+    }
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "R-09-no-local-keycloak-e2e",
+      "kind": "risk",
+      "reason": "No local Keycloak service in docker-compose.yml; E2E against a real IdP needs a test realm or a keycloak service — accepted, dev-bypass covers local dev, adding the service is out of AUTH-01's scope",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-07-oauth-state-not-verified",
+      "kind": "finding",
+      "reason": "OAuth `state` is generated per /auth/login but never verified on /auth/callback — the bearer-only, cookie-less topology has no server-side store. CSRF vector on the authorization-code flow. Deferred per D-12; PKCE is the intended fix (Keycloak-supported, needs no server-side session). MUST be resolved before the pilot rollout in REQUIREMENTS.md § Rollout plan — not a merge blocker, but not open-ended either.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "/arh-implement flag triage (AF-07, decision D-12)",
+      "resolved_at": "2026-08-28T00:00:00Z",
+      "evidence": "Resolved by D-13 (supersedes D-12's deferral). `app/auth/state_store.py::OAuthStateStore` issues a 32-byte CSPRNG `state` at /auth/login and consumes it single-use at /auth/callback before the code exchange; absent/unknown/replayed/expired all return 400 `invalid_state` with zero outbound Keycloak calls. Covered by tests/unit/test_auth_state_csrf.py (12 tests: rejection paths, login->callback pairing, per-app isolation, 501-precedence, and the store's single-use/TTL/bounded-growth guarantees). Full suite 308 passed, mypy + ruff clean. NOTE: PKCE was D-12's named fix but requires this same store in a backend-driven flow (the `code_verifier` must survive between /auth/login and /auth/callback); this is the enabling step, not a competing design. Residual browser-binding gap carried to SHP-01 below."
+    },
+    {
+      "item_id": "AF-09-peek-kid-duplicated",
+      "kind": "cleanup",
+      "reason": "`_peek_kid` (unverified JWT-header parsing, ~10 lines) is duplicated between app/auth/oidc.py and app/core/auth.py; core/auth.py's copy is private. Violates reusability-baseline (DRY across modules of the same concern). Extract to a shared helper (e.g. app/auth/jwt_utils.py). No behavioural impact.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "/arh-implement flag triage (AF-09)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-10-refresh-request-model-location",
+      "kind": "cleanup",
+      "reason": "`_RefreshRequest` is defined in app/auth/oidc.py rather than app/schemas/auth.py alongside TokenResponse and DevBypassRequest. Inconsistent with the codebase's schema-location convention. No behavioural impact.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "/arh-implement flag triage (AF-10)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-04-log-decode-claims-options",
+      "kind": "finding",
+      "reason": "app/auth/oidc.py::_log_dashboard_login's jwt.decode/.validate still passes no claims_options, unlike the fixed get_current_user. MEDIUM: it resolves user_id for a log line only — not an authz decision, and it fails to the 'unknown' sentinel rather than to access. Unify via a shared helper (also resolves AF-09's _peek_kid duplication).",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T03:17:19Z",
+      "added_by": "/arh-implement Step 2 gate round 2",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-02-no-rate-limiting-on-auth-routes",
+      "kind": "finding",
+      "reason": "No rate limiting on /auth/callback, /auth/refresh, /auth/dev-bypass, against .claude/rules/security-baseline.md's auth-endpoint throttling invariant. Raised both gate rounds. Needs an explicit fix or a recorded accepted-risk decision before pilot.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T03:17:19Z",
+      "added_by": "/arh-implement Step 2 gate round 2",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-05-missing-claim-regression-test",
+      "kind": "finding",
+      "reason": "No test covers iss/aud being ENTIRELY ABSENT (only wrong-value). The code is correct — _claims_options uses essential:True and authlib raises MissingClaimError, verified against 0.15.6 source — but that path has no regression guard. Extend conftest's build_access_token with omit-iss/omit-aud options.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T03:17:19Z",
+      "added_by": "/arh-implement Step 2 gate round 2",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AUTH-01-contract-doc-gap",
+      "kind": "documentation",
+      "reason": "docs/requirements/auth.md § session's transport field does not name the new iss/aud enforcement. Shipped behaviour is a strict superset of the documented contract, not a drift; a future doc pass should state it explicitly.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T03:17:19Z",
+      "added_by": "/arh-implement Step 2 gate round 2",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "SHP-01-state-browser-binding",
+      "kind": "finding",
+      "reason": "OAuth `state` is now verified server-side (D-13), but nothing binds the flow to the initiating browser: an attacker who drives /auth/login themselves still obtains a valid `state` to pair with their own authorization code. Closing this needs the frontend to retain the `state` it started with and compare on return (or to drive PKCE with a client-held `code_verifier`), which lands with the sign-in page in SHP-01.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "D-13 state-verification follow-up",
+      "resolved_at": "2026-08-28T00:00:00Z",
+      "evidence": "Resolved by D-14, not carried to SHP-01. PKCE (S256) closes authorization-code injection at the protocol level: an attacker-obtained code is bound to the attacker's `code_challenge`, while the victim's callback replays the victim's `code_verifier`, so the exchange fails at the IdP. No frontend-held value is required. Covered by test_login_redirect_carries_an_s256_code_challenge and test_token_exchange_replays_the_stored_code_verifier."
+    },
+    {
+      "item_id": "AUTH-01-groups-scope-missing-on-realm",
+      "kind": "risk",
+      "reason": "`OIDC_SCOPE` defaults to 'openid profile email groups', but `groups` is not a client scope on the Apexon realm — it is absent from the discovery document's `scopes_supported`, and Keycloak rejects any authorization request containing it with `error=invalid_scope`. Sign-in only succeeds with `groups` removed, and with it removed the `groups` claim is absent, so AUTH-01-FR-5 program parsing yields an empty `programs` list and AUTH-03's program scoping has nothing to scope on. Fix is Keycloak-side: create a `groups` client scope with a Group Membership mapper (token claim name `groups`, Full group path OFF so entries arrive as `program-alpha`, not `/program-alpha`) and assign it to harness-dashboard.",
+      "owner": "pratik.pawar@apexon.com",
+      "added_at": "2026-08-28T00:00:00Z",
+      "added_by": "live verification against the Apexon realm",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "summary": "`Settings(_env_file=None)` is a mypy error on any BaseSettings subclass",
+      "status": "accept",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "risky-pattern",
+      "summary": "shared test-DB contention when tasks verify concurrently",
+      "status": "accept",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "correctness-defect",
+      "summary": "`httpx` was a dev-only dependency but is imported by production code",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "risky-pattern",
+      "summary": "an `asyncio.gather` stampede test needs a real suspension point in the mock",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "architecture-gap",
+      "summary": "dev-bypass tokens are rejected by every protected route (story-intent gap)",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "risky-pattern",
+      "summary": "a group named exactly `program-` yields an empty-string program id",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "security-gap",
+      "summary": "OAuth `state` is generated but never verified — CSRF gap on the authorization-code flow",
+      "status": "defer",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-08",
+      "kind": "config-gap",
+      "summary": "no `oidc_redirect_uri` setting — callback URL is derived from the request",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-09",
+      "kind": "duplicate-logic",
+      "summary": "`_peek_kid` is duplicated between `oidc.py` and `core/auth.py`",
+      "status": "defer",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-10",
+      "kind": "inconsistency",
+      "summary": "`/auth/refresh`'s request model lives in `oidc.py`, not `schemas/auth.py`",
+      "status": "defer",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-11",
+      "kind": "test-coverage-gap",
+      "summary": "two behaviours are implemented but pinned by no test case",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-12",
+      "kind": "correctness-defect",
+      "summary": "`.env.example` placeholders defeated the documented default-disabled state",
+      "status": "resolved",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-13",
+      "kind": "dead-code",
+      "summary": "`oidc_realm` is declared and tested but never read",
+      "status": "accept",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-14",
+      "kind": "operational-constraint",
+      "summary": "dev-bypass tokens are per-process, so multi-worker deployments will reject them",
+      "status": "accept",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    },
+    {
+      "flag_id": "AF-15",
+      "kind": "evidence-na",
+      "summary": "design_check dimension marked N/A — no a11y/console-scan/perf tool wired",
+      "status": "accept",
+      "triaged_at": "2026-08-28T00:00:00Z",
+      "triaged_by": "pratik.pawar@apexon.com"
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-08-28 P=42/42 in 2 round(s)",
+  "validation_report": "docs/features/AUTH-01/VALIDATION-20260828-0315.md",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/AUTH-01/REVIEW.md",
+  "review_blocked_rounds": 1,
+  "gate_rounds": 2,
+  "impl": "complete",
+  "impl_branch": "feature/AUTH-01",
+  "impl_pr": "https://github.com/pratikpawar009/Dashboard/pull/106",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06",
+    "D-07",
+    "D-08",
+    "D-09",
+    "D-10",
+    "D-11",
+    "D-12"
+  ]
+}

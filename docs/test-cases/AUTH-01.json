@@ -1,0 +1,2527 @@
+{
+  "story_id": "AUTH-01",
+  "test_cases": [
+    {
+      "id": "AUTH-01-TC-01",
+      "title": "OIDC route registered and reachable when all three OIDC config vars are set",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-1",
+      "given": "oidc_client_id, oidc_client_secret, and oidc_issuer are all set at Settings load",
+      "when": "FastAPI starts and a client requests the Keycloak OIDC auth route",
+      "then": "the route is registered and returns a live (non-501) response, e.g. a redirect to Keycloak's authorization endpoint",
+      "objective": "Verify the OIDC sign-in route is registered and reachable when the config-completeness gate (FR-2) is satisfied.",
+      "preconditions": [
+        "Test app built via the real FastAPI app factory with OIDC_CLIENT_ID/OIDC_CLIENT_SECRET/OIDC_ISSUER all set in the test environment",
+        "No live Keycloak call required for this route (redirect only)"
+      ],
+      "test_data": {
+        "oidc_client_id": "test-dashboard-client",
+        "oidc_client_secret": "<PLACEHOLDER_OIDC_CLIENT_SECRET>",
+        "oidc_issuer": "https://lab.apexonlab.com/apexonlogin/realms/Apexon"
+      },
+      "steps": [
+        "Boot the FastAPI test app with all three OIDC config vars set",
+        "GET /auth/login",
+        "Inspect the response"
+      ],
+      "expected_results": [
+        "Response status is a redirect (302/307) to the configured oidc_issuer's authorization endpoint, not 501",
+        "No unhandled exception is raised during route registration or the request"
+      ],
+      "tags": [
+        "oidc",
+        "startup",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#90",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_oidc_login.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-02",
+      "title": "All three OIDC config vars unset at startup -> auth route responds 501, app boots",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-2",
+      "given": "oidc_client_id, oidc_client_secret, oidc_issuer are all unset (default local-dev state)",
+      "when": "FastAPI starts and a client requests the Keycloak OIDC auth route",
+      "then": "FastAPI starts without raising, and the route responds 501 through the error envelope rather than crashing",
+      "objective": "Verify the default fully-unconfigured OIDC state degrades to a 501 route rather than an unhandled startup error.",
+      "preconditions": [
+        "Test app built with OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_ISSUER all absent from the environment"
+      ],
+      "test_data": {
+        "oidc_client_id": "",
+        "oidc_client_secret": "",
+        "oidc_issuer": ""
+      },
+      "steps": [
+        "Boot the FastAPI test app with no OIDC_* env vars set",
+        "GET /auth/login",
+        "Inspect app startup logs and the response"
+      ],
+      "expected_results": [
+        "App startup completes with no unhandled exception",
+        "Response status is 501",
+        "Response body matches app/core/errors.py's error envelope shape"
+      ],
+      "tags": [
+        "oidc",
+        "config-gate",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#91",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_oidc_login.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-03",
+      "title": "Callback returns Keycloak's token response as JSON {access_token, refresh_token, expires_in}, no Set-Cookie",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-3",
+      "given": "a user completes the Keycloak redirect/callback flow with a valid authorization code",
+      "when": "FastAPI exchanges the code via Authlib",
+      "then": "the response body is JSON {access_token, refresh_token, expires_in} and no Set-Cookie header is set",
+      "objective": "Verify the callback's success-path response shape matches the session contract's bearer-JWT-only bridging.",
+      "preconditions": [
+        "Keycloak token endpoint mocked to return a 200 response with access_token/refresh_token/expires_in (per C-2 mock-based integration strategy)"
+      ],
+      "test_data": {
+        "authorization_code": "test-auth-code-1",
+        "mock_keycloak_response": {
+          "access_token": "<PLACEHOLDER_ACCESS_TOKEN>",
+          "refresh_token": "<PLACEHOLDER_REFRESH_TOKEN>",
+          "expires_in": 300
+        }
+      },
+      "steps": [
+        "Mock Keycloak's token endpoint to return test_data.mock_keycloak_response",
+        "GET /auth/callback?code=test-auth-code-1",
+        "Inspect response body and headers"
+      ],
+      "expected_results": [
+        "Response status 200 with a JSON body containing access_token, refresh_token, expires_in",
+        "Values match the mocked Keycloak response unmodified",
+        "Response carries no Set-Cookie header"
+      ],
+      "tags": [
+        "oidc",
+        "callback",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#92",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_callback.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-04",
+      "title": "Valid Bearer JWT is verified against Keycloak JWKS and derives user_id/email/role/groups",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-4",
+      "given": "a request carrying Authorization: Bearer <access_token> for a validly signed, unexpired JWT",
+      "when": "FastAPI validates it via the shared auth dependency",
+      "then": "signature verification succeeds against Keycloak's JWKS (fetched per request, no server-side session store) and user_id/email/role/groups are derived",
+      "objective": "Verify stateless per-request JWT validation and claim derivation.",
+      "preconditions": [
+        "JWKS endpoint mocked to serve the signing key matching the test JWT (per C-2)"
+      ],
+      "test_data": {
+        "bearer_token": "<PLACEHOLDER_JWT>",
+        "jwt_claims": {
+          "sub": "user-7",
+          "email": "qa@example.com",
+          "realm_access": {
+            "roles": [
+              "qa"
+            ]
+          },
+          "groups": [
+            "program-beta"
+          ]
+        }
+      },
+      "steps": [
+        "Mock JWKS to serve the signing key for test_data.bearer_token",
+        "Call a protected test route with Authorization: Bearer <bearer_token>",
+        "Inspect the resulting session/derived-claims object"
+      ],
+      "expected_results": [
+        "Request succeeds (not 401)",
+        "session.user_id == 'user-7', session.email == 'qa@example.com', session.role == 'qa'",
+        "session.groups includes 'program-beta'",
+        "No server-side session row is created"
+      ],
+      "tags": [
+        "jwt",
+        "jwks",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#93",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_jwt_validation.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-05",
+      "title": "groups claim 'program-alpha' parses to program-membership entry 'alpha'",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-5",
+      "given": "the IdP issues a groups claim containing 'program-alpha' (default prefix 'program-')",
+      "when": "FastAPI builds the session's program-membership list",
+      "then": "the group is parsed into the entry 'alpha'",
+      "objective": "Verify the canonical program-group prefix parsing rule.",
+      "preconditions": [
+        "JWKS endpoint mocked to serve the signing key for the test JWT"
+      ],
+      "test_data": {
+        "groups": [
+          "program-alpha"
+        ],
+        "program_group_prefix": "program-"
+      },
+      "steps": [
+        "Build a JWT with groups=['program-alpha']",
+        "Validate it via the shared auth dependency",
+        "Inspect the derived program-membership list"
+      ],
+      "expected_results": [
+        "Derived program-membership list == ['alpha']"
+      ],
+      "tags": [
+        "groups",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#94",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-06",
+      "title": "Token refresh with a valid refresh_token returns a new access/refresh pair",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-6",
+      "given": "an access_token has expired and a still-valid refresh_token is held",
+      "when": "the frontend calls FastAPI's refresh route with the refresh_token",
+      "then": "FastAPI exchanges it via Keycloak's refresh-token grant and returns a new {access_token, refresh_token, expires_in}",
+      "objective": "Verify the token-refresh route's success path.",
+      "preconditions": [
+        "Keycloak refresh-token endpoint mocked to return a 200 response with a new token pair"
+      ],
+      "test_data": {
+        "refresh_token": "<PLACEHOLDER_REFRESH_TOKEN>",
+        "mock_keycloak_response": {
+          "access_token": "<PLACEHOLDER_NEW_ACCESS_TOKEN>",
+          "refresh_token": "<PLACEHOLDER_NEW_REFRESH_TOKEN>",
+          "expires_in": 300
+        }
+      },
+      "steps": [
+        "Mock Keycloak's refresh endpoint to return test_data.mock_keycloak_response",
+        "POST /auth/refresh with test_data.refresh_token",
+        "Inspect response body"
+      ],
+      "expected_results": [
+        "Response status 200 with a new access_token/refresh_token/expires_in JSON body",
+        "Returned values match the mocked Keycloak response"
+      ],
+      "tags": [
+        "refresh",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#95",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_refresh.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-07",
+      "title": "Expired or revoked refresh_token returns an error causing frontend re-auth redirect",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-7",
+      "given": "a refresh_token that Keycloak reports as expired/revoked",
+      "when": "the refresh call is made",
+      "then": "FastAPI returns an error status the frontend's store treats as a signal to redirect through Keycloak login",
+      "objective": "Verify refresh failure propagation triggers re-auth rather than a silent retry.",
+      "preconditions": [
+        "Keycloak refresh-token endpoint mocked to return a 400 invalid_grant error"
+      ],
+      "test_data": {
+        "refresh_token": "<PLACEHOLDER_EXPIRED_REFRESH_TOKEN>",
+        "mock_keycloak_status": 400,
+        "mock_keycloak_error": "invalid_grant"
+      },
+      "steps": [
+        "Mock Keycloak's refresh endpoint to return a 400 invalid_grant error",
+        "POST /auth/refresh with test_data.refresh_token",
+        "Inspect response status"
+      ],
+      "expected_results": [
+        "Response status is 401",
+        "No new token pair is returned"
+      ],
+      "tags": [
+        "refresh",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#96",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_refresh.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-08",
+      "title": "Dev-bypass issues a bearer token with role/email/programs override without contacting Keycloak, when ENVIRONMENT != production",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-8",
+      "given": "ENVIRONMENT is 'development' (!= 'production')",
+      "when": "a client calls the dev-bypass sign-in path with role/email/programs overrides",
+      "then": "FastAPI issues a token through the same Bearer response shape as the callback route, without any outbound call to Keycloak",
+      "objective": "Verify dev-bypass issues a usable token without depending on a live IdP.",
+      "preconditions": [
+        "Outbound Keycloak HTTP client mocked/spied to assert zero calls during this test"
+      ],
+      "test_data": {
+        "environment": "development",
+        "role": "engineering_manager",
+        "email": "dev-user@example.com",
+        "programs": [
+          "alpha"
+        ]
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=development",
+        "Spy on the outbound Keycloak HTTP client",
+        "POST /auth/dev-bypass with test_data role/email/programs",
+        "Inspect response body and the Keycloak-call spy"
+      ],
+      "expected_results": [
+        "Response status 200 with JSON body {access_token, refresh_token, expires_in} (Bearer path, no Set-Cookie)",
+        "The Keycloak HTTP client spy recorded zero calls"
+      ],
+      "tags": [
+        "dev-bypass",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#97",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-09",
+      "title": "Dev-bypass is unreachable (404) when ENVIRONMENT == 'production'",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-9",
+      "given": "ENVIRONMENT is 'production'",
+      "when": "the dev-bypass path is invoked",
+      "then": "the route raises 404 and never returns a usable token",
+      "objective": "Verify production gating blocks dev-bypass entirely rather than merely hiding it.",
+      "preconditions": [
+        "Test app booted with ENVIRONMENT=production"
+      ],
+      "test_data": {
+        "environment": "production"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=production",
+        "POST /auth/dev-bypass with a role/email/programs override"
+      ],
+      "expected_results": [
+        "Response status is 404",
+        "No access_token or refresh_token is present anywhere in the response body"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#98",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-10",
+      "title": "No dashboard_login (or any audit-log) event is emitted for a served dev-bypass request",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-10",
+      "given": "dev-bypass is active (ENVIRONMENT != production)",
+      "when": "a dev-bypass request is served",
+      "then": "no dashboard_login event, and no other audit-log event, is emitted for it",
+      "objective": "Verify dev-bypass traffic leaves no audit trail (black-box: inspect captured log output for absence).",
+      "preconditions": [
+        "stdout log capture enabled for the duration of the request"
+      ],
+      "test_data": {
+        "environment": "development"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=development, with stdout log capture enabled",
+        "POST /auth/dev-bypass with a role/email/programs override",
+        "Parse captured log output for any dashboard_login or audit event"
+      ],
+      "expected_results": [
+        "No dashboard_login event appears in captured log output",
+        "No other audit-log event referencing this request appears"
+      ],
+      "tags": [
+        "dev-bypass",
+        "audit-log",
+        "security"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#99",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-11",
+      "title": "CORS allow-lists the configured frontend origin without enabling credentials",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-AC-11",
+      "given": "cors_origins is configured with the frontend's origin",
+      "when": "the frontend origin calls a FastAPI API route (including a CORS preflight)",
+      "then": "FastAPI allow-lists that origin explicitly in the response, without Access-Control-Allow-Credentials",
+      "objective": "Verify CORS behavior matches the Authorization-header-only session transport (no cookie mode).",
+      "preconditions": [
+        "Test app booted with CORS_ORIGINS=https://dashboard.example.com"
+      ],
+      "test_data": {
+        "cors_origins": [
+          "https://dashboard.example.com"
+        ],
+        "request_origin": "https://dashboard.example.com"
+      },
+      "steps": [
+        "Boot the test app with CORS_ORIGINS=https://dashboard.example.com",
+        "Send an OPTIONS preflight to a /auth/* route with Origin: https://dashboard.example.com",
+        "Inspect CORS response headers"
+      ],
+      "expected_results": [
+        "Access-Control-Allow-Origin echoes 'https://dashboard.example.com' (not '*')",
+        "Access-Control-Allow-Credentials header is absent or 'false'"
+      ],
+      "tags": [
+        "cors",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#100",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_cors.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-12",
+      "title": "Settings schema exposes the full OIDC field list with documented types and defaults",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-FR-1",
+      "given": "the app/core/config.py Settings model",
+      "when": "its fields are inspected without a live DB or network connection",
+      "then": "oidc_client_id/oidc_client_secret/oidc_issuer/oidc_realm are str | None, oidc_scope defaults to 'openid profile email groups', program_group_prefix defaults to 'program-', cors_origins defaults to []",
+      "objective": "Verify FR-1's exact Settings field list, types, and defaults.",
+      "preconditions": [
+        "Settings importable with no OIDC_* env vars set (defaults only)"
+      ],
+      "test_data": {
+        "expected_defaults": {
+          "oidc_scope": "openid profile email groups",
+          "program_group_prefix": "program-",
+          "cors_origins": []
+        }
+      },
+      "steps": [
+        "Import Settings with a clean environment (no OIDC_* vars set)",
+        "Instantiate Settings and read each field listed in FR-1"
+      ],
+      "expected_results": [
+        "oidc_client_id, oidc_client_secret, oidc_issuer, oidc_realm are None by default and typed str | None",
+        "oidc_scope, program_group_prefix, cors_origins equal test_data.expected_defaults"
+      ],
+      "tags": [
+        "settings",
+        "schema",
+        "FR-1"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#101",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_config.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-13",
+      "title": "oidc_client_id missing alone -> auth route returns 501 via error envelope, startup does not raise",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-2",
+      "given": "oidc_client_secret and oidc_issuer are set; oidc_client_id is None/empty",
+      "when": "FastAPI starts and a client requests the Keycloak OIDC auth route",
+      "then": "the route returns 501 through the error envelope at request time; app startup does not raise",
+      "objective": "Verify the config-completeness gate checks oidc_client_id independently and fails closed to 501, not a startup crash.",
+      "preconditions": [
+        "Test app built with OIDC_CLIENT_SECRET and OIDC_ISSUER set, OIDC_CLIENT_ID absent/empty"
+      ],
+      "test_data": {
+        "oidc_client_id": "",
+        "oidc_client_secret": "<PLACEHOLDER_OIDC_CLIENT_SECRET>",
+        "oidc_issuer": "https://lab.apexonlab.com/apexonlogin/realms/Apexon"
+      },
+      "steps": [
+        "Boot the FastAPI test app with OIDC_CLIENT_ID empty and the other two vars set",
+        "Assert app startup raised no exception",
+        "GET /auth/login"
+      ],
+      "expected_results": [
+        "App startup completes with no unhandled exception",
+        "Response status is 501 via app/core/errors.py's envelope",
+        "No outbound Keycloak call is attempted"
+      ],
+      "tags": [
+        "oidc",
+        "config-gate",
+        "FR-2",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#102",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_oidc_login.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-14",
+      "title": "oidc_client_secret missing alone -> auth route returns 501 via error envelope, startup does not raise",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-2",
+      "given": "oidc_client_id and oidc_issuer are set; oidc_client_secret is None/empty",
+      "when": "FastAPI starts and a client requests the Keycloak OIDC auth route",
+      "then": "the route returns 501 through the error envelope at request time; app startup does not raise",
+      "objective": "Verify the config-completeness gate checks oidc_client_secret independently and fails closed to 501, not a startup crash.",
+      "preconditions": [
+        "Test app built with OIDC_CLIENT_ID and OIDC_ISSUER set, OIDC_CLIENT_SECRET absent/empty"
+      ],
+      "test_data": {
+        "oidc_client_id": "test-dashboard-client",
+        "oidc_client_secret": "",
+        "oidc_issuer": "https://lab.apexonlab.com/apexonlogin/realms/Apexon"
+      },
+      "steps": [
+        "Boot the FastAPI test app with OIDC_CLIENT_SECRET empty and the other two vars set",
+        "Assert app startup raised no exception",
+        "GET /auth/login"
+      ],
+      "expected_results": [
+        "App startup completes with no unhandled exception",
+        "Response status is 501 via app/core/errors.py's envelope",
+        "No outbound Keycloak call is attempted"
+      ],
+      "tags": [
+        "oidc",
+        "config-gate",
+        "FR-2",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#103",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_oidc_login.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-15",
+      "title": "oidc_issuer missing alone -> auth route returns 501 via error envelope, startup does not raise",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-2",
+      "given": "oidc_client_id and oidc_client_secret are set; oidc_issuer is None/empty",
+      "when": "FastAPI starts and a client requests the Keycloak OIDC auth route",
+      "then": "the route returns 501 through the error envelope at request time; app startup does not raise",
+      "objective": "Verify the config-completeness gate checks oidc_issuer independently and fails closed to 501, not a startup crash.",
+      "preconditions": [
+        "Test app built with OIDC_CLIENT_ID and OIDC_CLIENT_SECRET set, OIDC_ISSUER absent/empty"
+      ],
+      "test_data": {
+        "oidc_client_id": "test-dashboard-client",
+        "oidc_client_secret": "<PLACEHOLDER_OIDC_CLIENT_SECRET>",
+        "oidc_issuer": ""
+      },
+      "steps": [
+        "Boot the FastAPI test app with OIDC_ISSUER empty and the other two vars set",
+        "Assert app startup raised no exception",
+        "GET /auth/login"
+      ],
+      "expected_results": [
+        "App startup completes with no unhandled exception",
+        "Response status is 501 via app/core/errors.py's envelope",
+        "No outbound Keycloak call is attempted"
+      ],
+      "tags": [
+        "oidc",
+        "config-gate",
+        "FR-2",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#104",
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_oidc_login.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-16",
+      "title": "No Set-Cookie header is present anywhere on the callback response path, success or failure",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-3",
+      "given": "a callback request that completes a successful code exchange, and a second callback request whose code exchange fails",
+      "when": "both responses are inspected",
+      "then": "neither response carries a Set-Cookie header at any point in the callback response path",
+      "objective": "Verify the callback route never emits a Set-Cookie header, on success or failure, per the bearer-JWT-only session contract \u2014 asserted independently of AC-3's happy-path shape check.",
+      "preconditions": [
+        "Keycloak token endpoint mocked to return a 200 response for one case and a 400 error for the other (per C-2)"
+      ],
+      "test_data": {
+        "authorization_code_success": "test-auth-code-success",
+        "authorization_code_invalid": "test-auth-code-invalid"
+      },
+      "steps": [
+        "Mock Keycloak's token endpoint to return a 200 token response",
+        "GET /auth/callback?code=test-auth-code-success",
+        "Assert response.headers.get_list('set-cookie') is empty",
+        "Mock Keycloak's token endpoint to return a 400 error",
+        "GET /auth/callback?code=test-auth-code-invalid",
+        "Assert response.headers.get_list('set-cookie') is empty"
+      ],
+      "expected_results": [
+        "Success-path response carries zero Set-Cookie headers",
+        "Failure-path response carries zero Set-Cookie headers"
+      ],
+      "tags": [
+        "oidc",
+        "callback",
+        "no-cookie",
+        "FR-3",
+        "security"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_callback.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-17",
+      "title": "JWT claim-to-field mapping: user_id=sub, email=email, role from realm/client role claim, groups=groups; no server-side persistence",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-4",
+      "given": "a validly signed JWT with sub, email, a realm/client role claim, and a groups claim",
+      "when": "the shared auth dependency validates the token",
+      "then": "user_id equals sub, email equals email, role is derived from the realm/client role claim, groups equals the groups claim, and no token or session state is persisted server-side",
+      "objective": "Verify the exact claim-to-field mapping FR-4 specifies, and confirm statelessness (no DB/session write).",
+      "preconditions": [
+        "JWKS mocked to serve the public key matching the test JWT's signing key (per C-2)"
+      ],
+      "test_data": {
+        "bearer_token": "<PLACEHOLDER_JWT>",
+        "jwt_claims": {
+          "sub": "user-42",
+          "email": "dev@example.com",
+          "realm_access": {
+            "roles": [
+              "ic"
+            ]
+          },
+          "groups": [
+            "program-alpha"
+          ]
+        }
+      },
+      "steps": [
+        "Mock JWKS to serve the signing key for test_data.bearer_token",
+        "Call a protected test route with Authorization: Bearer <bearer_token>",
+        "Inspect the derived session object the dependency returns",
+        "Query any session/token-persistence table (if one exists) for a row created by this request"
+      ],
+      "expected_results": [
+        "session.user_id == 'user-42'",
+        "session.email == 'dev@example.com'",
+        "session.role == 'ic'",
+        "session.groups == ['program-alpha']",
+        "No row is written to any session/token table and no server-side session store is touched"
+      ],
+      "tags": [
+        "jwt",
+        "claims-mapping",
+        "FR-4",
+        "stateless"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_jwt_validation.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-18",
+      "title": "groups claim entries not matching program_group_prefix are dropped",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-FR-5",
+      "given": "a groups claim containing both a 'program-' prefixed group and an unrelated group",
+      "when": "the session's program-membership list is built",
+      "then": "only the program-prefixed group contributes an entry; the unrelated group is dropped",
+      "objective": "Verify non-matching groups do not leak into the program-membership list.",
+      "preconditions": [
+        "JWKS mocked to serve the signing key for the test JWT"
+      ],
+      "test_data": {
+        "groups": [
+          "program-alpha",
+          "admins"
+        ]
+      },
+      "steps": [
+        "Build a JWT with groups=['program-alpha', 'admins']",
+        "Validate it via the shared auth dependency",
+        "Inspect the derived program-membership list"
+      ],
+      "expected_results": [
+        "Program-membership list == ['alpha']",
+        "'admins' does not appear anywhere in the program-membership list"
+      ],
+      "tags": [
+        "groups",
+        "FR-5",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-19",
+      "title": "Empty groups claim yields an empty program-membership list, not an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-FR-5",
+      "given": "a JWT whose groups claim is present but an empty list",
+      "when": "the session's program-membership list is built",
+      "then": "the program-membership list is empty and no exception is raised",
+      "objective": "Verify an empty groups claim degrades gracefully.",
+      "preconditions": [
+        "JWKS mocked to serve the signing key for the test JWT"
+      ],
+      "test_data": {
+        "groups": []
+      },
+      "steps": [
+        "Build a JWT with groups=[]",
+        "Validate it via the shared auth dependency"
+      ],
+      "expected_results": [
+        "Program-membership list == []",
+        "No exception is raised"
+      ],
+      "tags": [
+        "groups",
+        "FR-5",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-20",
+      "title": "Missing groups claim entirely yields an empty program-membership list, not an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-FR-5",
+      "given": "a JWT with no groups claim at all",
+      "when": "the session's program-membership list is built",
+      "then": "the program-membership list is empty and no exception (e.g. KeyError) is raised for the absent claim",
+      "objective": "Verify an entirely absent groups claim degrades gracefully, distinct from an empty-list claim.",
+      "preconditions": [
+        "JWKS mocked to serve the signing key for the test JWT"
+      ],
+      "test_data": {
+        "jwt_claims_omit_groups": true
+      },
+      "steps": [
+        "Build a JWT whose claim set has no 'groups' key",
+        "Validate it via the shared auth dependency"
+      ],
+      "expected_results": [
+        "Program-membership list == []",
+        "No KeyError or other exception is raised for the absent groups claim"
+      ],
+      "tags": [
+        "groups",
+        "FR-5",
+        "boundary"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-21",
+      "title": "Any non-2xx response from Keycloak's refresh grant maps to 401, not a passthrough of Keycloak's status",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-6",
+      "given": "Keycloak's refresh-token endpoint returns a generic non-2xx error (e.g. 500) unrelated to expiry/revocation",
+      "when": "the refresh route is called",
+      "then": "the route returns 401, not a raw passthrough of Keycloak's status, so the frontend's redirect-to-login handling stays uniform",
+      "objective": "Verify FR-6's explicit-status-code rule generalizes beyond the expired/revoked case already covered by AC-7.",
+      "preconditions": [
+        "Keycloak refresh-token endpoint mocked to return a 500 error"
+      ],
+      "test_data": {
+        "refresh_token": "<PLACEHOLDER_REFRESH_TOKEN>",
+        "mock_keycloak_status": 500
+      },
+      "steps": [
+        "Mock Keycloak's refresh endpoint to return a 500 error",
+        "POST /auth/refresh with test_data.refresh_token",
+        "Inspect response status and body"
+      ],
+      "expected_results": [
+        "Response status is 401",
+        "Response does not leak Keycloak's raw 500 status or body"
+      ],
+      "tags": [
+        "refresh",
+        "FR-6",
+        "negative"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_refresh.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-22",
+      "title": "ENVIRONMENT='PRODUCTION' (uppercase) gates dev-bypass identically to 'production'",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is set to 'PRODUCTION' (all-uppercase)",
+      "when": "the dev-bypass path is invoked",
+      "then": "'PRODUCTION' lowercases to 'production', which is not a member of the non-production allow-list, so dev-bypass is unreachable",
+      "objective": "Verify normalization is case-insensitive and that the lowercased value is resolved against the non-production allow-list rather than compared to a single literal.",
+      "preconditions": [
+        "Test app booted with ENVIRONMENT=PRODUCTION"
+      ],
+      "test_data": {
+        "environment": "PRODUCTION"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=PRODUCTION",
+        "Read Settings.environment",
+        "POST /auth/dev-bypass with a role/email/programs override"
+      ],
+      "expected_results": [
+        "Settings normalizes environment to 'production'",
+        "'production' is not a member of {local, development, dev, test, ci}",
+        "Response status is 404",
+        "No usable token is returned"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "FR-7",
+        "case-normalization"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-23",
+      "title": "ENVIRONMENT='Prod' is not allow-listed, so dev-bypass is unreachable",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is set to 'Prod' (mixed-case abbreviation)",
+      "when": "the dev-bypass path is invoked",
+      "then": "'Prod' lowercases to 'prod', which is not a member of the non-production allow-list, so dev-bypass is unreachable",
+      "objective": "Verify the abbreviated production value is gated. This is the case a bare environment.lower() != \"production\" comparison gets wrong \u2014 'Prod'.lower() is 'prod', which such a check reads as non-production, leaving dev-bypass reachable in a production deployment. The gate is the sole mechanism preventing that (research condition C-4).",
+      "preconditions": [
+        "Test app booted with ENVIRONMENT=Prod"
+      ],
+      "test_data": {
+        "environment": "Prod"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=Prod",
+        "Read Settings.environment",
+        "POST /auth/dev-bypass with a role/email/programs override"
+      ],
+      "expected_results": [
+        "Settings normalizes environment to 'prod'",
+        "'prod' is not a member of {local, development, dev, test, ci}",
+        "Response status is 404",
+        "No usable token is returned"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "FR-7",
+        "case-normalization",
+        "fail-closed"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-24",
+      "title": "Dev-bypass path never calls the dashboard_login logging function (call is skipped, not filtered)",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-FR-8",
+      "given": "a dev-bypass token-issuance request",
+      "when": "the request is served",
+      "then": "the dashboard_login logging call is never invoked on this code path, verified by call-count rather than by inspecting a filtered/suppressed log line",
+      "objective": "Verify FR-8's white-box requirement: the dev-bypass code path skips the logging call entirely, distinct from AC-10's black-box log-absence check.",
+      "preconditions": [
+        "The dashboard_login logging call is mocked/spied for the duration of the test"
+      ],
+      "test_data": {
+        "environment": "development"
+      },
+      "steps": [
+        "Spy on the dashboard_login logging call (e.g. mock app.core.logging's emit path)",
+        "POST /auth/dev-bypass with a role/email/programs override",
+        "Inspect the spy's call count"
+      ],
+      "expected_results": [
+        "Spy call count for the dashboard_login logging function is exactly 0",
+        "This differs from a filtered-but-called log \u2014 the call itself never happens"
+      ],
+      "tags": [
+        "dev-bypass",
+        "observability",
+        "FR-8",
+        "skip-not-filter"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-25",
+      "title": "CORSMiddleware is registered with the exact configured settings: allow-list, allow_credentials=False, allow_methods, allow_headers",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-9",
+      "given": "app/main.py registers CORSMiddleware with settings.cors_origins",
+      "when": "the middleware stack is inspected",
+      "then": "allow_origins equals the configured list (no wildcard), allow_credentials is False, allow_methods is ['GET','POST','OPTIONS'], allow_headers is ['Authorization','Content-Type']",
+      "objective": "Verify FR-9's exact middleware configuration values, distinct from AC-11's end-to-end preflight behavior check.",
+      "preconditions": [
+        "Test app booted with CORS_ORIGINS=https://dashboard.example.com"
+      ],
+      "test_data": {
+        "cors_origins": [
+          "https://dashboard.example.com"
+        ]
+      },
+      "steps": [
+        "Boot the FastAPI test app with CORS_ORIGINS=https://dashboard.example.com",
+        "Inspect app.user_middleware for the CORSMiddleware entry and its constructor kwargs"
+      ],
+      "expected_results": [
+        "allow_origins == ['https://dashboard.example.com'] (no '*')",
+        "allow_credentials is False",
+        "allow_methods == ['GET', 'POST', 'OPTIONS']",
+        "allow_headers == ['Authorization', 'Content-Type']"
+      ],
+      "tags": [
+        "cors",
+        "FR-9",
+        "contract"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_cors.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-26",
+      "title": "Successful OIDC callback emits exactly one dashboard_login event carrying only user_id",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-10",
+      "given": "a successful code exchange on the callback route",
+      "when": "the response is returned",
+      "then": "a dashboard_login structlog JSON event is emitted exactly once, carrying user_id and no email, name, or token values",
+      "objective": "Verify FR-10's trigger on the callback path and its field scope.",
+      "preconditions": [
+        "Keycloak token endpoint and JWKS mocked for a successful exchange",
+        "stdout log capture enabled"
+      ],
+      "test_data": {
+        "jwt_claims": {
+          "sub": "user-42"
+        }
+      },
+      "steps": [
+        "Mock Keycloak's token endpoint and JWKS for a successful exchange",
+        "GET /auth/callback?code=test-auth-code-1 with stdout log capture enabled",
+        "Parse captured JSON log lines for a dashboard_login event"
+      ],
+      "expected_results": [
+        "Exactly one dashboard_login event is logged",
+        "Event payload contains user_id == 'user-42' and no email, name, access_token, or refresh_token field"
+      ],
+      "tags": [
+        "observability",
+        "dashboard_login",
+        "FR-10"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_callback.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-27",
+      "title": "Successful token refresh emits exactly one dashboard_login event carrying only user_id",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-10",
+      "given": "a successful refresh-token grant",
+      "when": "the response is returned",
+      "then": "a dashboard_login structlog JSON event is emitted exactly once, carrying user_id and no email, name, or token values",
+      "objective": "Verify FR-10's trigger on the refresh path and its field scope.",
+      "preconditions": [
+        "Keycloak refresh endpoint mocked for a successful grant",
+        "stdout log capture enabled"
+      ],
+      "test_data": {
+        "refresh_token": "<PLACEHOLDER_REFRESH_TOKEN>",
+        "jwt_claims": {
+          "sub": "user-42"
+        }
+      },
+      "steps": [
+        "Mock Keycloak's refresh endpoint for a successful grant",
+        "POST /auth/refresh with test_data.refresh_token, with stdout log capture enabled",
+        "Parse captured JSON log lines for a dashboard_login event"
+      ],
+      "expected_results": [
+        "Exactly one dashboard_login event is logged",
+        "Event payload contains user_id and no email, name, access_token, or refresh_token field"
+      ],
+      "tags": [
+        "observability",
+        "dashboard_login",
+        "FR-10"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_refresh.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-28",
+      "title": "JWT validation latency stays under budget: <10ms cached JWKS, <100ms first-fetch/uncached",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-NFR-performance",
+      "given": "a validly signed JWT and Keycloak's JWKS mocked to respond immediately (no real network hop)",
+      "when": "the shared auth dependency validates the token first with a cold JWKS cache, then repeatedly with a warm cache",
+      "then": "cold validation completes in <100ms and warm (cached) validation completes in <10ms",
+      "objective": "Verify AUTH-01-NFR-1's latency budgets, measured via wall-clock timing in pytest (no dedicated benchmark tool required, consistent with this repo's existing performance-NFR test approach).",
+      "preconditions": [
+        "JWKS endpoint mocked with a fast, deterministic in-process response so the measurement isolates validation-logic overhead",
+        "Timing measured via time.perf_counter() around the dependency call"
+      ],
+      "test_data": {
+        "budget_cached_ms": 10,
+        "budget_uncached_ms": 100,
+        "warm_iterations": 20
+      },
+      "steps": [
+        "Clear the JWKS cache",
+        "Time one call to the auth dependency (cold/uncached)",
+        "Time test_data.warm_iterations subsequent calls to the auth dependency (warm/cached) and take the mean"
+      ],
+      "expected_results": [
+        "Cold-call duration < 100ms",
+        "Mean warm-call duration < 10ms"
+      ],
+      "tags": [
+        "performance",
+        "jwks",
+        "nfr-jwt-validation-latency"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_auth_jwks_perf.py",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "cold JWKS fetch < 100ms; mean of 20 warm (cached) calls < 10ms",
+          "measured": "cold+20-warm call window totalled ~20ms wall-clock in this run (both internal assertions passed: cold_elapsed<100ms, warm_mean<10ms)",
+          "budget_pass": true
+        }
+      }
+    },
+    {
+      "id": "AUTH-01-TC-29",
+      "title": "Unrecognized kid triggers exactly one fresh JWKS fetch before the request fails",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-NFR-performance",
+      "given": "the JWKS cache holds a key set (3600s TTL) that does not contain the JWT's kid",
+      "when": "a request with that JWT is validated",
+      "then": "exactly one fresh JWKS fetch is triggered, and if the kid remains unrecognized after that fetch, the request fails without a repeated fetch loop",
+      "objective": "Verify the JWKS cache's invalidating event is a single verification failure, not a fixed-interval or unbounded refetch loop \u2014 assert the fetch count, not just the failure.",
+      "preconditions": [
+        "JWKS HTTP client mocked/spied to count fetch calls",
+        "Cache pre-populated with a key set not containing the test JWT's kid"
+      ],
+      "test_data": {
+        "missing_kid": "test-kid-rotated",
+        "cache_ttl_s": 3600
+      },
+      "steps": [
+        "Pre-populate the JWKS cache with a key set not containing test_data.missing_kid",
+        "Spy on the JWKS HTTP client's fetch call count",
+        "Call the auth dependency with a JWT signed by test_data.missing_kid, where the fresh fetch also does not contain it",
+        "Inspect the fetch-call spy count and the response status"
+      ],
+      "expected_results": [
+        "JWKS fetch spy recorded exactly 1 call",
+        "Request fails with 401",
+        "No second/retry fetch is triggered for the same request"
+      ],
+      "tags": [
+        "performance",
+        "jwks-cache",
+        "nfr-jwks-cache"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_auth_jwks_perf.py",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "an unrecognized kid triggers exactly 1 fresh JWKS fetch before failing (no numeric latency budget stated)",
+          "measured": "fetch-call spy recorded exactly 1 call; request failed 401 with no second fetch",
+          "budget_pass": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-01-TC-30",
+      "title": "Transient network failure on an outbound Keycloak call retries at most 2 times with exponential backoff and jitter, each attempt bounded by a 5s timeout",
+      "type": "performance",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-NFR-performance",
+      "given": "an outbound Keycloak call (code exchange, refresh, or JWKS fetch) that fails with a transient network error on the first 2 attempts and succeeds on the 3rd",
+      "when": "the call is made",
+      "then": "the call retries at most 2 times, each attempt is bounded by a 5s explicit timeout, and backoff between attempts is exponential with jitter around a 250ms base",
+      "objective": "Verify the I/O-bound retry policy from the performance baseline: bounded attempts, explicit timeout, exponential backoff with jitter.",
+      "preconditions": [
+        "Outbound HTTP client mocked to raise a transient connection error on attempts 1 and 2, then succeed on attempt 3",
+        "Retry/backoff timing captured via mock call timestamps"
+      ],
+      "test_data": {
+        "timeout_s": 5,
+        "max_retries": 2,
+        "backoff_base_ms": 250
+      },
+      "steps": [
+        "Mock the outbound Keycloak client to fail transiently on attempts 1 and 2, succeed on attempt 3",
+        "Invoke the call under test (e.g. token refresh)",
+        "Inspect the number of attempts made and the timeout/backoff configuration used"
+      ],
+      "expected_results": [
+        "Exactly 3 total attempts occur (1 initial + 2 retries), not more",
+        "Each attempt is configured with a 5s timeout",
+        "Delay between attempts grows exponentially from the ~250ms base with jitter (not a fixed constant delay)",
+        "The final call succeeds and its response is returned"
+      ],
+      "tags": [
+        "performance",
+        "retry",
+        "backoff",
+        "nfr-io-bounds"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_auth_retry_perf.py",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "outbound Keycloak call: max 2 retries, 5s timeout/attempt, ~250ms exponential backoff base with jitter",
+          "measured": "exactly 3 total attempts (1 initial + 2 retries) observed; each attempt configured with 5s timeout; backoff followed the pinned exponential formula (0.25s, 0.5s) verified via monkeypatched sleep calls",
+          "budget_pass": true
+        }
+      }
+    },
+    {
+      "id": "AUTH-01-TC-31",
+      "title": "A 4xx response from Keycloak (e.g. revoked refresh token) never triggers a retry",
+      "type": "performance",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-NFR-performance",
+      "given": "Keycloak's refresh endpoint returns a 400 invalid_grant error",
+      "when": "the refresh call is made",
+      "then": "the call is attempted exactly once \u2014 no retry is triggered for a 4xx response",
+      "objective": "Verify 4xx responses are treated as non-transient and never retried, per the performance baseline's bounded-retry rule.",
+      "preconditions": [
+        "Keycloak refresh endpoint mocked to return 400 on every call",
+        "Outbound HTTP client spied to count calls"
+      ],
+      "test_data": {
+        "mock_keycloak_status": 400
+      },
+      "steps": [
+        "Mock Keycloak's refresh endpoint to return 400 on every call",
+        "Spy on the outbound HTTP client's call count",
+        "POST /auth/refresh with a refresh_token"
+      ],
+      "expected_results": [
+        "Outbound call spy recorded exactly 1 call",
+        "Response status is 401 (per FR-6), returned without a retry delay"
+      ],
+      "tags": [
+        "performance",
+        "retry",
+        "4xx-no-retry",
+        "nfr-io-bounds"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_refresh.py",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": null,
+          "measured": null,
+          "budget_pass": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-01-TC-32",
+      "title": "Access/refresh token values never appear in log output; only user_id is logged",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-NFR-security",
+      "given": "a successful callback and a successful refresh, each producing real token values",
+      "when": "log output for both requests is captured",
+      "then": "no captured log line contains the literal access_token or refresh_token value; only user_id appears among identity-bearing fields",
+      "objective": "Verify NFR-4's PII/token-logging prohibition end-to-end across both trigger points.",
+      "preconditions": [
+        "Keycloak mocked to return known token values on callback and on refresh",
+        "stdout log capture enabled for both requests"
+      ],
+      "test_data": {
+        "mock_access_token": "<PLACEHOLDER_ACCESS_TOKEN>",
+        "mock_refresh_token": "<PLACEHOLDER_REFRESH_TOKEN>"
+      },
+      "steps": [
+        "Mock Keycloak to return test_data token values on callback and on refresh",
+        "GET /auth/callback and POST /auth/refresh, each with log capture enabled",
+        "Search all captured log lines for the literal token substring values"
+      ],
+      "expected_results": [
+        "Neither token value appears anywhere in captured log output",
+        "Only user_id appears among identity fields in the dashboard_login log entries"
+      ],
+      "tags": [
+        "security",
+        "logging",
+        "nfr-secret-handling"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_logging_security.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-33",
+      "title": "A client-supplied role/group header is ignored; role and groups come only from the validated JWT",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-NFR-security",
+      "given": "a validly signed JWT with role 'qa' and groups ['program-beta'], plus a forged X-Role/X-Groups request header claiming role 'admin' and groups ['program-alpha']",
+      "when": "the shared auth dependency derives the session",
+      "then": "the derived role and groups come only from the JWT claims; the forged header is ignored entirely",
+      "objective": "Verify the server-side RBAC foundation: role/groups are sourced exclusively from the validated JWT, never a client-supplied header, at the point this story controls (full RBAC enforcement is AUTH-03, out of scope here).",
+      "preconditions": [
+        "JWKS mocked to serve the signing key for the test JWT"
+      ],
+      "test_data": {
+        "jwt_claims": {
+          "realm_access": {
+            "roles": [
+              "qa"
+            ]
+          },
+          "groups": [
+            "program-beta"
+          ]
+        },
+        "forged_headers": {
+          "X-Role": "admin",
+          "X-Groups": "program-alpha"
+        }
+      },
+      "steps": [
+        "Build a JWT with role 'qa' and groups ['program-beta']",
+        "Call a protected test route with Authorization: Bearer <jwt> plus the forged X-Role/X-Groups headers",
+        "Inspect the derived session"
+      ],
+      "expected_results": [
+        "session.role == 'qa' (not 'admin')",
+        "session.groups/program-membership derives only from the JWT's groups claim, not the forged header"
+      ],
+      "tags": [
+        "security",
+        "rbac-foundation",
+        "nfr-server-side-rbac-foundation"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_jwt_validation.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-34",
+      "title": "AUTH-01 exposes no HTML sign-in surface; the accessibility budget is honestly out of scope at the backend layer",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-NFR-accessibility",
+      "given": "the full set of routes AUTH-01 registers (/auth/login, /auth/callback, /auth/refresh, /auth/dev-bypass)",
+      "when": "each route's response media type is inspected",
+      "then": "none render text/html or any sign-in page markup \u2014 all are JSON API responses or redirects",
+      "objective": "Confirm NFR-6's 'N/A \u2014 WCAG AA owned by SHP-01's frontend sign-in page' claim is structurally true for this story's routes, not just asserted in prose.",
+      "preconditions": [
+        "Full route table introspectable via app.routes"
+      ],
+      "test_data": {
+        "routes": [
+          "/auth/login",
+          "/auth/callback",
+          "/auth/refresh",
+          "/auth/dev-bypass"
+        ]
+      },
+      "steps": [
+        "Enumerate AUTH-01's registered routes via app.routes",
+        "For each route, issue a representative request and inspect Content-Type / response shape"
+      ],
+      "expected_results": [
+        "No route returns Content-Type: text/html",
+        "No route serves rendered page markup \u2014 only JSON bodies or redirect responses with no HTML template involved"
+      ],
+      "tags": [
+        "accessibility",
+        "scope-boundary",
+        "nfr-accessibility-scope"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_accessibility_scope.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-35",
+      "title": "All /auth/* routes emit structlog JSON-formatted log output",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-NFR-observability",
+      "given": "requests to each /auth/* route",
+      "when": "log output is captured for a request to each route",
+      "then": "every emitted log line is valid structured JSON (app/core/logging.py's structlog formatter), not a plain-text/unstructured line",
+      "objective": "Verify NFR-7's general JSON-output requirement across all /auth/* routes, distinct from FR-10's specific dashboard_login trigger/field-scope check.",
+      "preconditions": [
+        "stdout log capture enabled"
+      ],
+      "test_data": {
+        "routes": [
+          "/auth/login",
+          "/auth/callback",
+          "/auth/refresh",
+          "/auth/dev-bypass"
+        ]
+      },
+      "steps": [
+        "For each route in test_data.routes, issue a representative request with log capture enabled",
+        "Attempt to json.loads() every captured log line"
+      ],
+      "expected_results": [
+        "Every captured log line for every /auth/* route parses as valid JSON",
+        "No unstructured plain-text log line is emitted for any /auth/* request"
+      ],
+      "tags": [
+        "observability",
+        "structlog",
+        "nfr-structlog-output"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_logging_security.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-36",
+      "title": "Callback's expires_in passes through Keycloak's real value unmodified, never hardcoded to the 300s test-fixture default",
+      "type": "contract",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-01-NFR-performance",
+      "given": "Keycloak's token endpoint returns expires_in=600 (deliberately not the Apexon realm's documented 300s default)",
+      "when": "the callback route returns its JSON body",
+      "then": "expires_in in the response equals 600, proving the value is realm-driven and never a hardcoded 300s constant",
+      "objective": "Verify the access-token lifetime is realm-driven per NFR-8, not a pinned code constant.",
+      "preconditions": [
+        "Keycloak token endpoint mocked to return expires_in=600"
+      ],
+      "test_data": {
+        "mock_keycloak_expires_in": 600
+      },
+      "steps": [
+        "Mock Keycloak's token endpoint to return expires_in=600 alongside access_token/refresh_token",
+        "GET /auth/callback?code=test-auth-code-1",
+        "Inspect the response body's expires_in field"
+      ],
+      "expected_results": [
+        "Response expires_in == 600, not 300",
+        "No code path overwrites or defaults expires_in to a fixed constant"
+      ],
+      "tags": [
+        "contract",
+        "token-lifetime",
+        "nfr-access-token-lifetime"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_callback.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-37",
+      "title": "ENVIRONMENT='staging' is not allow-listed, so dev-bypass is unreachable",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is set to 'staging' \u2014 a real deployed environment that is neither production nor a member of the non-production allow-list",
+      "when": "the dev-bypass path is invoked",
+      "then": "dev-bypass is unreachable, because the gate grants on allow-list membership rather than denying on equality with 'production'",
+      "objective": "Verify the fail-closed gate refuses a legitimate non-production environment that is not allow-listed. Under the superseded `!= \"production\"` deny-check this returned a usable token on staging; under FR-1's allow-list it does not (Product Gate decision 2026-08-27).",
+      "preconditions": [
+        "Test app booted with ENVIRONMENT=staging"
+      ],
+      "test_data": {
+        "environment": "staging"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=staging",
+        "Read the normalized Settings.environment",
+        "POST /auth/dev-bypass with a role/email/programs override"
+      ],
+      "expected_results": [
+        "Settings normalizes environment to 'staging'",
+        "'staging' is not a member of {local, development, dev, test, ci}",
+        "Response status is 404",
+        "No access_token or refresh_token is present anywhere in the response body"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "FR-7",
+        "fail-closed",
+        "staging"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-38",
+      "title": "An unrecognized ENVIRONMENT value (typo) fails closed rather than enabling dev-bypass",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is set to 'produciton' \u2014 a misspelling of 'production', the realistic deployment accident this gate must survive",
+      "when": "the dev-bypass path is invoked",
+      "then": "dev-bypass is unreachable, because an unrecognized value is not a member of the non-production allow-list",
+      "objective": "Verify the sole security gate fails closed on an unanticipated value. A `!= \"production\"` deny-check treats every typo as non-production and would serve dev-bypass tokens from a production deployment; allow-list membership inverts that default (research condition C-4, Product Gate decision 2026-08-27).",
+      "preconditions": [
+        "Test app booted with ENVIRONMENT=produciton"
+      ],
+      "test_data": {
+        "environment": "produciton"
+      },
+      "steps": [
+        "Boot the test app with ENVIRONMENT=produciton",
+        "Read the normalized Settings.environment",
+        "POST /auth/dev-bypass with a role/email/programs override"
+      ],
+      "expected_results": [
+        "Settings normalizes environment to 'produciton'",
+        "'produciton' is not a member of {local, development, dev, test, ci}",
+        "Response status is 404",
+        "No access_token or refresh_token is present anywhere in the response body"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "FR-7",
+        "fail-closed",
+        "unrecognized-value"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-39",
+      "title": "Every allow-listed non-production ENVIRONMENT value keeps dev-bypass reachable",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is set to each member of the non-production allow-list in turn",
+      "when": "the dev-bypass path is invoked",
+      "then": "dev-bypass issues a bearer token for every allow-listed value, so fail-closed gating does not break local or CI development",
+      "objective": "Verify the allow-list is complete enough to serve its purpose \u2014 the fail-closed gate must not lock developers or CI out of dev-bypass. Guards against over-tightening FR-1's allow-list (AC-8).",
+      "preconditions": [
+        "Test app booted per the parametrized ENVIRONMENT value"
+      ],
+      "test_data": {
+        "environments": [
+          "local",
+          "development",
+          "dev",
+          "test",
+          "ci"
+        ]
+      },
+      "steps": [
+        "For each value in {local, development, dev, test, ci}: boot the test app with that ENVIRONMENT",
+        "POST /auth/dev-bypass with a role/email/programs override",
+        "Assert the Keycloak HTTP client spy recorded zero calls for that iteration"
+      ],
+      "expected_results": [
+        "Response status 200 for all five values",
+        "Each response body is shaped {access_token, refresh_token, expires_in} with no Set-Cookie header",
+        "Zero outbound Keycloak calls across all five iterations"
+      ],
+      "tags": [
+        "dev-bypass",
+        "production-gate",
+        "FR-7",
+        "fail-closed",
+        "allow-list-completeness"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-40",
+      "title": "A dev-bypass token is accepted by a get_current_user-protected route in an allow-listed environment, and rejected in production",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-7",
+      "given": "ENVIRONMENT is an allow-listed non-production value and a token has been obtained from POST /auth/dev-bypass",
+      "when": "that token is presented as Authorization: Bearer on a route guarded by Depends(get_current_user)",
+      "then": "the request is authenticated and the derived role/programs match the dev-bypass overrides; the same token is rejected with 401 when the app is built with ENVIRONMENT=production",
+      "objective": "Close the AF-05 gap: prove dev-bypass delivers the story's stated outcome (local sign-in without a live IdP) end-to-end, and that D-08's ephemeral dev signing key is served ONLY under the D-01 fail-closed allow-list.",
+      "preconditions": [
+        "App built via create_app with an allow-listed ENVIRONMENT",
+        "No Keycloak JWKS endpoint reachable or mocked \u2014 dev-bypass must not depend on one"
+      ],
+      "test_data": {
+        "environment": "development",
+        "role": "qa",
+        "email": "dev@example.com",
+        "programs": [
+          "alpha"
+        ],
+        "negative_environment": "production"
+      },
+      "steps": [
+        "POST /auth/dev-bypass with the role/email/programs overrides",
+        "Present the returned access_token as Authorization: Bearer on a get_current_user-protected route",
+        "Assert the derived CurrentUser matches the overrides",
+        "Rebuild the app with ENVIRONMENT=production and present the same token to the guarded route"
+      ],
+      "expected_results": [
+        "Guarded route returns 200 in the allow-listed environment",
+        "Derived role == 'qa' and programs == ['alpha']",
+        "No outbound Keycloak call is made at any point",
+        "Under ENVIRONMENT=production the same token is rejected 401 (the dev kid is not served by the JWKS cache)"
+      ],
+      "tags": [
+        "regression-AF-05",
+        "dev-bypass",
+        "D-08",
+        "fail-closed"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-41",
+      "title": "An expired access token is rejected with 401 on a protected route",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-4",
+      "given": "an access token with a valid signature from a recognized kid, but an exp claim in the past",
+      "when": "it is presented as Authorization: Bearer on a route guarded by Depends(get_current_user)",
+      "then": "the request is rejected with 401 through the standard error envelope, indistinguishable from any other rejection reason",
+      "objective": "Pin expiry enforcement. authlib's jwt.decode() checks only the signature; only claims.validate() checks exp \u2014 an implementation missing that call passes every other test case and accepts expired tokens indefinitely.",
+      "preconditions": [
+        "JWKS mocked to serve the signing key so signature verification genuinely succeeds"
+      ],
+      "test_data": {
+        "exp_offset_seconds": -120
+      },
+      "steps": [
+        "Mint a correctly-signed token with exp 120 seconds in the past",
+        "Present it on a get_current_user-protected route"
+      ],
+      "expected_results": [
+        "Response status is 401",
+        "Body matches the standard error envelope with a generic detail",
+        "The failure comes from claim validation, not signature verification (the signature is valid)"
+      ],
+      "tags": [
+        "regression-AF-11",
+        "expiry"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_jwt_validation.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-01-TC-42",
+      "title": "A validly-signed token with the wrong issuer or wrong audience is rejected with 401",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-01-FR-4",
+      "given": "a token whose signature verifies against the configured JWKS, but whose `iss` is not the configured OIDC issuer, or whose `aud` does not include the configured OIDC client id",
+      "when": "it is presented as Authorization: Bearer on a route guarded by Depends(get_current_user)",
+      "then": "the request is rejected with 401 through the standard error envelope, indistinguishable from any other rejection reason",
+      "objective": "Close the cross-client confused-deputy gap found by code review (REVIEW.md F-1). authlib's validate_aud()/validate_iss() are NO-OPS unless claims_options is passed to jwt.decode \u2014 verified against the installed authlib source and empirically: a token with iss='https://EVIL.example.com' and aud='some-other-client' passed .validate() without raising. Every client in the Apexon realm is signed by the same realm key, so without this check a token minted for a DIFFERENT application in the realm would be accepted here as a valid session.",
+      "preconditions": [
+        "JWKS mocked to serve the signing key so signature verification genuinely SUCCEEDS \u2014 the rejection must come from claim validation, not from a bad signature",
+        "Settings configured with a known oidc_issuer and oidc_client_id"
+      ],
+      "test_data": {
+        "wrong_iss": "https://evil.example.com/realms/Other",
+        "wrong_aud": "some-other-client",
+        "correct_iss": "https://lab.apexonlab.com/apexonlogin/realms/Apexon",
+        "correct_aud": "test-dashboard-client"
+      },
+      "steps": [
+        "Mint a correctly-signed token whose iss is the wrong issuer; present it to a guarded route",
+        "Mint a correctly-signed token whose aud is a different client id; present it to a guarded route",
+        "Mint a correctly-signed token with both correct; present it to a guarded route",
+        "Repeat the happy path for a dev-bypass token in an allow-listed environment"
+      ],
+      "expected_results": [
+        "Wrong issuer -> 401 via the standard error envelope",
+        "Wrong audience -> 401 via the standard error envelope",
+        "Correct issuer and audience -> 200 (the check must not reject valid tokens)",
+        "A dev-bypass token still authenticates in an allow-listed environment (the fix must not break D-08)"
+      ],
+      "tags": [
+        "regression-REVIEW-F-1",
+        "security",
+        "confused-deputy"
+      ],
+      "last_run": {
+        "started_at": "2026-08-28T03:05:00Z",
+        "duration_ms": 31.8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 31.8,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_jwt_validation.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-01-AC-1",
+        "covered_by": [
+          "AUTH-01-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-2",
+        "covered_by": [
+          "AUTH-01-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-3",
+        "covered_by": [
+          "AUTH-01-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-4",
+        "covered_by": [
+          "AUTH-01-TC-04"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-5",
+        "covered_by": [
+          "AUTH-01-TC-05"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-6",
+        "covered_by": [
+          "AUTH-01-TC-06"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-7",
+        "covered_by": [
+          "AUTH-01-TC-07"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-8",
+        "covered_by": [
+          "AUTH-01-TC-08"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-9",
+        "covered_by": [
+          "AUTH-01-TC-09"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-10",
+        "covered_by": [
+          "AUTH-01-TC-10"
+        ]
+      },
+      {
+        "id": "AUTH-01-AC-11",
+        "covered_by": [
+          "AUTH-01-TC-11"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-01-FR-1",
+        "covered_by": [
+          "AUTH-01-TC-12"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-2",
+        "covered_by": [
+          "AUTH-01-TC-13",
+          "AUTH-01-TC-14",
+          "AUTH-01-TC-15"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-3",
+        "covered_by": [
+          "AUTH-01-TC-16"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-4",
+        "covered_by": [
+          "AUTH-01-TC-17"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-5",
+        "covered_by": [
+          "AUTH-01-TC-18",
+          "AUTH-01-TC-19",
+          "AUTH-01-TC-20"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-6",
+        "covered_by": [
+          "AUTH-01-TC-21"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-7",
+        "covered_by": [
+          "AUTH-01-TC-22",
+          "AUTH-01-TC-23",
+          "AUTH-01-TC-37",
+          "AUTH-01-TC-38",
+          "AUTH-01-TC-39"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-8",
+        "covered_by": [
+          "AUTH-01-TC-24"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-9",
+        "covered_by": [
+          "AUTH-01-TC-25"
+        ]
+      },
+      {
+        "id": "AUTH-01-FR-10",
+        "covered_by": [
+          "AUTH-01-TC-26",
+          "AUTH-01-TC-27"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-01-NFR-performance",
+        "covered_by": [
+          "AUTH-01-TC-28",
+          "AUTH-01-TC-29",
+          "AUTH-01-TC-30",
+          "AUTH-01-TC-31",
+          "AUTH-01-TC-36"
+        ]
+      },
+      {
+        "id": "AUTH-01-NFR-security",
+        "covered_by": [
+          "AUTH-01-TC-32",
+          "AUTH-01-TC-33"
+        ]
+      },
+      {
+        "id": "AUTH-01-NFR-accessibility",
+        "covered_by": [
+          "AUTH-01-TC-34"
+        ]
+      },
+      {
+        "id": "AUTH-01-NFR-observability",
+        "covered_by": [
+          "AUTH-01-TC-35"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "notes": [
+      "TC-40, TC-41 appended 2026-08-28 by /arh-implement (AF-11): no original case exercised a dev-bypass token, or an expired access token, against a get_current_user-protected route.",
+      "TC-42 appended 2026-08-28 by /arh-implement Step 2 fix pass (review finding F-1, HIGH): no case covered aud/iss validation; a validly-signed token from any other client in the realm was accepted."
+    ]
+  }
+}
