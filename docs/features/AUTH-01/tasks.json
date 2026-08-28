@@ -1,0 +1,906 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-01",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-28T00:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/auth/__init__.py",
+      "reason": "new app/auth package (D-02 split), holds oidc.py + dev_bypass.py + jwks.py"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/schemas/auth.py",
+      "reason": "in/out models: TokenResponse{access_token,refresh_token,expires_in}, DevBypassRequest{role?,email?,programs?} (AUTH-01-FR-3/FR-7)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/auth/jwks.py",
+      "reason": "JWKS cache-once-on-unrecognized-kid (D-04, AUTH-01-NFR-performance)"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/core/auth.py",
+      "reason": "replace 501 stub with real JWT-validation dependency + claim/program-group mapping (AUTH-01-FR-4/FR-5)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/app/auth/oidc.py",
+      "reason": "login/callback/refresh routes (D-02, AUTH-01-FR-2/FR-3/FR-6/FR-10)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/app/auth/dev_bypass.py",
+      "reason": "dev-bypass route (D-02, AUTH-01-FR-7/FR-8)"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/app/core/config.py",
+      "reason": "OIDC Settings fields + environment normalization/allow-list (D-01, AUTH-01-FR-1)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "wiring: CORSMiddleware (AUTH-01-FR-9) + register oidc router (always) + dev_bypass router (conditional on allow-list, D-01/D-02)"
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "OIDC_CLIENT_ID/SECRET/ISSUER/REALM/SCOPE, PROGRAM_GROUP_PREFIX, CORS_ORIGINS placeholders (AUTH-01-FR-1, docs T3)"
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "services/api/pyproject.toml",
+      "reason": "add authlib>=0.15,<1.0 (prod, D-05) + respx>=0.20 (dev, D-06)"
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "services/api/tests/conftest.py",
+      "reason": "respx MockRouter fixtures against Keycloak token/refresh/JWKS endpoints, RSA test keypair + JWT-builder helper, Keycloak-outbound-call spy (D-06)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_config.py",
+      "reason": "TC-12 (AUTH-01-FR-1 Settings schema)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_oidc_login.py",
+      "reason": "TC-01,02,13,14,15 (AC-1/AC-2, FR-2 config-completeness gate)"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_callback.py",
+      "reason": "TC-03,16,26,36 (AC-3, FR-3 no-cookie, FR-10 dashboard_login, NFR-performance expires_in passthrough)"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_jwt_validation.py",
+      "reason": "TC-04,17,33 (AC-4, FR-4 claims mapping, NFR-security forged-header rejection)"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_groups.py",
+      "reason": "TC-05,18,19,20 (AC-5, FR-5 program-group parsing + boundary cases)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_refresh.py",
+      "reason": "TC-06,07,21,27,31 (AC-6/AC-7, FR-6, FR-10, NFR-performance 4xx-no-retry)"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_dev_bypass.py",
+      "reason": "TC-08,09,10,22,23,24,37,38,39 (AC-8/AC-9/AC-10, FR-7 allow-list gating incl. case/typo/staging, FR-8 audit skip)"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_cors.py",
+      "reason": "TC-11,25 (AC-11, FR-9 exact middleware kwargs)"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_logging_security.py",
+      "reason": "TC-32,35 (NFR-security no-token-in-logs, NFR-observability structlog JSON across /auth/*)"
+    },
+    "F-21": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_accessibility_scope.py",
+      "reason": "TC-34 (NFR-accessibility scope-boundary contract check)"
+    },
+    "F-22": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_auth_jwks_perf.py",
+      "reason": "TC-28,29 (NFR-performance JWT-validation latency + JWKS fetch-once)"
+    },
+    "F-23": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_auth_retry_perf.py",
+      "reason": "TC-30 (NFR-performance bounded retry/backoff)"
+    },
+    "F-24": {
+      "action": "modify",
+      "path": "docs/config/project-commands.yaml",
+      "reason": "config drift C1 \u2014 preflight smoke-import for authlib + respx (research condition C-1 mitigation)"
+    },
+    "F-25": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "docs T2 (new HTTP routes /auth/*) + T3 (new env vars) \u2014 API section + environment-variables table"
+    },
+    "F-26": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "Auth subsection: required env vars to boot real Keycloak auth + local dev-bypass sign-in (REQUIREMENTS.md Documentation requirements)"
+    },
+    "F-27": {
+      "action": "create",
+      "path": "docs/how-to/dev-bypass-auth.md",
+      "reason": "how-to: local sign-in via dev-bypass without Keycloak; pointing at the real Apexon realm for pilot testing"
+    },
+    "F-28": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_oidc_login.py",
+      "reason": "cover D-11 explicit redirect_uri override + derived fallback"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add authlib (prod) + respx (dev) dependencies",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "D-05/D-06; authlib>=0.15,<1.0 in [project].dependencies, respx>=0.20 in [dependency-groups].dev; uv sync to update uv.lock",
+      "status": "done",
+      "completed_at": "2026-08-27T19:13:54Z",
+      "files_touched": [
+        "services/api/pyproject.toml",
+        "services/api/uv.lock"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Extend conftest.py with Keycloak mock fixtures (respx), JWT-builder helper, call spy",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "D-06/D-03 (C-2); respx.MockRouter against token/refresh/JWKS endpoints; RSA test keypair + authlib.jose.jwt.encode-based builder; spy asserting zero Keycloak calls for dev-bypass tests",
+      "status": "done",
+      "completed_at": "2026-08-27T19:28:03Z",
+      "files_touched": [
+        "services/api/tests/conftest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Settings: OIDC fields + environment normalization/allow-list",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-07"
+      ],
+      "notes": "D-01; oidc_client_id/secret/issuer/realm, oidc_scope default 'openid profile email groups', program_group_prefix default 'program-', cors_origins default []; environment lowercased at load, resolved by allow-list membership against {local,development,dev,test,ci}",
+      "status": "done",
+      "completed_at": "2026-08-27T19:19:15Z",
+      "files_touched": [
+        "services/api/app/core/config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Create app/auth package init + request/response schemas",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-3",
+        "AUTH-01-FR-7"
+      ],
+      "risk_refs": [],
+      "notes": "TokenResponse{access_token,refresh_token,expires_in}; DevBypassRequest{role?,email?,programs?} per pydantic-patterns in/out split",
+      "status": "done",
+      "completed_at": "2026-08-27T19:18:04Z",
+      "files_touched": [
+        "services/api/app/auth/__init__.py",
+        "services/api/app/schemas/auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Implement app/auth/jwks.py JWKS cache-once logic",
+      "complexity": "M",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "AUTH-01-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "D-04; in-memory dict keyed by kid, TTL 3600s, asyncio.Lock-guarded fetch-once on unrecognized-kid verification failure; no retry loop, no background refresh",
+      "status": "done",
+      "completed_at": "2026-08-27T19:41:35Z",
+      "files_touched": [
+        "services/api/app/auth/jwks.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Implement app/core/auth.py JWT validation dependency + claims/program-group mapping",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-4",
+        "AUTH-01-AC-5",
+        "AUTH-01-FR-4",
+        "AUTH-01-FR-5"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "replaces 501 stub; verifies signature via jwks.get_signing_key; maps user_id=sub, email=email, role from realm/client role claim, groups=groups; program_group_prefix parsing rule; no persistence",
+      "status": "done",
+      "completed_at": "2026-08-27T19:52:31Z",
+      "files_touched": [
+        "services/api/app/core/auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Implement app/auth/oidc.py login/callback/refresh routes",
+      "complexity": "L",
+      "predecessors": [
+        "T-04",
+        "T-06"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-1",
+        "AUTH-01-AC-2",
+        "AUTH-01-AC-3",
+        "AUTH-01-AC-6",
+        "AUTH-01-AC-7",
+        "AUTH-01-FR-2",
+        "AUTH-01-FR-3",
+        "AUTH-01-FR-6",
+        "AUTH-01-FR-10"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "config-completeness gate (FR-2, 501 at request time); Authlib OAuth code exchange; refresh grant with non-2xx -> 401 mapping (FR-6); outbound calls wrapped with 5s timeout + bounded retry (core/retry.py's retry_with_backoff, only on transient errors, never on 4xx); dashboard_login log on success (FR-10)",
+      "status": "done",
+      "completed_at": "2026-08-27T20:10:17Z",
+      "files_touched": [
+        "services/api/app/auth/oidc.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Implement app/auth/dev_bypass.py route",
+      "complexity": "M",
+      "predecessors": [
+        "T-04",
+        "T-06"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-8",
+        "AUTH-01-AC-10",
+        "AUTH-01-FR-7",
+        "AUTH-01-FR-8"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-07"
+      ],
+      "notes": "issues token via same TokenResponse shape, zero outbound Keycloak calls; skips dashboard_login logging call entirely (FR-8, not filtered); inline comment explaining allow-list-is-sole-gate rationale (REQUIREMENTS.md Documentation requirements)",
+      "status": "done",
+      "completed_at": "2026-08-27T20:00:19Z",
+      "files_touched": [
+        "services/api/app/auth/dev_bypass.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Wire app/main.py: CORS + router registration (oidc always, dev_bypass conditional)",
+      "complexity": "M",
+      "predecessors": [
+        "T-07",
+        "T-08",
+        "T-03"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-9",
+        "AUTH-01-AC-11",
+        "AUTH-01-FR-9"
+      ],
+      "risk_refs": [
+        "R-06",
+        "R-07"
+      ],
+      "notes": "CORSMiddleware(allow_origins=settings.cors_origins, allow_credentials=False, allow_methods=[GET,POST,OPTIONS], allow_headers=[Authorization,Content-Type]); oidc router always included; dev_bypass router included only when settings.environment is allow-list member (D-01/D-02) so every other value 404s",
+      "status": "done",
+      "completed_at": "2026-08-27T20:16:29Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Unit tests: Settings schema",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "TC-12",
+      "status": "done",
+      "completed_at": "2026-08-27T19:37:26Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Unit tests: OIDC login route + config-completeness gate",
+      "complexity": "M",
+      "predecessors": [
+        "T-07",
+        "T-02"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-1",
+        "AUTH-01-AC-2",
+        "AUTH-01-FR-2"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "TC-01,02,13,14,15",
+      "status": "done",
+      "completed_at": "2026-08-27T20:24:35Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_oidc_login.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Unit tests: callback route",
+      "complexity": "M",
+      "predecessors": [
+        "T-07",
+        "T-02"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-3",
+        "AUTH-01-FR-3",
+        "AUTH-01-FR-10"
+      ],
+      "risk_refs": [],
+      "notes": "TC-03,16,26,36",
+      "status": "done",
+      "completed_at": "2026-08-27T20:25:44Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_callback.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Unit tests: JWT validation, claims mapping, RBAC foundation",
+      "complexity": "M",
+      "predecessors": [
+        "T-06",
+        "T-02"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-4",
+        "AUTH-01-FR-4",
+        "AUTH-01-NFR-security"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "TC-04,17,33",
+      "status": "done",
+      "completed_at": "2026-08-27T20:10:18Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_jwt_validation.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Unit tests: program-group parsing",
+      "complexity": "S",
+      "predecessors": [
+        "T-06",
+        "T-02"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-5",
+        "AUTH-01-FR-5"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "TC-05,18,19,20",
+      "status": "done",
+      "completed_at": "2026-08-27T20:00:44Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_groups.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Unit tests: refresh route, failure mapping, 4xx-no-retry",
+      "complexity": "M",
+      "predecessors": [
+        "T-07",
+        "T-02"
+      ],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-6",
+        "AUTH-01-AC-7",
+        "AUTH-01-FR-6",
+        "AUTH-01-FR-10",
+        "AUTH-01-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "TC-06,07,21,27,31",
+      "status": "done",
+      "completed_at": "2026-08-27T20:31:02Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_refresh.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "Unit tests: dev-bypass gating + audit-log exclusion",
+      "complexity": "L",
+      "predecessors": [
+        "T-08",
+        "T-09",
+        "T-02"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-8",
+        "AUTH-01-AC-9",
+        "AUTH-01-AC-10",
+        "AUTH-01-FR-7",
+        "AUTH-01-FR-8"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-07"
+      ],
+      "notes": "TC-08,09,10,22,23,24,37,38,39 \u2014 covers case-normalization, 'Prod' abbreviation, 'staging', typo 'produciton', and every allow-listed value",
+      "status": "done",
+      "completed_at": "2026-08-27T20:28:27Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_dev_bypass.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "Unit tests: CORS configuration",
+      "complexity": "S",
+      "predecessors": [
+        "T-09",
+        "T-02"
+      ],
+      "files": [
+        "F-19"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-11",
+        "AUTH-01-FR-9"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "TC-11,25",
+      "status": "done",
+      "completed_at": "2026-08-27T20:29:31Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_cors.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "Unit tests: logging security + structlog JSON output",
+      "complexity": "M",
+      "predecessors": [
+        "T-07",
+        "T-08",
+        "T-02"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [
+        "AUTH-01-NFR-security",
+        "AUTH-01-NFR-observability"
+      ],
+      "risk_refs": [],
+      "notes": "TC-32,35",
+      "status": "done",
+      "completed_at": "2026-08-27T20:35:33Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_logging_security.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-19",
+      "title": "Contract test: no HTML surface (accessibility scope)",
+      "complexity": "S",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-21"
+      ],
+      "ac_refs": [
+        "AUTH-01-NFR-accessibility"
+      ],
+      "risk_refs": [],
+      "notes": "TC-34",
+      "status": "done",
+      "completed_at": "2026-08-27T20:36:26Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_accessibility_scope.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-20",
+      "title": "Performance tests: JWT validation latency + JWKS fetch-once",
+      "complexity": "M",
+      "predecessors": [
+        "T-05",
+        "T-02"
+      ],
+      "files": [
+        "F-22"
+      ],
+      "ac_refs": [
+        "AUTH-01-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "TC-28,29; wall-clock timing via time.perf_counter(), matching existing tests/perf/ convention \u2014 no dedicated benchmark tool",
+      "status": "done",
+      "completed_at": "2026-08-27T19:51:43Z",
+      "files_touched": [
+        "services/api/tests/perf/test_auth_jwks_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-21",
+      "title": "Performance test: bounded retry + backoff/jitter",
+      "complexity": "S",
+      "predecessors": [
+        "T-07",
+        "T-02"
+      ],
+      "files": [
+        "F-23"
+      ],
+      "ac_refs": [
+        "AUTH-01-NFR-performance"
+      ],
+      "risk_refs": [],
+      "notes": "TC-30",
+      "status": "done",
+      "completed_at": "2026-08-27T20:36:42Z",
+      "files_touched": [
+        "services/api/tests/perf/test_auth_retry_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-22",
+      "title": "Config drift: project-commands.yaml preflight smoke-imports",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-24"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "append 'cd services/api && uv run python -c \"import authlib; print(authlib.__version__)\"' and a respx smoke-import to preflight:, per research condition C-1 mitigation",
+      "status": "done",
+      "completed_at": "2026-08-27T19:18:56Z",
+      "files_touched": [
+        "docs/config/project-commands.yaml"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-23",
+      "title": "Docs: root README API section (new /auth/* routes) + environment-variables table",
+      "complexity": "M",
+      "predecessors": [
+        "T-09",
+        "T-03"
+      ],
+      "files": [
+        "F-25",
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1",
+        "AUTH-01-FR-9"
+      ],
+      "risk_refs": [],
+      "notes": "docs T2 (route/method/request/response for /auth/login,callback,refresh,dev-bypass) + T3 (OIDC_CLIENT_ID/SECRET/ISSUER/REALM/SCOPE, PROGRAM_GROUP_PREFIX, CORS_ORIGINS \u2014 name, default, acceptable range \u2014 in both README.md and .env.example)",
+      "status": "done",
+      "completed_at": "2026-08-27T20:34:32Z",
+      "files_touched": [
+        "README.md",
+        "services/api/.env.example"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-24",
+      "title": "Docs: services/api/README.md Auth subsection",
+      "complexity": "S",
+      "predecessors": [
+        "T-23"
+      ],
+      "files": [
+        "F-26"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "required OIDC env vars to boot with real Keycloak auth; how to sign in locally via dev-bypass without a live IdP",
+      "status": "done",
+      "completed_at": "2026-08-27T20:39:48Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-25",
+      "title": "Docs: how-to/dev-bypass-auth.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-08",
+        "T-24"
+      ],
+      "files": [
+        "F-27"
+      ],
+      "ac_refs": [
+        "AUTH-01-AC-8"
+      ],
+      "risk_refs": [
+        "R-09"
+      ],
+      "notes": "local sign-in via dev-bypass without Keycloak; how to point at the real Apexon realm for pilot testing",
+      "status": "done",
+      "completed_at": "2026-08-27T20:45:12Z",
+      "files_touched": [
+        "docs/how-to/dev-bypass-auth.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-26",
+      "title": "Apply D-09 (role system-filter) + D-10 (drop empty program ids)",
+      "complexity": "S",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-4",
+        "AUTH-01-FR-5"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Product decisions 2026-08-28. _parse_role drops default-roles-*/offline_access/uma_authorization then takes first survivor (D-09). _parse_programs drops zero-length remainders (D-10). Raised as Q-01/AF-06.",
+      "status": "done",
+      "completed_at": "2026-08-27T20:15:07Z",
+      "files_touched": [
+        "services/api/app/core/auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-27",
+      "title": "Apply D-08: ephemeral dev signing key served only when dev_bypass_enabled",
+      "complexity": "M",
+      "predecessors": [
+        "T-05",
+        "T-08"
+      ],
+      "files": [
+        "F-03",
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-7"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "Product decision 2026-08-28 closing AF-05. jwks.py owns a lazily-generated process-local RS256 keypair with a reserved kid, served by JwksCache.get_signing_key ONLY when settings.dev_bypass_enabled; dev_bypass.py signs with the private half. JwksCache.__init__ signature must NOT change (T-09 constructs it).",
+      "status": "done",
+      "completed_at": "2026-08-27T20:18:43Z",
+      "files_touched": [
+        "services/api/app/auth/jwks.py",
+        "services/api/app/auth/dev_bypass.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-28",
+      "title": "Update JWT + group tests for D-09/D-10",
+      "complexity": "S",
+      "predecessors": [
+        "T-26",
+        "T-13",
+        "T-14"
+      ],
+      "files": [
+        "F-15",
+        "F-16"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-4",
+        "AUTH-01-FR-5"
+      ],
+      "risk_refs": [],
+      "notes": "Flip T-14's bare-prefix assertion to [] (D-10); add multi-role system-filter coverage incl. the realistic Keycloak roles list (D-09); bind T-13's existing expiry test to the new TC-41 id.",
+      "status": "done",
+      "completed_at": "2026-08-27T20:22:29Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_jwt_validation.py",
+        "services/api/tests/unit/test_auth_groups.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-29",
+      "title": "Apply D-11: explicit oidc_redirect_uri setting with derived fallback",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-07",
+        "T-10",
+        "T-11"
+      ],
+      "files": [
+        "F-07",
+        "F-05",
+        "F-12",
+        "F-28"
+      ],
+      "ac_refs": [
+        "AUTH-01-FR-1",
+        "AUTH-01-FR-2"
+      ],
+      "risk_refs": [],
+      "notes": "Product decision 2026-08-28 closing AF-08. Settings gains oidc_redirect_uri: str | None = None; app/auth/oidc.py uses it when set, falls back to request.url_for('oidc_callback') when unset. Tests in test_auth_config.py (field/default) and test_auth_oidc_login.py (override + fallback).",
+      "status": "done",
+      "completed_at": "2026-08-28T02:38:16Z",
+      "files_touched": [
+        "services/api/app/core/config.py",
+        "services/api/app/auth/oidc.py",
+        "services/api/tests/unit/test_auth_config.py",
+        "services/api/tests/unit/test_auth_oidc_login.py"
+      ],
+      "reason": null
+    }
+  ]
+}

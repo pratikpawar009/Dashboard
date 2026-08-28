@@ -43,6 +43,46 @@ async def rebuild_org_rollups(session: AsyncSession) -> RebuildResult           
 - **Transaction scope** — each call wraps its own tables in one transaction. The two scopes are never combined into a single cross-scope transaction.
 - **Idempotent**, precisely — re-running over an unchanged `usage_events` set reproduces identical business-value columns. Excludes `id` (fresh `uuid4()` on every INSERT) and `as_of_timestamp`/`created_at`/`updated_at` (set to "now" on every rebuild): idempotency does not mean byte-identical rows.
 
+## Auth
+
+`/auth/*` routes (Keycloak OIDC + dev-bypass) live in `app/auth/`; the bearer-JWT verification dependency is `app/core/auth.py::get_current_user`. Root [README.md](../../README.md) has the full `/auth/*` route table and the per-variable env defaults — this section covers only how to run the two auth paths locally.
+
+### Booting with real Keycloak auth
+
+`OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_ISSUER` (see root README's Environment variables table for defaults) must ALL be set for `/auth/login`, `/auth/callback`, and `/auth/refresh` to work. While any one is unset or empty, those three routes return `501 {"error": {"code": "http_501", "message": "oidc_not_configured", ...}}` — the app still boots normally, it never crashes on incomplete OIDC config. `services/api/.env.example` ships `OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET` empty on purpose, so a plain `cp .env.example .env` reproduces this default-disabled state.
+
+### Signing in locally via dev-bypass (no live IdP required)
+
+`POST /auth/dev-bypass` issues a token through the same `{access_token, refresh_token, expires_in}` shape as `/auth/callback`, without contacting Keycloak at all. `role`, `email`, and `programs` are optional overrides:
+
+```bash
+curl -s -X POST http://localhost:8000/auth/dev-bypass \
+  -H "Content-Type: application/json" \
+  -d '{"role": "admin", "email": "dev@example.com", "programs": ["alpha", "beta"]}'
+# -> {"access_token": "<jwt>", "refresh_token": "<jwt>", "expires_in": 3600}
+```
+
+No route in this story requires `get_current_user` yet (AUTH-01 delivers the dependency; AUTH-02/03/04 and later endpoints consume it), so there is no shipped protected route to demonstrate against today. Once one exists, use the returned `access_token` the same way against it:
+
+```bash
+curl -s http://localhost:8000/<protected-route> \
+  -H "Authorization: Bearer <access_token>"
+```
+
+The token is only verifiable against the *same running process* that issued it — see "Why this works locally" below.
+
+### The gate is fail-closed, not "disabled in production"
+
+`/auth/dev-bypass` is registered at all only when `ENVIRONMENT` (normalized to lowercase) is one of `local`, `development`, `dev`, `test`, `ci` — this is an allow-list. Every other value, including `production`, `prod`, `staging`, and any typo, leaves the route unregistered, so it 404s via routing itself, before any handler code runs. This is deliberately not a `!= "production"` deny-check: a deny-check fails *open* on anything it wasn't written to anticipate (an abbreviation, a typo, an unnamed real environment); the allow-list fails *closed* on the same unanticipated input by design.
+
+### Why the dev-bypass token actually works locally
+
+The token is signed by an ephemeral RSA keypair generated once per process, at first use, and never persisted (`app/auth/jwks.py`). `get_current_user`'s JWKS cache resolves that key's `kid` only when `dev_bypass_enabled` is true — the same allow-list gating router registration — so verification stays on the one JWKS path with no branch added to `get_current_user` itself. Two consequences follow directly:
+
+- **Tokens do not survive a process restart** — a fresh keypair is generated on every `uvicorn` start, so a token issued by a previous run will not verify against a new one.
+- **The same token is rejected (401) in production** — the signing key is process-local and the `kid` never resolves outside an allow-listed environment, by design.
+- **Each worker holds its own key** — under `uvicorn --workers N`, gunicorn, or several API instances, a token 401s on any worker that did not mint it. The `Dockerfile` runs a single uvicorn process, so this only bites if you add workers yourself.
+
 ## Shared modules
 
 `app/dependencies/`, `app/services/`, `app/utils/` are the shared layer for router-facing derived values. Reach for these instead of re-implementing range/pagination/rollup/format logic per router — 13 downstream stories (OVW-01..04, PGD-01..06, SHP-02..06) depend on them behaving identically.

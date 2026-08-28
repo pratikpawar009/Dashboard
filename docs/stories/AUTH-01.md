@@ -4,8 +4,11 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-08-26
+**Updated**: 2026-08-27
 **Tracker**: pratikpawar009/Dashboard#15 (https://github.com/pratikpawar009/Dashboard/issues/15)
+**Tracker Research:** pratikpawar009/Dashboard#87 (https://github.com/pratikpawar009/Dashboard/issues/87)
+**Tracker Plan Requirements:** pratikpawar009/Dashboard#88
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#105
 
 ## User story
 
@@ -31,7 +34,7 @@ As a dashboard user, I want to sign in via Keycloak OIDC and have the backend br
 - Security: Keycloak OIDC via FastAPI/Authlib; RBAC enforced server-side only, never UI-only hiding (NFR-005). Access tokens and refresh tokens held frontend-server-side only (httpOnly cookie scoped to frontend's own origin, or in-memory on the Node server) — never `localStorage`, never a client-JS-readable cookie (per session contract).
 - Accessibility: WCAG AA, where feasible, for the sign-in page (NFR-008).
 - Observability: `structlog`/`logging` JSON output; `dashboard_login` event logged on successful sign-in (NFR-011). Dev-bypass traffic explicitly excluded from audit logging (FR-AUTH-11, AC-10).
-- Access-token lifetime: [NEEDS CLARIFICATION: exact Keycloak-configured access_token TTL — session contract says "e.g. 5 min" as an example, not a fixed value; confirm the realm's actual short-lived TTL before implementation].
+- Access-token lifetime: realm-driven, never hardcoded — the implementation reads `expires_in` from Keycloak's token response and refreshes proactively at 60s remaining, or reactively on a 401. The `Apexon` realm's documented default is 300s (5 min), carried as a test-fixture value only; retuning the realm requires no code change.
 
 ## Dependencies
 
@@ -46,7 +49,9 @@ As a dashboard user, I want to sign in via Keycloak OIDC and have the backend br
 
 ## Clarifications
 
-- [NEEDS CLARIFICATION: exact Keycloak-configured access_token TTL — session contract says "e.g. 5 min" as an example, not a fixed value; confirm the realm's actual short-lived TTL before implementation]
+None open. Resolved 2026-08-27 with the story owner:
+
+- Access-token TTL — resolved as realm-driven (read `expires_in`; refresh at a 60s-remaining skew). 300s recorded as the `Apexon` realm's documented default and the test-fixture value, not a code constant. See Decision log.
 
 ## Decision log
 
@@ -55,4 +60,7 @@ As a dashboard user, I want to sign in via Keycloak OIDC and have the backend br
 - 2026-08-26 Dev-bypass gating on `ENVIRONMENT != "production"`: sourced from FR-AUTH-02.
 - 2026-08-26 Program-group prefix default `"program-"`: sourced from FR-AUTH-04.
 - 2026-08-26 CORS allow-list without credentials/cookie mode: sourced from session contract `transport` field.
-- 2026-08-26 Access-token TTL left as `[NEEDS CLARIFICATION]` rather than assumed 5 min — session contract itself hedges with "e.g.", so treating it as a firm NFR budget would be inventing a value the source doesn't actually commit to; high-impact for refresh-flow timing tests.
+- 2026-08-26 Access-token TTL left as an open clarification rather than assumed 5 min — session contract itself hedges with "e.g.", so treating it as a firm NFR budget would be inventing a value the source doesn't actually commit to; high-impact for refresh-flow timing tests.
+- 2026-08-27 Access-token TTL resolved as realm-driven, not a pinned constant — the contract's "e.g." hedge is honored by reading `expires_in` at runtime and refreshing at a 60s-remaining skew, so the realm's actual lifespan stays authoritative and an ops retune needs no code change. 300s is the documented `Apexon`-realm default and test-fixture value only. Supersedes the 2026-08-26 entry above.
+- 2026-08-27 Auth topology reconfirmed: FastAPI/Authlib owns the Keycloak OIDC code exchange, not NextAuth.js on the frontend. Raised because a stray env file configured `NEXTAUTH_*`; confirmed with the story owner that the FastAPI-owned `session` contract in `docs/requirements/auth.md` stands as written.
+- 2026-08-27 IdP identified: Keycloak realm `Apexon` at `https://lab.apexonlab.com/apexonlogin/realms/Apexon`. Closes ADR-0002's open "OIDC/SSO provider not chosen" item — carry-forward: ADR-0002 itself not yet updated.
