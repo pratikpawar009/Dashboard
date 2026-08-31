@@ -1,0 +1,1779 @@
+{
+  "story_id": "AUTH-03",
+  "test_cases": [
+    {
+      "id": "AUTH-03-TC-01",
+      "requirement_id": "AUTH-03-AC-1",
+      "title": "org_access denies a non-CIO session with 403 and logs the denied outcome",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a non-CIO session",
+      "when": "org_access runs against an /api/overview/* route",
+      "then": "the request is rejected with HTTP 403 and rbac_check_org_access logs outcome=denied",
+      "objective": "Verify org_access denies any non-CIO persona with HTTP 403 and emits rbac_check_org_access with outcome=denied.",
+      "preconditions": [
+        "CurrentUser fixture built with a role that resolves to a non-cio persona (e.g. 'developer') via a stub persona resolver",
+        "Log capture attached to the app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-dev-1",
+        "role": "developer",
+        "resolved_persona": "developer"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'developer' -> persona 'developer'",
+        "Call org_access(current_user) with the non-CIO CurrentUser",
+        "Capture the raised exception and the emitted log record"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403",
+        "Exactly one rbac_check_org_access log record is emitted",
+        "The record's outcome field equals 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "org-access",
+        "deny-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#113",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_org_access_denies_non_cio_session_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-02",
+      "requirement_id": "AUTH-03-AC-2",
+      "title": "org_access passes a CIO session and logs the authorized outcome",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a CIO session",
+      "when": "org_access runs against an /api/overview/* route",
+      "then": "the check passes and rbac_check_org_access logs outcome=authorized",
+      "objective": "Verify org_access passes for a CIO persona and emits rbac_check_org_access with outcome=authorized.",
+      "preconditions": [
+        "CurrentUser fixture with a role resolving to persona 'cio' via a stub resolver",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-cio-1",
+        "role": "cio",
+        "resolved_persona": "cio"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'cio' -> persona 'cio'",
+        "Call org_access(current_user) with the CIO CurrentUser",
+        "Capture the emitted log record"
+      ],
+      "expected_results": [
+        "org_access returns normally (no exception)",
+        "Exactly one rbac_check_org_access log record is emitted",
+        "The record's outcome field equals 'authorized'"
+      ],
+      "tags": [
+        "rbac",
+        "org-access",
+        "pass-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#114",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_org_access_passes_cio_session_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-03",
+      "requirement_id": "AUTH-03-AC-3",
+      "title": "program_visibility passes for any authenticated session and program id",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "any authenticated session",
+      "when": "program_visibility runs for a given program id",
+      "then": "the check passes regardless of the session's program membership",
+      "objective": "Verify program_visibility passes for an authenticated session even when program_id is absent from CurrentUser.programs.",
+      "preconditions": [
+        "CurrentUser fixture with programs=['prog-1'] (does not include the tested program id)"
+      ],
+      "test_data": {
+        "user_id": "u-100",
+        "programs": [
+          "prog-1"
+        ],
+        "program_id": "prog-99"
+      },
+      "steps": [
+        "Call program_visibility(current_user, program_id='prog-99')"
+      ],
+      "expected_results": [
+        "program_visibility returns normally (no exception)",
+        "No log event is emitted (AC3 has no denial branch to log per AUTH-03-FR-2)"
+      ],
+      "tags": [
+        "rbac",
+        "program-visibility",
+        "open-aggregate",
+        "R-003"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#115",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_program_visibility_passes_for_any_authenticated_session_tc03",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-04",
+      "requirement_id": "AUTH-03-AC-3",
+      "title": "program_visibility's outcome is invariant across arbitrary program_id values",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the same authenticated session",
+      "when": "program_visibility is called repeatedly with different program_id values, including one outside the session's own programs list, an empty string, and an unregistered random id",
+      "then": "every call passes identically -- program_id genuinely does not affect the result",
+      "objective": "Verify program_id is not consulted for gating -- the open-aggregate model (A-004, R-003).",
+      "preconditions": [
+        "Single CurrentUser fixture with programs=['prog-1','prog-2']"
+      ],
+      "test_data": {
+        "user_id": "u-100",
+        "programs": [
+          "prog-1",
+          "prog-2"
+        ],
+        "program_ids_tested": [
+          "prog-1",
+          "prog-99",
+          "",
+          "not-a-real-program",
+          "00000000-0000-0000-0000-000000000000"
+        ]
+      },
+      "steps": [
+        "For each program_id in program_ids_tested, call program_visibility(current_user, program_id)",
+        "Record whether each call raised or passed"
+      ],
+      "expected_results": [
+        "All calls return normally with no exception, including program ids absent from current_user.programs and a blank string",
+        "Result is identical across every program_id value -- confirms program_id is not read for gating"
+      ],
+      "tags": [
+        "rbac",
+        "program-visibility",
+        "open-aggregate",
+        "R-003",
+        "risk-open"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#116",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_program_visibility_outcome_invariant_across_program_ids_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-05",
+      "requirement_id": "AUTH-03-AC-4",
+      "title": "individual_usage_visibility passes when the requester views their own data",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a session requesting individual-usage data for themselves",
+      "when": "individual_usage_visibility runs",
+      "then": "the check passes",
+      "objective": "Verify individual_usage_visibility passes when target_user_id equals the requester's own user_id.",
+      "preconditions": [
+        "CurrentUser fixture with user_id='u-200', role resolving to a non-cio persona"
+      ],
+      "test_data": {
+        "user_id": "u-200",
+        "target_user_id": "u-200",
+        "role": "developer"
+      },
+      "steps": [
+        "Call individual_usage_visibility(current_user, target_user_id='u-200')"
+      ],
+      "expected_results": [
+        "individual_usage_visibility returns normally (no exception)"
+      ],
+      "tags": [
+        "rbac",
+        "individual-usage",
+        "self-view",
+        "pass-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#117",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_individual_usage_visibility_passes_for_self_tc05",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-06",
+      "requirement_id": "AUTH-03-AC-4",
+      "title": "individual_usage_visibility passes when the requester is CIO viewing another user's data",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a CIO session requesting another user's individual-usage data",
+      "when": "individual_usage_visibility runs",
+      "then": "the check passes",
+      "objective": "Verify individual_usage_visibility passes for a CIO persona regardless of whose data is targeted.",
+      "preconditions": [
+        "CurrentUser fixture with user_id='u-cio-1', role resolving to persona 'cio'"
+      ],
+      "test_data": {
+        "user_id": "u-cio-1",
+        "target_user_id": "u-300",
+        "role": "cio",
+        "resolved_persona": "cio"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'cio' -> persona 'cio'",
+        "Call individual_usage_visibility(current_user, target_user_id='u-300')"
+      ],
+      "expected_results": [
+        "individual_usage_visibility returns normally (no exception)"
+      ],
+      "tags": [
+        "rbac",
+        "individual-usage",
+        "cio-override",
+        "pass-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#118",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_individual_usage_visibility_passes_for_cio_tc06",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-07",
+      "requirement_id": "AUTH-03-AC-4",
+      "title": "individual_usage_visibility denies every combination that is neither self nor CIO",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a non-CIO session requesting another user's individual-usage data",
+      "when": "individual_usage_visibility runs",
+      "then": "the request is rejected with HTTP 403 and individual_view_denied is logged",
+      "objective": "Verify individual_usage_visibility denies with 403 and logs individual_view_denied for every requester/target combination other than self or CIO.",
+      "preconditions": [
+        "CurrentUser fixtures for personas 'architect', 'developer', 'product-manager', 'engineering-manager', each targeting a different user_id",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "combinations": [
+          {
+            "user_id": "u-arch-1",
+            "role": "architect",
+            "target_user_id": "u-300"
+          },
+          {
+            "user_id": "u-dev-1",
+            "role": "developer",
+            "target_user_id": "u-301"
+          },
+          {
+            "user_id": "u-pm-1",
+            "role": "product-manager",
+            "target_user_id": "u-302"
+          },
+          {
+            "user_id": "u-em-1",
+            "role": "engineering-manager",
+            "target_user_id": "u-303"
+          }
+        ]
+      },
+      "steps": [
+        "For each combination, call individual_usage_visibility(current_user, target_user_id)",
+        "Capture the raised exception and the emitted log record for each call"
+      ],
+      "expected_results": [
+        "Every call raises HTTPException with status_code == 403",
+        "Every call emits exactly one individual_view_denied log record",
+        "Every record's outcome field equals 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "individual-usage",
+        "deny-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#119",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_individual_usage_visibility_denies_non_self_non_cio_tc07",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-08",
+      "requirement_id": "AUTH-03-AC-5",
+      "title": "member_in_program_visibility passes when program_visibility passes and the requester is that member",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a session requesting a program member's popup for themselves, in a program they can view",
+      "when": "member_in_program_visibility runs",
+      "then": "the check passes",
+      "objective": "Verify member_in_program_visibility passes when program_visibility passes and the requester is the target member.",
+      "preconditions": [
+        "CurrentUser fixture with user_id='u-400', role resolving to a non-cio persona"
+      ],
+      "test_data": {
+        "user_id": "u-400",
+        "program_id": "prog-1",
+        "target_member_id": "u-400",
+        "role": "developer"
+      },
+      "steps": [
+        "Call member_in_program_visibility(current_user, program_id='prog-1', target_member_id='u-400')"
+      ],
+      "expected_results": [
+        "member_in_program_visibility returns normally (no exception)"
+      ],
+      "tags": [
+        "rbac",
+        "member-in-program",
+        "cascade",
+        "pass-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#120",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_member_in_program_visibility_passes_for_self_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-09",
+      "requirement_id": "AUTH-03-AC-5",
+      "title": "member_in_program_visibility denies when program_visibility passes but the requester is neither the member nor CIO",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a non-CIO session requesting a different member's popup",
+      "when": "member_in_program_visibility runs",
+      "then": "the request is rejected with HTTP 403 and member_view_denied is logged",
+      "objective": "Verify member_in_program_visibility denies with 403 and logs member_view_denied when self-or-cio fails, even though program_visibility passes.",
+      "preconditions": [
+        "CurrentUser fixture with user_id='u-401', role resolving to a non-cio persona",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-401",
+        "program_id": "prog-1",
+        "target_member_id": "u-402",
+        "role": "developer"
+      },
+      "steps": [
+        "Call member_in_program_visibility(current_user, program_id='prog-1', target_member_id='u-402')",
+        "Capture the raised exception and the emitted log record"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403",
+        "Exactly one member_view_denied log record is emitted",
+        "The record's outcome field equals 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "member-in-program",
+        "deny-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#121",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_member_in_program_visibility_denies_non_member_non_cio_tc09",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-10",
+      "requirement_id": "AUTH-03-FR-4",
+      "title": "member_in_program_visibility's denial of program_visibility cascades without evaluating self-or-cio",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "member_in_program_visibility invoked with a program_id",
+      "when": "the underlying program_visibility check denies",
+      "then": "member_in_program_visibility denies immediately, and the self-or-cio check is never evaluated",
+      "objective": "Verify the FR-4 cascade: program_visibility is called first and its denial short-circuits member_in_program_visibility without reaching the self-or-cio branch.",
+      "preconditions": [
+        "program_visibility is monkeypatched/spied to raise HTTPException(403) unconditionally for this test",
+        "CurrentUser fixture with user_id equal to target_member_id (would pass self-or-cio if reached)"
+      ],
+      "test_data": {
+        "user_id": "u-500",
+        "program_id": "prog-9",
+        "target_member_id": "u-500"
+      },
+      "steps": [
+        "Patch program_visibility with a spy that always raises HTTPException(403)",
+        "Call member_in_program_visibility(current_user, program_id='prog-9', target_member_id='u-500')",
+        "Assert the spy was called with (current_user, 'prog-9') before the exception propagated",
+        "Assert no self-or-cio comparison logic executed despite target_member_id matching the requester"
+      ],
+      "expected_results": [
+        "HTTPException(403) propagates from member_in_program_visibility",
+        "The program_visibility spy was called exactly once, before the exception was raised",
+        "The self-or-cio branch is never reached even though target_member_id equals the requester's own user_id"
+      ],
+      "tags": [
+        "rbac",
+        "member-in-program",
+        "cascade",
+        "call-order",
+        "FR-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#122",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_member_in_program_visibility_program_denial_short_circuits_tc10",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-11",
+      "requirement_id": "AUTH-03-AC-6",
+      "title": "governance_visibility passes for architect, product-manager, and developer personas",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a session with persona architect, product-manager, or developer",
+      "when": "governance_visibility runs",
+      "then": "the check passes and rbac_check_governance_visibility logs outcome=authorized",
+      "objective": "Verify governance_visibility passes for every persona in the hardcoded governance tuple and logs the authorized outcome for each.",
+      "preconditions": [
+        "CurrentUser fixtures for roles resolving to personas 'architect', 'product-manager', 'developer' respectively",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "personas": [
+          "architect",
+          "product-manager",
+          "developer"
+        ]
+      },
+      "steps": [
+        "For each persona, install a stub resolver mapping and call governance_visibility(current_user)",
+        "Capture the emitted log record for each call"
+      ],
+      "expected_results": [
+        "Every call returns normally (no exception)",
+        "Every call emits exactly one rbac_check_governance_visibility record with outcome='authorized'"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "pass-branch",
+        "persona-enumeration"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#123",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_enumerates_persona_set_tc11_tc12[architect-True]; tests/unit/test_rbac.py::test_governance_visibility_enumerates_persona_set_tc11_tc12[product-manager-True]; tests/unit/test_rbac.py::test_governance_visibility_enumerates_persona_set_tc11_tc12[developer-True]",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-12",
+      "requirement_id": "AUTH-03-AC-6",
+      "title": "governance_visibility denies for cio and engineering-manager personas",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a session with persona cio or engineering-manager",
+      "when": "governance_visibility runs",
+      "then": "the request is rejected with HTTP 403 and rbac_check_governance_visibility logs outcome=denied",
+      "objective": "Verify governance_visibility denies with 403 for the two personas excluded from the governance tuple and logs the denied outcome for each.",
+      "preconditions": [
+        "CurrentUser fixtures for roles resolving to personas 'cio' and 'engineering-manager' respectively",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "personas": [
+          "cio",
+          "engineering-manager"
+        ]
+      },
+      "steps": [
+        "For each persona, install a stub resolver mapping and call governance_visibility(current_user)",
+        "Capture the raised exception and the emitted log record for each call"
+      ],
+      "expected_results": [
+        "Every call raises HTTPException with status_code == 403",
+        "Every call emits exactly one rbac_check_governance_visibility record with outcome='denied'"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "deny-branch",
+        "persona-enumeration"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#124",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_enumerates_persona_set_tc11_tc12[cio-False]; tests/unit/test_rbac.py::test_governance_visibility_enumerates_persona_set_tc11_tc12[engineering-manager-False]",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-13",
+      "requirement_id": "AUTH-03-AC-7",
+      "title": "governance_visibility with a program_id passes only after the persona gate and program_visibility both pass",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a governance-visibility check invoked with a program_id, for a persona in the governance tuple",
+      "when": "the persona check passes",
+      "then": "program_visibility is also evaluated and must pass before the overall check passes",
+      "objective": "Verify governance_visibility, when given a program_id, evaluates program_visibility after the persona gate and only passes when both pass.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'architect'",
+        "program_visibility wrapped in a call-recording spy that still executes normally"
+      ],
+      "test_data": {
+        "user_id": "u-600",
+        "role": "architect",
+        "program_id": "prog-5"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'architect' -> persona 'architect'",
+        "Wrap program_visibility in a call-recording spy that still executes normally",
+        "Call governance_visibility(current_user, program_id='prog-5')"
+      ],
+      "expected_results": [
+        "governance_visibility returns normally (no exception)",
+        "The program_visibility spy was called exactly once with (current_user, 'prog-5')",
+        "A rbac_check_governance_visibility record with outcome='authorized' is emitted"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "cascade",
+        "program-id"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#125",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_with_program_id_passes_when_both_pass_tc13",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-14",
+      "requirement_id": "AUTH-03-AC-7",
+      "title": "governance_visibility with a program_id denies when program_visibility denies, even though the persona check passed",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a governance-visibility check invoked with a program_id, for a persona in the governance tuple",
+      "when": "the persona check passes but the underlying program_visibility check denies",
+      "then": "the overall check denies with HTTP 403",
+      "objective": "Verify a passing persona gate alone is not sufficient -- program_visibility must also pass for governance_visibility to pass.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'developer'",
+        "program_visibility monkeypatched to raise HTTPException(403) unconditionally"
+      ],
+      "test_data": {
+        "user_id": "u-601",
+        "role": "developer",
+        "program_id": "prog-6"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'developer' -> persona 'developer'",
+        "Patch program_visibility to always raise HTTPException(403)",
+        "Call governance_visibility(current_user, program_id='prog-6')"
+      ],
+      "expected_results": [
+        "HTTPException(403) propagates from governance_visibility despite the persona check having passed",
+        "program_visibility was called exactly once"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "cascade",
+        "program-id",
+        "deny-branch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#126",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_with_program_id_denies_when_program_denies_tc14",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-15",
+      "requirement_id": "AUTH-03-AC-7",
+      "title": "governance_visibility with a program_id short-circuits before program_visibility when the persona check itself denies",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a governance-visibility check invoked with a program_id, for a persona NOT in the governance tuple",
+      "when": "the persona check denies",
+      "then": "the overall check denies immediately and program_visibility is never evaluated",
+      "objective": "Verify the persona gate (AC6) is evaluated before program_visibility, confirming the documented call order.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'cio'",
+        "program_visibility spied to detect any invocation"
+      ],
+      "test_data": {
+        "user_id": "u-602",
+        "role": "cio",
+        "program_id": "prog-7"
+      },
+      "steps": [
+        "Install a stub persona resolver mapping role 'cio' -> persona 'cio'",
+        "Wrap program_visibility in a call-recording spy",
+        "Call governance_visibility(current_user, program_id='prog-7')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403",
+        "The program_visibility spy was never called",
+        "Exactly one rbac_check_governance_visibility record is emitted with outcome='denied'"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "cascade",
+        "call-order",
+        "short-circuit"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#127",
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_persona_denial_short_circuits_before_program_tc15",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-16",
+      "requirement_id": "AUTH-03-FR-4",
+      "title": "governance_visibility's call order is persona gate first, then program_visibility",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "governance_visibility invoked with a program_id for a persona in the governance tuple",
+      "when": "the check executes",
+      "then": "the persona check runs before program_visibility, in that explicit order",
+      "objective": "Verify the FR-4 call-order contract for governance_visibility using an ordered call-recording spy.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'product-manager'",
+        "A single ordered call-recorder shared by both the persona-resolution step and the program_visibility spy"
+      ],
+      "test_data": {
+        "user_id": "u-603",
+        "role": "product-manager",
+        "program_id": "prog-8"
+      },
+      "steps": [
+        "Install a stub persona resolver that appends 'persona-check' to the call-recorder when invoked",
+        "Wrap program_visibility so it appends 'program-visibility' to the same call-recorder, then executes normally",
+        "Call governance_visibility(current_user, program_id='prog-8')"
+      ],
+      "expected_results": [
+        "governance_visibility returns normally (no exception)",
+        "The call-recorder shows ['persona-check', 'program-visibility'] in that exact order"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "call-order",
+        "FR-4"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_call_order_persona_then_program_tc16",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-17",
+      "requirement_id": "AUTH-03-FR-1",
+      "title": "PersonaResolutionError denies with 403 and logs at ERROR level",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the persona resolver raises PersonaResolutionError (Tier-3 timeout) during org_access",
+      "when": "org_access runs",
+      "then": "the request is denied with HTTP 403 and rbac_check_org_access is logged at ERROR level with outcome=denied",
+      "objective": "Verify a resolver PersonaResolutionError fails closed with 403 and is logged at ERROR, per AUTH-03-FR-1.",
+      "preconditions": [
+        "CurrentUser fixture with any role",
+        "Stub persona resolver configured to raise PersonaResolutionError on resolve()",
+        "Log capture attached to app.core.rbac logger at ERROR level"
+      ],
+      "test_data": {
+        "user_id": "u-700",
+        "role": "cio"
+      },
+      "steps": [
+        "Install a stub persona resolver whose resolve() raises PersonaResolutionError",
+        "Call org_access(current_user)",
+        "Capture the raised exception and the emitted log record"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403 (never a 500)",
+        "Exactly one rbac_check_org_access log record is emitted at logging.ERROR",
+        "The record's outcome field equals 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "fail-closed",
+        "persona-resolution-error",
+        "FR-1",
+        "C-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_org_access_persona_resolution_error_denies_and_logs_at_error_tc17",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-18",
+      "requirement_id": "AUTH-03-FR-1",
+      "title": "PersonaNotFoundError denies with 403 and logs at the check's normal INFO level",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the persona resolver raises PersonaNotFoundError (unmapped role) during org_access",
+      "when": "org_access runs",
+      "then": "the request is denied with HTTP 403 and rbac_check_org_access is logged at INFO level with outcome=denied",
+      "objective": "Verify PersonaNotFoundError also fails closed with 403 but is logged at the check's normal INFO level, distinct from PersonaResolutionError's ERROR level.",
+      "preconditions": [
+        "CurrentUser fixture with any role",
+        "Stub persona resolver configured to raise PersonaNotFoundError on resolve()",
+        "Log capture attached to app.core.rbac logger at INFO level"
+      ],
+      "test_data": {
+        "user_id": "u-701",
+        "role": "unmapped-role"
+      },
+      "steps": [
+        "Install a stub persona resolver whose resolve() raises PersonaNotFoundError",
+        "Call org_access(current_user)",
+        "Capture the raised exception and the emitted log record"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403",
+        "Exactly one rbac_check_org_access log record is emitted at logging.INFO (not ERROR)",
+        "The record's outcome field equals 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "fail-closed",
+        "persona-not-found",
+        "FR-1",
+        "C-1"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_org_access_persona_not_found_error_denies_and_logs_at_info_tc18",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-19",
+      "requirement_id": "AUTH-03-FR-1",
+      "title": "PersonaResolutionError fails closed at every persona-resolving call site, not only org_access",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the persona resolver raises PersonaResolutionError during governance_visibility",
+      "when": "governance_visibility runs",
+      "then": "the request is denied with HTTP 403, never a default-permit, caught by its own except clause rather than a bare except Exception",
+      "objective": "Verify FR-1's fail-closed exception handling applies independently at each check function that resolves persona, not just org_access.",
+      "preconditions": [
+        "CurrentUser fixture with any role",
+        "Stub persona resolver configured to raise PersonaResolutionError on resolve()",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-702",
+        "role": "architect"
+      },
+      "steps": [
+        "Install a stub persona resolver whose resolve() raises PersonaResolutionError",
+        "Call governance_visibility(current_user)",
+        "Capture the raised exception and the emitted log record"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403 (zero default-permit)",
+        "Exactly one rbac_check_governance_visibility log record is emitted at logging.ERROR with outcome='denied'"
+      ],
+      "tags": [
+        "rbac",
+        "fail-closed",
+        "persona-resolution-error",
+        "FR-1",
+        "zero-default-permit"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_visibility_persona_resolution_error_denies_tc19",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-20",
+      "requirement_id": "AUTH-03-FR-2",
+      "title": "rbac_check_org_access payload contains exactly its allowlisted fields",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "org_access has run and emitted a log event",
+      "when": "the emitted JSON payload is inspected",
+      "then": "its key set equals exactly {user_id, persona, outcome, timestamp} plus JSONFormatter's own meta fields -- no email, no groups, no raw session context",
+      "objective": "Verify rbac_check_org_access carries exactly its AUTH-03-FR-2 allowlist, no more and no less (pattern: AUTH-02 TC-15).",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'cio' (email and groups present on the fixture, to prove they are excluded)",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-800",
+        "role": "cio",
+        "email": "cio@example.com",
+        "groups": [
+          "program-alpha"
+        ]
+      },
+      "steps": [
+        "Call org_access(current_user)",
+        "Format the captured log record with JSONFormatter",
+        "Enumerate the payload's keys"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {timestamp, level, logger, message, user_id, persona, outcome} -- JSONFormatter meta plus the four allowlisted fields",
+        "Payload contains no 'email' key and no 'groups' key",
+        "payload['outcome'] == 'authorized'"
+      ],
+      "tags": [
+        "rbac",
+        "pii-audit",
+        "org-access",
+        "FR-2",
+        "C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_rbac_check_org_access_payload_allowlist_tc20",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-21",
+      "requirement_id": "AUTH-03-FR-2",
+      "title": "rbac_check_governance_visibility payload contains exactly its allowlisted fields",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "governance_visibility has run and emitted a log event",
+      "when": "the emitted JSON payload is inspected",
+      "then": "its key set equals exactly {user_id, persona, outcome, timestamp} plus JSONFormatter's own meta fields -- no email, no groups, no raw session context",
+      "objective": "Verify rbac_check_governance_visibility carries exactly its AUTH-03-FR-2 allowlist, no more and no less.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to persona 'developer' (email and groups present on the fixture, to prove they are excluded)",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-801",
+        "role": "developer",
+        "email": "dev@example.com",
+        "groups": [
+          "program-beta"
+        ]
+      },
+      "steps": [
+        "Call governance_visibility(current_user)",
+        "Format the captured log record with JSONFormatter",
+        "Enumerate the payload's keys"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {timestamp, level, logger, message, user_id, persona, outcome}",
+        "Payload contains no 'email' key and no 'groups' key",
+        "payload['outcome'] == 'authorized'"
+      ],
+      "tags": [
+        "rbac",
+        "pii-audit",
+        "governance-visibility",
+        "FR-2",
+        "C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_rbac_check_governance_visibility_payload_allowlist_tc21",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-22",
+      "requirement_id": "AUTH-03-FR-2",
+      "title": "individual_view_denied payload contains exactly its allowlisted fields",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "individual_usage_visibility has denied and emitted a log event",
+      "when": "the emitted JSON payload is inspected",
+      "then": "its key set equals exactly {user_id, target_user_id, outcome, timestamp} plus JSONFormatter's own meta fields -- no email, no groups, no persona",
+      "objective": "Verify individual_view_denied carries exactly its AUTH-03-FR-2 allowlist, no more and no less.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to a non-cio, non-self persona relative to the target",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-802",
+        "role": "developer",
+        "target_user_id": "u-900",
+        "email": "dev2@example.com",
+        "groups": [
+          "program-gamma"
+        ]
+      },
+      "steps": [
+        "Call individual_usage_visibility(current_user, target_user_id='u-900') expecting denial",
+        "Format the captured log record with JSONFormatter",
+        "Enumerate the payload's keys"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {timestamp, level, logger, message, user_id, target_user_id, outcome}",
+        "Payload contains no 'email', 'groups', or 'persona' key",
+        "payload['outcome'] == 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "pii-audit",
+        "individual-view-denied",
+        "FR-2",
+        "C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_individual_view_denied_payload_allowlist_tc22",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-23",
+      "requirement_id": "AUTH-03-FR-2",
+      "title": "member_view_denied payload contains exactly its allowlisted fields",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "member_in_program_visibility has denied and emitted a log event",
+      "when": "the emitted JSON payload is inspected",
+      "then": "its key set equals exactly {user_id, program_id, target_member_id, outcome, timestamp} plus JSONFormatter's own meta fields -- no email, no groups, no persona",
+      "objective": "Verify member_view_denied carries exactly its AUTH-03-FR-2 allowlist, no more and no less.",
+      "preconditions": [
+        "CurrentUser fixture with role resolving to a non-cio, non-member persona relative to target_member_id",
+        "Log capture attached to app.core.rbac logger"
+      ],
+      "test_data": {
+        "user_id": "u-803",
+        "role": "product-manager",
+        "program_id": "prog-11",
+        "target_member_id": "u-901",
+        "email": "pm@example.com",
+        "groups": [
+          "program-delta"
+        ]
+      },
+      "steps": [
+        "Call member_in_program_visibility(current_user, program_id='prog-11', target_member_id='u-901') expecting denial",
+        "Format the captured log record with JSONFormatter",
+        "Enumerate the payload's keys"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {timestamp, level, logger, message, user_id, program_id, target_member_id, outcome}",
+        "Payload contains no 'email', 'groups', or 'persona' key",
+        "payload['outcome'] == 'denied'"
+      ],
+      "tags": [
+        "rbac",
+        "pii-audit",
+        "member-view-denied",
+        "FR-2",
+        "C-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_member_view_denied_payload_allowlist_tc23",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-24",
+      "requirement_id": "AUTH-03-FR-3",
+      "title": "_GOVERNANCE_PERSONAS is a hardcoded module constant with no config or DB lookup",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the rbac module is inspected",
+      "when": "the governance persona set is read",
+      "then": "it is exactly the module-level tuple ('architect', 'product-manager', 'developer'), with no config or database read backing it",
+      "objective": "Verify FR-3's hardcoded governance persona tuple, matching AC6's exclusion of cio and engineering-manager.",
+      "preconditions": [
+        "app/core/rbac.py is importable"
+      ],
+      "test_data": {
+        "expected_tuple": [
+          "architect",
+          "product-manager",
+          "developer"
+        ]
+      },
+      "steps": [
+        "Import app.core.rbac",
+        "Read rbac._GOVERNANCE_PERSONAS",
+        "Read the module source text via Path(rbac.__file__).read_text()"
+      ],
+      "expected_results": [
+        "rbac._GOVERNANCE_PERSONAS is exactly {'architect', 'product-manager', 'developer'} as a set comparison",
+        "'cio' and 'engineering-manager' are not members of the tuple",
+        "The module source contains no Settings/env/DB lookup feeding this constant"
+      ],
+      "tags": [
+        "rbac",
+        "governance-visibility",
+        "FR-3",
+        "hardcoded-constant"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_governance_personas_is_hardcoded_constant_tc24",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-25",
+      "requirement_id": "AUTH-03-FR-5",
+      "title": "the five rbac check functions match the locked downstream contract signature",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the rbac-checks contract locks five async function names with current_user first",
+      "when": "app.core.rbac is inspected",
+      "then": "org_access, program_visibility, individual_usage_visibility, member_in_program_visibility, and governance_visibility all exist, are coroutine functions, and take current_user as their first positional parameter",
+      "objective": "Verify the FR-5 locked contract so the 16 downstream consumers can rely on stable names and signatures.",
+      "preconditions": [
+        "app/core/rbac.py is importable"
+      ],
+      "test_data": {
+        "function_names": [
+          "org_access",
+          "program_visibility",
+          "individual_usage_visibility",
+          "member_in_program_visibility",
+          "governance_visibility"
+        ]
+      },
+      "steps": [
+        "Import app.core.rbac",
+        "For each function name, resolve the attribute via getattr",
+        "Use inspect.iscoroutinefunction and inspect.signature on each"
+      ],
+      "expected_results": [
+        "All five names resolve to callables on the module",
+        "inspect.iscoroutinefunction is True for all five",
+        "The first positional parameter of every function's signature is named 'current_user'"
+      ],
+      "tags": [
+        "rbac",
+        "contract",
+        "FR-5",
+        "downstream-lock"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_rbac_check_signatures_match_locked_contract_tc25[org_access-expected_params0]; tests/unit/test_rbac.py::test_rbac_check_signatures_match_locked_contract_tc25[program_visibility-expected_params1]; tests/unit/test_rbac.py::test_rbac_check_signatures_match_locked_contract_tc25[individual_usage_visibility-expected_params2]; tests/unit/test_rbac.py::test_rbac_check_signatures_match_locked_contract_tc25[member_in_program_visibility-expected_params3]; tests/unit/test_rbac.py::test_rbac_check_signatures_match_locked_contract_tc25[governance_visibility-expected_params4]; tests/unit/test_rbac.py::test_governance_visibility_program_id_defaults_to_none_tc25",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-26",
+      "requirement_id": "AUTH-03-NFR-performance",
+      "title": "each rbac check adds under 5ms p95 latency, in-process",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "given": "each of the five checks is called repeatedly against a warm, in-process fixture with no I/O",
+      "when": "latency is measured across N iterations per check",
+      "then": "p95 latency is under 5ms for every check",
+      "objective": "Verify the assumption-based <5ms p95 per-check budget from the story's Decision log (2026-08-26).",
+      "preconditions": [
+        "CurrentUser fixture prepared for each check's required arguments",
+        "Stub persona resolver returns immediately (no simulated I/O) for checks that resolve persona"
+      ],
+      "test_data": {
+        "iterations": 100,
+        "p95_threshold_ms": 5.0,
+        "checks": [
+          "org_access",
+          "program_visibility",
+          "individual_usage_visibility",
+          "member_in_program_visibility",
+          "governance_visibility"
+        ]
+      },
+      "steps": [
+        "For each check, measure time.perf_counter() delta across 100 consecutive calls with a passing outcome",
+        "Compute p95 latency per check",
+        "Assert p95 < 5ms for each"
+      ],
+      "expected_results": [
+        "p95 latency is under 5ms for all five checks",
+        "No I/O or external call occurs during any measured call (mock/spy verification)"
+      ],
+      "tags": [
+        "rbac",
+        "performance",
+        "nfr",
+        "assumption"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 5ms per check, in-process, no I/O",
+          "measured": "p95 per check (100 iters each): org_access=0.0254ms, program_visibility=0.0002ms, individual_usage_visibility=0.0004ms, member_in_program_visibility=0.0005ms, governance_visibility=0.0178ms -- all < 5ms",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "tests/perf/test_rbac_perf.py::test_org_access_p95_under_5ms_tc26; tests/perf/test_rbac_perf.py::test_program_visibility_p95_under_5ms_tc26; tests/perf/test_rbac_perf.py::test_individual_usage_visibility_p95_under_5ms_tc26; tests/perf/test_rbac_perf.py::test_member_in_program_visibility_p95_under_5ms_tc26; tests/perf/test_rbac_perf.py::test_governance_visibility_p95_under_5ms_tc26",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-27",
+      "requirement_id": "AUTH-03-NFR-security",
+      "title": "program_visibility never reads CurrentUser.programs -- the R-003 open-aggregate model is structural, not incidental",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the R-003 open-aggregate risk is documented as intentional and OPEN",
+      "when": "program_visibility's implementation is exercised",
+      "then": "the function does not consult current_user.programs for its gating decision, confirming the veto-gate-not-roster-source contract for downstream consumers",
+      "objective": "Verify program_visibility structurally never uses CurrentUser.programs to gate, per C-3/R-003, so downstream consumers cannot mistake it for a roster check.",
+      "preconditions": [
+        "app/core/rbac.py is importable",
+        "CurrentUser test double whose .programs attribute raises AssertionError if read"
+      ],
+      "test_data": {
+        "program_id": "prog-20"
+      },
+      "steps": [
+        "Build a CurrentUser test double whose 'programs' attribute raises AssertionError if accessed",
+        "Call program_visibility(current_user, program_id='prog-20')"
+      ],
+      "expected_results": [
+        "program_visibility returns normally without ever accessing current_user.programs (no AssertionError raised)"
+      ],
+      "tags": [
+        "rbac",
+        "security",
+        "R-003",
+        "risk-open",
+        "program-visibility"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_program_visibility_never_reads_programs_tc27",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-03-TC-28",
+      "requirement_id": "AUTH-03-NFR-observability",
+      "title": "program_visibility emits no log event of its own",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "given": "program_visibility has no denial branch to log (per AUTH-03-FR-2)",
+      "when": "program_visibility is called, whether the program_id is in or out of the session's programs list",
+      "then": "no rbac_check_* or *_view_denied log event is emitted by program_visibility",
+      "objective": "Verify the observability surface stays limited to the four documented events -- program_visibility contributes none, per AUTH-03-FR-2's closing note.",
+      "preconditions": [
+        "Log capture attached to app.core.rbac logger across all four known event names"
+      ],
+      "test_data": {
+        "program_ids_tested": [
+          "prog-1",
+          "prog-99"
+        ]
+      },
+      "steps": [
+        "Call program_visibility(current_user, program_id) for each test program_id",
+        "Inspect all captured log records for this call window"
+      ],
+      "expected_results": [
+        "Zero log records are emitted by program_visibility for any program_id tested"
+      ],
+      "tags": [
+        "rbac",
+        "observability",
+        "program-visibility",
+        "FR-2"
+      ],
+      "last_run": {
+        "started_at": "2026-08-31T08:18:50Z",
+        "duration_ms": 1,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_rbac.py::test_program_visibility_emits_no_log_event_tc28",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-03-AC-1",
+        "covered_by": [
+          "AUTH-03-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-2",
+        "covered_by": [
+          "AUTH-03-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-3",
+        "covered_by": [
+          "AUTH-03-TC-03",
+          "AUTH-03-TC-04"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-4",
+        "covered_by": [
+          "AUTH-03-TC-05",
+          "AUTH-03-TC-06",
+          "AUTH-03-TC-07"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-5",
+        "covered_by": [
+          "AUTH-03-TC-08",
+          "AUTH-03-TC-09",
+          "AUTH-03-TC-10"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-6",
+        "covered_by": [
+          "AUTH-03-TC-11",
+          "AUTH-03-TC-12"
+        ]
+      },
+      {
+        "id": "AUTH-03-AC-7",
+        "covered_by": [
+          "AUTH-03-TC-13",
+          "AUTH-03-TC-14",
+          "AUTH-03-TC-15",
+          "AUTH-03-TC-16"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-03-FR-1",
+        "covered_by": [
+          "AUTH-03-TC-17",
+          "AUTH-03-TC-18",
+          "AUTH-03-TC-19"
+        ]
+      },
+      {
+        "id": "AUTH-03-FR-2",
+        "covered_by": [
+          "AUTH-03-TC-20",
+          "AUTH-03-TC-21",
+          "AUTH-03-TC-22",
+          "AUTH-03-TC-23"
+        ]
+      },
+      {
+        "id": "AUTH-03-FR-3",
+        "covered_by": [
+          "AUTH-03-TC-24",
+          "AUTH-03-TC-11",
+          "AUTH-03-TC-12"
+        ]
+      },
+      {
+        "id": "AUTH-03-FR-4",
+        "covered_by": [
+          "AUTH-03-TC-10",
+          "AUTH-03-TC-16",
+          "AUTH-03-TC-13"
+        ]
+      },
+      {
+        "id": "AUTH-03-FR-5",
+        "covered_by": [
+          "AUTH-03-TC-25"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-03-NFR-performance",
+        "covered_by": [
+          "AUTH-03-TC-26"
+        ]
+      },
+      {
+        "id": "AUTH-03-NFR-security",
+        "covered_by": [
+          "AUTH-03-TC-27",
+          "AUTH-03-TC-17",
+          "AUTH-03-TC-18",
+          "AUTH-03-TC-19",
+          "AUTH-03-TC-20",
+          "AUTH-03-TC-21",
+          "AUTH-03-TC-22",
+          "AUTH-03-TC-23"
+        ]
+      },
+      {
+        "id": "AUTH-03-NFR-observability",
+        "covered_by": [
+          "AUTH-03-TC-28",
+          "AUTH-03-TC-20",
+          "AUTH-03-TC-21",
+          "AUTH-03-TC-22",
+          "AUTH-03-TC-23"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

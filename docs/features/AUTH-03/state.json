@@ -1,0 +1,237 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#17",
+  "tracker_research": "pratikpawar009/Dashboard#111",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-03/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "security-review",
+  "last_updated": "2026-08-31T09:00:14Z",
+  "tracker_prd": "pratikpawar009/Dashboard#112",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/AUTH-03/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/AUTH-03/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-03/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06"
+  ],
+  "pending_carry_forward": [
+    {
+      "item_id": "R-04-persona-resolution-n-plus-1",
+      "kind": "risk",
+      "reason": "Persona-resolution N+1 across multiple RBAC checks in a single request (research risk #4, HIGH) \u2014 accepted via D-05; AUTH-02's per-role 300s cache bounds the worst case to N warm reads (<1ms each), not N Tier-3 queries; request-scoped memoization deferred to a post-launch optimization story",
+      "owner": "Pratik Pawar (PO)",
+      "added_at": "2026-08-31T13:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AUTH-03-NFR-reliability-coverage-gap",
+      "kind": "coverage_gap",
+      "reason": "individual_usage_visibility's and member_in_program_visibility's non-self persona-resolution-error paths (PersonaResolutionError/PersonaNotFoundError via the shared _resolve_persona_or_deny helper) have no direct executing test - only org_access (TC-17/18) and governance_visibility (TC-19) test the fail-closed resolver-error behavior. PLAN.md section 7 claimed TC-17/18/19 substantively cover the Reliability NFR across all four persona-resolving checks; the gate verified 2 of 4.",
+      "owner": "Pratik Pawar (PO)",
+      "added_at": "2026-08-31T08:37:14Z",
+      "added_by": "implement/gate-round-1 validation-agent (reliability NFR audit)",
+      "resolved_at": null,
+      "evidence": "docs/features/AUTH-03/VALIDATION-20260831-0820.md section Reliability NFR coverage gap"
+    },
+    {
+      "item_id": "env-pnpm-ignored-builds-apps-web",
+      "kind": "environment",
+      "reason": "pnpm -C apps/web install exits non-zero with [ERR_PNPM_IGNORED_BUILDS]: unrs-resolver@1.12.2's build script is blocked by pnpm's supply-chain approval gate. Pre-existing, unrelated to AUTH-03's diff (story touches zero apps/web files).",
+      "owner": "unassigned",
+      "added_at": "2026-08-31T08:37:14Z",
+      "added_by": "implement/gate-round-1 validation-agent (Phase 1 preflight)",
+      "resolved_at": null,
+      "evidence": "pnpm -C apps/web install output: '[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: unrs-resolver@1.12.2'"
+    },
+    {
+      "item_id": "REVIEW-AUTH03-01-configure-last-write-wins",
+      "kind": "risk",
+      "reason": "D-06's module-global _persona_resolver is written once per create_app() call, so a downstream consumer story (AUTH-04+) whose integration tests build more than one concurrent create_app() instance in a single process will have the last configure() call win process-wide. Not a defect in this diff - an accepted consequence of D-06, recorded for downstream test authors.",
+      "owner": "unassigned",
+      "added_at": "2026-08-31T08:37:14Z",
+      "added_by": "implement/gate-round-1 code-review-agent (LOW finding F-2)",
+      "resolved_at": null,
+      "evidence": "docs/features/AUTH-03/REVIEW.md finding F-2"
+    }
+  ],
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#128",
+  "impl_evidence": {
+    "session_ended_at": "2026-08-31T08:08:14Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-03/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T08:08:14Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test: (full suite, both stacks)",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-03/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T08:08:14Z",
+        "summary": "web: 1/1 passed; api: 377 passed, 0 failed, 0 skipped, 190 warnings (includes tests/test_migrations.py against a live Postgres)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-03/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T08:08:14Z",
+        "note": "supplementary 'uv run ruff format --check .' (not part of the canonical lint: command) found one pre-existing, out-of-AUTH-03-scope formatting drift at services/api/README.md:26 inside the '## Session factory' section \u2014 content unchanged since commit 1d3f740 (AUTH-02), predates this feature, not touched by AUTH-03's diff. Not fixed here per surgical-changes; see hand-off notes."
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-08-31T08:08:14Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8123",
+            "exit_code": null,
+            "evidence_path": "docs/features/AUTH-03/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "health_check": "GET /health -> 200 {\"status\":\"ok\"}",
+            "note": "extra throwaway check: create_app() confirmed to call rbac.configure() -- app.core.rbac._persona_resolver is the same PersonaResolver instance as app.state.persona_resolver (D-06 wiring proven live, not just in unit tests with a stub)"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "pnpm -C apps/web dev --turbopack --port 3123",
+            "exit_code": null,
+            "evidence_path": "docs/features/AUTH-03/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "health_check": "GET / -> 200",
+            "render_check": "unavailable",
+            "note": "no E2E/browser tooling wired (project-commands.yaml test_e2e: \"\") -- boot-only 200 evidence; AUTH-03 is backend-only and touches nothing under apps/web, this stack was booted only to prove the whole runnable surface still boots per evidence-pass anti-pattern 'one stack's excuse cover another'"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build: (Next.js) + python -m compileall (backend, no separate compile step)",
+        "command": "pnpm -C apps/web build; uv run python -m compileall -q app/core/rbac.py app/main.py tests/unit/test_rbac.py tests/perf/test_rbac_perf.py",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-03/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T08:08:14Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check: (empty) + state.json design: n/a",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-02",
+        "ran_at": null,
+        "reason": "no a11y/console-error/perf tool wired in project-commands.yaml, and AUTH-03 is a backend-only feature (design=n/a, no DESIGN.md, no UI surface) -- N/A on two independent grounds"
+      }
+    }
+  },
+  "validation": "passed",
+  "validation_summary": "2026-08-31 P=28/28 in 1 round(s)",
+  "validation_report": "docs/features/AUTH-03/VALIDATION-20260831-0820.md",
+  "review": "PASS",
+  "review_report": "docs/features/AUTH-03/REVIEW.md",
+  "gate_rounds": 1,
+  "impl": "complete",
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "task": "T-01",
+      "source": "services/api/app/core/rbac.py:_EVENT_OPTIONAL_FIELDS",
+      "summary": "`persona` is an optional field on the two rbac_check_* events - present when persona resolution succeeded, omitted on the resolver-failure denial where no persona exists. Orchestrator-adjudicated as consistent with D-02's allowlist intent (an upper bound); code review concurred, LOW. Open question for a triager: whether log-schema consumers want a constant key set (persona: null) instead.",
+      "status": "defer",
+      "added_at": "2026-08-31T08:38:00Z",
+      "added_by": "implement/step-1 T-01 worker (orchestrator-reclassified from a question)",
+      "triaged_at": "2026-08-31T08:56:57Z",
+      "triaged_by": "user direction (commit+PR requested without an /arh-human-review round)",
+      "disposition": "Deferred, not accepted on the merits: no human triage round was run. Surfaced in the PR body so a reviewer sees all four before merge."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "evidence-na",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml",
+      "summary": "design_check dimension N/A on two independent grounds: project-commands.yaml design_check is empty (no a11y/console-error/perf tool wired) and state.json design is n/a (backend-only feature, no UI surface).",
+      "status": "defer",
+      "added_at": "2026-08-31T08:38:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-08-31T08:56:57Z",
+      "triaged_by": "user direction (commit+PR requested without an /arh-human-review round)",
+      "disposition": "Deferred, not accepted on the merits: no human triage round was run. Surfaced in the PR body so a reviewer sees all four before merge."
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "evidence-na",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml",
+      "summary": "web runtime evidence is boot-only (GET / -> 200); render_check unavailable because test_e2e is empty (no Playwright/Cypress in ADR-0001). AUTH-03 changes nothing under apps/web.",
+      "status": "defer",
+      "added_at": "2026-08-31T08:38:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-08-31T08:56:57Z",
+      "triaged_by": "user direction (commit+PR requested without an /arh-human-review round)",
+      "disposition": "Deferred, not accepted on the merits: no human triage round was run. Surfaced in the PR body so a reviewer sees all four before merge."
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "inconsistency",
+      "task": "evidence-pass",
+      "source": "services/api/README.md:26",
+      "summary": "Pre-existing ruff-format drift in the '## Session factory' section - byte-identical since commit 1d3f740 (AUTH-02), outside AUTH-03's insertion-only diff, and not caught by the canonical lint: command (ruff check, which passes). Not fixed per surgical-changes.",
+      "status": "defer",
+      "added_at": "2026-08-31T08:38:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-08-31T08:56:57Z",
+      "triaged_by": "user direction (commit+PR requested without an /arh-human-review round)",
+      "disposition": "Deferred, not accepted on the merits: no human triage round was run. Surfaced in the PR body so a reviewer sees all four before merge."
+    }
+  ],
+  "agent_flags_file": "docs/features/AUTH-03/FLAGS.md",
+  "agent_flags_triage": "deferred-by-user-direction",
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/129",
+  "pr_number": 129,
+  "commit": "c779a33",
+  "branch": "feature/AUTH-03",
+  "tracker_impl_comment": "https://github.com/pratikpawar009/Dashboard/issues/17#issuecomment-5476112465"
+}
