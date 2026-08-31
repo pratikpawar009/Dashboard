@@ -83,6 +83,72 @@ The token is signed by an ephemeral RSA keypair generated once per process, at f
 - **The same token is rejected (401) in production** — the signing key is process-local and the `kid` never resolves outside an allow-listed environment, by design.
 - **Each worker holds its own key** — under `uvicorn --workers N`, gunicorn, or several API instances, a token 401s on any worker that did not mint it. The `Dockerfile` runs a single uvicorn process, so this only bites if you add workers yourself.
 
+## RBAC checks
+
+`app/core/rbac.py` is a pure in-process authorization library — five async check functions, no route surface of its own. Each of 16 downstream stories (AUTH-04, OVW-01..04, PGD-01..06, SHP-02..06) imports directly, e.g. `from app.core.rbac import org_access`; full contract at `docs/requirements/auth.md#rbac-checks`.
+
+```python
+async def org_access(current_user: CurrentUser) -> None
+async def program_visibility(current_user: CurrentUser, program_id: str) -> None
+async def individual_usage_visibility(current_user: CurrentUser, target_user_id: str) -> None
+async def member_in_program_visibility(current_user: CurrentUser, program_id: str, target_member_id: str) -> None
+async def governance_visibility(current_user: CurrentUser, program_id: str | None = None) -> None
+```
+
+Every check either returns `None` (authorized) or raises `HTTPException(status_code=403)` (denied) — never a bool, never a 5xx for a denial.
+
+### The five checks
+
+| Check | Passes when | Denies when |
+|---|---|---|
+| `org_access` | persona == `cio` | any other persona |
+| `program_visibility` | always — any authenticated session, any `program_id` | never (see veto-gate caveat below) |
+| `individual_usage_visibility` | `target_user_id == current_user.user_id` (self, no persona resolution), or persona == `cio` | neither self nor `cio` |
+| `member_in_program_visibility` | `program_visibility` passes AND (`target_member_id == current_user.user_id` or persona == `cio`) | `program_visibility` denies, or neither self nor `cio` |
+| `governance_visibility` | persona in `{architect, product-manager, developer}` AND (`program_id` omitted or `program_visibility` passes) | persona not in that set, or the `program_visibility` cascade denies |
+
+### Cascade order — deliberately opposite nestings
+
+`member_in_program_visibility` calls `program_visibility` **first**, before self-or-cio is evaluated — a `program_visibility` denial propagates immediately even when `target_member_id == current_user.user_id`.
+
+`governance_visibility` evaluates its persona gate **first**; only when that passes and a `program_id` was supplied does it call `program_visibility` — a persona denial never reaches the cascade. Both orders are AUTH-03-FR-4's explicit, tested requirement, not an inconsistency to reconcile.
+
+### The four log events
+
+| Event | Fields | Logged on |
+|---|---|---|
+| `rbac_check_org_access` | `{user_id, persona, outcome, timestamp}` | authorized + denied |
+| `rbac_check_governance_visibility` | `{user_id, persona, outcome, timestamp}` | authorized + denied |
+| `individual_view_denied` | `{user_id, target_user_id, outcome, timestamp}` | denied only |
+| `member_view_denied` | `{user_id, program_id, target_member_id, outcome, timestamp}` | denied only |
+
+`outcome` is always the literal string `"authorized"` or `"denied"` — never a boolean. No event ever carries `email`, `groups`, a JWT claim, session id, or request path. `program_visibility` emits no event of its own — the open-aggregate check has no denial branch to log.
+
+`persona` is the one optional field, present whenever persona resolution itself succeeded (an authorized outcome, or a denial reached by comparing a resolved persona) and omitted only on the rarer denial where resolution itself failed.
+
+### Fail-closed on resolver failure
+
+Both of the persona resolver's failure modes deny with `HTTPException(403)` — zero default-permit, ever — but at different log levels:
+
+| Exception | Meaning | Log level |
+|---|---|---|
+| `PersonaNotFoundError` | routine — role unmapped in all three tiers | `logging.INFO` |
+| `PersonaResolutionError` | operational failure — Tier-3 Postgres timeout/connectivity | `logging.ERROR` |
+
+This is the single most useful fact for debugging a 403 storm: **a transient Postgres failure presents to the client as an ordinary permissions error and does not invite a retry.** The two exceptions are caught in separate `except` clauses at every call site that resolves persona (`org_access`, `individual_usage_visibility`'s non-self branch, `member_in_program_visibility`'s non-self branch, `governance_visibility`) — never a bare `except Exception`, and never a 500 for either failure mode.
+
+### `program_visibility` is a veto gate, not a roster source
+
+Any authenticated session passes `program_visibility` for any `program_id` — it never reads `current_user.programs` and never branches on `program_id`. A passing call is **not** an affirmative "this program is in my list"; a consumer needing a roster answer must read `CurrentUser.programs` directly. This open-aggregate model (R-003) remains **OPEN**, flagged for `/arh-security-review` — not accepted or closed by AUTH-03.
+
+### Wiring the persona resolver
+
+`create_app()` calls `rbac.configure(app.state.persona_resolver)` immediately after constructing the resolver. Without that call, every persona-resolving check raises `RuntimeError("rbac.configure() was never called")` at first use — deliberately loud, not a silent default-permit.
+
+### Consumers
+
+The checks have no route surface of their own. Each consuming story imports directly (`from app.core.rbac import org_access`); route wiring is out of AUTH-03's scope by design.
+
 ## Persona resolution
 
 `app.state.persona_resolver` (`app/core/persona_resolver.py`) maps a session's Keycloak `role` to one

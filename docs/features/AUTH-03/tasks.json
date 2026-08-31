@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-03",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-31T13:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/core/rbac.py",
+      "reason": "the rbac-checks library: five async check functions (org_access, program_visibility, individual_usage_visibility, member_in_program_visibility, governance_visibility), _GOVERNANCE_PERSONAS constant (FR-3), PersonaResolutionError/PersonaNotFoundError -> HTTPException(403) translation at every persona-resolving call site (FR-1), four structured log events (FR-2). No route surface of its own; no consumer inside this story (REQUIREMENTS.md Scope Out: 'Route wiring \u2014 deferred to each consuming story') \u2014 the 16 downstream consumers each wire their own import, one story at a time, starting with AUTH-04."
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_rbac.py",
+      "reason": "AUTH-03-TC-01..25, TC-27, TC-28 (unit/security/contract) \u2014 bundled into one topic file mirroring tests/unit/test_persona_resolver.py's split (perf carved out separately, everything else together)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_rbac_perf.py",
+      "reason": "AUTH-03-TC-26 (<5ms p95 per check, in-process, no I/O) \u2014 same plain time.perf_counter() convention as tests/perf/test_persona_resolver_perf.py, no dedicated benchmark tool"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "new \"RBAC checks\" section after the existing \"## Auth\" section: the five checks, their gating logic, the four log events with field allowlists, and the fail-closed PersonaResolutionError/PersonaNotFoundError policy (REQUIREMENTS.md \u00a7 Documentation requirements)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "wire app.core.rbac's module-level persona-resolver seam: create_app() must call rbac.configure(app.state.persona_resolver) right after constructing PersonaResolver, so org_access/individual_usage_visibility/member_in_program_visibility/governance_visibility can reach the resolver despite the locked contract signature (docs/requirements/auth.md#rbac-checks) taking only current_user/program_id/target_*_id -- no Request or resolver parameter (D-06). Without this line every persona-resolving check raises RuntimeError at first call in a real running process."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Scaffold rbac.py + org_access + program_visibility",
+      "complexity": "L",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02",
+        "F-05"
+      ],
+      "ac_refs": [
+        "AUTH-03-AC-1",
+        "AUTH-03-AC-2",
+        "AUTH-03-AC-3"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03"
+      ],
+      "notes": "Module docstring (R-003/open-aggregate caveat on program_visibility as a veto gate not a roster source, hardcoded governance tuple rationale, PersonaResolutionError/PersonaNotFoundError fail-closed contract \u2014 Documentation requirements 'Inline code comments'). _GOVERNANCE_PERSONAS: tuple[str, ...] = ('architect', 'product-manager', 'developer') constant (D-04) \u2014 defined here even though only governance_visibility (T-04) reads it, so TC-24 (module-source inspection) can run standalone. Shared internal helpers introduced here and reused by every later task: a fail-closed persona-resolution wrapper implementing D-01 (catches PersonaResolutionError -> HTTPException(403) + ERROR log; PersonaNotFoundError -> HTTPException(403) + INFO log, per AUTH-03-FR-1) and a structured-logging helper enforcing the exact per-event field allowlist + literal 'authorized'/'denied' outcome strings (D-02, AUTH-03-FR-2). org_access(current_user): persona == 'cio' via app.state.persona_resolver.resolve(current_user.role), emits rbac_check_org_access (both outcomes). program_visibility(current_user, program_id): open-aggregate pass-through per D-03 \u2014 never reads current_user.programs, never branches on program_id, no persona resolution, emits no log event. Test file scaffold in the same task (test-driven, C-5): CurrentUser fixture builder, a stub persona resolver test double (resolve() configurable to return a persona or raise PersonaResolutionError/PersonaNotFoundError), and a _capture_logger context manager attached to app.core.rbac, mirroring tests/unit/test_persona_resolver.py's _RecordCapturingHandler/_capture_logger idiom. Covers AUTH-03-TC-01, TC-02, TC-03, TC-04, TC-17, TC-18, TC-20, TC-24, TC-27, TC-28. D-06: the locked contract signature (current_user only, plus program_id/target_*_id where needed -- no Request, no resolver param) leaves no room to thread app.state.persona_resolver through the call. rbac.py instead exposes module-level `_persona_resolver: PersonaResolver | None = None` plus `configure(persona_resolver: PersonaResolver) -> None` (sets the module global); the fail-closed wrapper reads it via a private `_resolver()` accessor that raises RuntimeError('rbac.configure() was never called') if still None -- a loud, explicit misconfiguration signal rather than a silent default-permit. main.py's create_app() calls `rbac.configure(app.state.persona_resolver)` immediately after constructing the PersonaResolver (F-05). AUTH-03's own unit tests call `rbac.configure(stub)` directly before exercising a check -- same direct-module-attribute-assignment idiom tests/unit/test_persona_resolver.py already uses (`monkeypatch.setattr(persona_resolver, '_TIER3_TIMEOUT_SECONDS', 0.05)`), not a Request-scoped or FastAPI Depends() mechanism.",
+      "status": "done",
+      "completed_at": "2026-08-31T07:45:19Z",
+      "files_touched": [
+        "services/api/app/core/rbac.py",
+        "services/api/tests/unit/test_rbac.py",
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add individual_usage_visibility",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-03-AC-4"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "individual_usage_visibility(current_user, target_user_id): passes when target_user_id == current_user.user_id (no persona resolution needed on the self path); otherwise resolves persona via the T-01 fail-closed helper and passes only if persona == 'cio', else raises HTTPException(403) and logs individual_view_denied (denial only, per FR-2 allowlist {user_id, target_user_id, outcome, timestamp}). Reuses T-01's fail-closed wrapper and logging helper \u2014 no new persona-resolution or logging pattern introduced here. Predecessor on T-01 is a same-file serialization edge (F-01/F-02 both written by T-01), not a logical dependency of individual_usage_visibility on org_access/program_visibility. Covers AUTH-03-TC-05, TC-06, TC-07, TC-22.",
+      "status": "done",
+      "completed_at": "2026-08-31T07:48:21Z",
+      "files_touched": [
+        "services/api/app/core/rbac.py",
+        "services/api/tests/unit/test_rbac.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Add member_in_program_visibility (cascades through program_visibility)",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-03-AC-5"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "member_in_program_visibility(current_user, program_id, target_member_id): calls program_visibility(current_user, program_id) FIRST (AUTH-03-FR-4) \u2014 a denial there propagates immediately without evaluating self-or-cio, even when target_member_id == current_user.user_id (AUTH-03-TC-10 asserts this call order with a spy, not just the end-to-end outcome). If program_visibility passes: passes when target_member_id == current_user.user_id, else resolves persona via the T-01 helper and passes only if persona == 'cio', else HTTPException(403) + member_view_denied (denial only, {user_id, program_id, target_member_id, outcome, timestamp}). Predecessor on T-02 is the same-file serialization edge (F-01/F-02); logically this check depends on program_visibility (T-01), reached transitively through T-02->T-01. Covers AUTH-03-TC-08, TC-09, TC-10, TC-23.",
+      "status": "done",
+      "completed_at": "2026-08-31T07:51:44Z",
+      "files_touched": [
+        "services/api/app/core/rbac.py",
+        "services/api/tests/unit/test_rbac.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Add governance_visibility (persona gate + conditional program_visibility cascade)",
+      "complexity": "L",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-03-AC-6",
+        "AUTH-03-AC-7"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "governance_visibility(current_user, program_id=None): resolves persona via the T-01 fail-closed helper (AUTH-03-TC-19 confirms FR-1 applies here too, not only org_access) and passes only if persona in _GOVERNANCE_PERSONAS (D-04); denies with HTTPException(403) + rbac_check_governance_visibility outcome=denied otherwise. When persona passes AND program_id is given: the persona gate runs BEFORE program_visibility (AUTH-03-FR-4) \u2014 call order verified with an ordered call-recorder (AUTH-03-TC-16) and short-circuit verified with a spy that must never be called when persona itself denies (AUTH-03-TC-15); program_visibility's own denial then propagates even though persona passed (AUTH-03-TC-14). Success logs rbac_check_governance_visibility outcome=authorized ({user_id, persona, outcome, timestamp}, same allowlist as org_access per D-02). Covers AUTH-03-TC-11, TC-12, TC-13, TC-14, TC-15, TC-16, TC-19, TC-21.",
+      "status": "done",
+      "completed_at": "2026-08-31T07:57:09Z",
+      "files_touched": [
+        "services/api/app/core/rbac.py",
+        "services/api/tests/unit/test_rbac.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Contract test: all five signatures match the locked rbac-checks contract",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-03-FR-5"
+      ],
+      "risk_refs": [],
+      "notes": "inspect.iscoroutinefunction + inspect.signature over all five exported names (org_access, program_visibility, individual_usage_visibility, member_in_program_visibility, governance_visibility): all are coroutine functions, all take current_user as the first positional parameter \u2014 matching the concrete signatures now recorded in docs/requirements/auth.md#rbac-checks. Same plain-pytest introspection pattern as tests/unit/test_rollup_rebuild_contract.py's TC-09 (no dedicated contract-testing framework). Requires all five functions to exist, hence predecessor T-04. Covers AUTH-03-TC-25.",
+      "status": "done",
+      "completed_at": "2026-08-31T07:59:20Z",
+      "files_touched": [
+        "services/api/tests/unit/test_rbac.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Performance test: each check <5ms p95, in-process",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "For each of the five checks, 100 consecutive calls on a passing path with a stub persona resolver returning immediately (no simulated I/O); compute p95 via time.perf_counter() deltas, assert <5ms per check (NFR-performance, story Decision log 2026-08-26 assumption). Structure mirrors tests/perf/test_persona_resolver_perf.py: plain wall-clock timing, no dedicated benchmark tool, own small _percentile helper (not a shared perf_utils module \u2014 reusability-baseline: extract on the third repetition, not the first; this is the second perf file to need a percentile helper in this codebase after test_range_pagination_perf.py's). Independent of T-05 (different file, F-03 vs F-02) \u2014 both depend only on T-04, safe to run in parallel with T-05 and T-07. Covers AUTH-03-TC-26.",
+      "status": "done",
+      "completed_at": "2026-08-31T08:02:56Z",
+      "files_touched": [
+        "services/api/tests/perf/test_rbac_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Document the five RBAC checks in services/api/README.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "New \"RBAC checks\" section directly after the existing \"## Auth\" section (services/api/README.md, before \"## Persona resolution\"): the five checks and their gating logic, the four log events with exact field allowlists (D-02), and the fail-closed PersonaResolutionError (ERROR log) / PersonaNotFoundError (INFO log) policy (D-01) \u2014 REQUIREMENTS.md \u00a7 Documentation requirements. Independent of T-05/T-06 (different file, F-04), safe to run in parallel with both once T-04 lands.",
+      "status": "done",
+      "completed_at": "2026-08-31T08:00:13Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

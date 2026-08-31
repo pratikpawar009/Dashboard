@@ -8,6 +8,7 @@ from app.auth.dev_bypass import router as dev_bypass_router
 from app.auth.jwks import JwksCache
 from app.auth.oidc import router as oidc_router
 from app.auth.state_store import OAuthStateStore
+from app.core import rbac
 from app.core.config import Settings, settings
 from app.core.db import engine
 from app.core.errors import register_exception_handlers
@@ -41,6 +42,12 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     # Tier-2 YAML raises uncaught, failing `create_app()` at import time so
     # Uvicorn's own process-exit-on-import-failure is the fail-fast behavior.
     app.state.persona_resolver = PersonaResolver(cfg)
+    # AUTH-03 D-06: rbac.py's five checks reach the resolver via this
+    # module-level seam (the locked rbac-checks contract has no
+    # Request/resolver parameter to thread it through) -- must run
+    # immediately after the line above, or every persona-resolving check
+    # raises RuntimeError at first call.
+    rbac.configure(app.state.persona_resolver)
 
     register_exception_handlers(app)
 
