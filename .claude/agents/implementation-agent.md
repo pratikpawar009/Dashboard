@@ -3,6 +3,7 @@ name: implementation-agent
 description: Implement one assigned tasks.json task (TASK_ID) or a fix-loop directive. Runs local checks; stops before commit/PR.
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 model: sonnet
+memory: project
 skills: ["evidence-pass", "root-cause-first", "alembic-patterns", "fastapi-patterns", "next-patterns", "nextjs-patterns", "postgres-patterns", "pydantic-patterns", "pytest-patterns", "typescript-patterns", "vcs-github"]
 ---
 # Implementation Agent

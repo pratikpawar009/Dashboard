@@ -3,6 +3,7 @@ name: validation-agent
 description: Run E2E from test-case JSON against real APIs (no mocks); verify every PLAN task done; emit proof-of-run footer.
 tools: ["Read", "Write", "Edit", "Bash"]
 model: sonnet
+memory: project
 skills: ["test-case-generation", "validation-execution", "pytest-patterns", "vitest-patterns", "alembic-patterns", "fastapi-patterns", "next-patterns", "nextjs-patterns", "postgres-patterns", "pydantic-patterns", "typescript-patterns"]
 ---
 # Validation Agent

@@ -87,3 +87,15 @@ Title: `type(scope): summary`. Body sections: Summary, Test plan, Migration (if 
 No Figma. Provider is `html-mockup`: six canvas exports in `docs/design/mockups/` are the authoritative UI reference, mapped to RTM epics in `docs/design/schema.json`. Tokens in `docs/design/tokens.md`.
 
 **Read `docs/design/README.md` first** — the mockups are bundler outputs, not readable HTML, and the markup must be extracted before you can diff or grep it. It also records two decisions the mockups imply (values arrive pre-formatted; the templates bind CSS as well as data) and notes they are desktop-only despite the responsive target.
+
+**Every story is built against these mockups — backend stories included.** Before planning or
+implementing any story, open the mockup for its epic (`docs/design/schema.json` →
+`designSystem.pages.features`) and treat it as the contract:
+
+- UI stories render what the mockup shows. Do not invent screens, sections, or components.
+- API/backend stories supply exactly what the mockup's bindings consume — the set of fields, their
+  pre-formatted values (README § "Values arrive pre-formatted"), and the empty/loading states the
+  `hint-placeholder-count` attributes imply. The mockup, not the PRD prose, settles response shape.
+- If a story seems to need something the mockups do not show, stop and raise it. Do not design it.
+
+Only a story with no epic in `schema.json` may set `design: n/a`.

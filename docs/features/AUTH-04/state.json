@@ -1,0 +1,173 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 84,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#18",
+  "tracker_research": "pratikpawar009/Dashboard#131",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-04/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-08-31T14:15:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#132",
+  "gate": "APPROVE",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/AUTH-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-04/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/AUTH-04/tasks.json"
+  },
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#148",
+  "impl_evidence": {
+    "session_ended_at": "2026-08-31T13:45:00Z",
+    "rounds": 1,
+    "verdict": "READY",
+    "run_by": "orchestrator (main session) \u2014 implementation-agent --evidence worker was terminated by an API rate limit mid-run; every command below was executed for real",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "apps/web/node_modules/.bin/tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-04/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T13:45:00Z",
+        "note": "web half run via the direct binary because the canonical `pnpm -C apps/web exec` wrapper fails on a pre-existing deps-check gate (AF-01); api: Success, no issues found in 82 source files"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test:",
+        "command": "apps/web/node_modules/.bin/vitest run && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-04/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T13:45:00Z",
+        "summary": "web: 1 file / 1 test passed; api: 395 passed, 0 failed in 19.23s \u2014 of which 18 are AUTH-04's (17 unit in tests/unit/test_programs.py + 1 perf, measured p95 19.85ms vs a 300ms budget)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "apps/web/node_modules/.bin/eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-04/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T13:45:00Z",
+        "note": "web half run via the direct binary for the AF-01 reason above; api: All checks passed!"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": "uvicorn app.main:app --port 8123 (DATABASE_URL -> localhost:5442, ENVIRONMENT=local)",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-04/evidence/runtime-api.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T13:45:00Z",
+        "summary": "real server, real Postgres, no dependency_overrides. Boot log clean (0 tracebacks). GET /health 200. GET /api/programs: 401 unauthenticated; 403 'Access denied' fail-closed with a programs_persona_resolution_failed WARNING (reason=not_found) when all three resolver tiers are empty, never a 500 (FR-3/C-3 live); 200 with key set exactly {program_id,label,href,dotStyle} once PERSONA_ROLE_MAP supplies Tier-1 (ADR-0005 live). Emitted programs_list_returned payload was exactly {timestamp,level,logger,message,user_id,persona,returned_count} \u2014 no email/groups/path (FR-1/C-1 live). Port ownership verified via lsof before trusting any response."
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "apps/web/node_modules/.bin/next build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-04/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-08-31T13:45:00Z",
+        "note": "Compiled successfully in 6.3s, static pages 5/5. Python side is interpreted \u2014 no compile step."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check: (empty)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-02",
+        "ran_at": "2026-08-31T13:45:00Z",
+        "note": "N/A on two grounds: no design_check tool wired in project-commands.yaml, and state.json design='n/a' (backend-only, no UI surface). Matches BED-01 AF-09 / AUTH-03 AF-02."
+      }
+    },
+    "flags": [
+      "AF-01",
+      "AF-02"
+    ]
+  },
+  "validation": "passed",
+  "validation_summary": "20260831 P=18/18 in 1 round(s)",
+  "validation_report": "docs/features/AUTH-04/VALIDATION-20260831-1231.md",
+  "review": "PASS",
+  "review_report": "docs/features/AUTH-04/REVIEW.md",
+  "pending_carry_forward": [
+    {
+      "id": "CF-01",
+      "source": "validation-agent (gate round 1)",
+      "severity": "low",
+      "note": "Pre-existing ERR_PNPM_IGNORED_BUILDS gate on apps/web preflight (unrs-resolver@1.12.2) blocks every composite command in docs/config/project-commands.yaml at its pnpm segment. Unrelated to this backend-only story; already recorded as flag AF-01 (triaged/accepted). Remedy is a human supply-chain approval."
+    },
+    {
+      "id": "CF-02",
+      "source": "code-review-agent (gate round 1)",
+      "severity": "low",
+      "note": "services/api/app/schemas/programs.py:21-25 implements dotStyle as `dot_style` + Field(alias=\"dotStyle\") rather than a literal camelCase attribute. Wire-compatible and contract-tested (TC-06 key-set equality passes; FastAPI response_model_by_alias=True). Informational only."
+    },
+    {
+      "id": "CF-03",
+      "source": "orchestrator",
+      "severity": "low",
+      "note": "docs/stories/AUTH-04.md AC-5 still names the superseded field set {program_id, name, icon, type, description}. Deliberately not edited (story is Status: Validated; re-opening forces re-validation). ADR-0005 + REQUIREMENTS.md are authoritative. Story edit deferred."
+    },
+    {
+      "id": "CF-04",
+      "source": "implementation-agent T-04",
+      "severity": "low",
+      "note": "No pydantic.mypy plugin configured in services/api/pyproject.toml, so mypy synthesizes __init__ from field aliases; call sites must use the alias keyword (dotStyle=). Enabling the plugin would let either name typecheck."
+    }
+  ],
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "env-blocker",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml (pnpm segment of every composite command)",
+      "summary": "Every command in project-commands.yaml fails at its `pnpm -C apps/web ...` segment: pnpm's deps check shells out to `pnpm install`, which exits 1 with [ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: unrs-resolver@1.12.2. The underlying tools are healthy - run directly from apps/web/node_modules/.bin, tsc/eslint/vitest/next build all exit 0, which is how this feature's evidence was gathered. Pre-existing; AUTH-04 adds zero frontend files.",
+      "status": "accept",
+      "added_at": "2026-08-31T13:45:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-08-31T13:52:00Z",
+      "triaged_by": "user direction (Step 1 flag triage: 'Triage both as accepted')",
+      "disposition": "Accepted as out-of-scope for AUTH-04. Not fixed here on two grounds: surgical-changes forbids fixing adjacent unrelated breakage, and the remedy (pnpm approve-builds / onlyBuiltDependencies in apps/web/package.json) is a supply-chain approval decision reserved for a human. Carried forward to the PR body as CF-01 so it is fixed deliberately."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "evidence-na",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml design_check (empty)",
+      "summary": "design_check dimension N/A on two independent grounds: project-commands.yaml design_check is empty (no a11y/console-error/perf tool wired) and state.json design is n/a (backend-only feature, no UI surface; AUTH has no entry in docs/design/schema.json).",
+      "status": "accept",
+      "added_at": "2026-08-31T13:45:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-08-31T13:52:00Z",
+      "triaged_by": "user direction (Step 1 flag triage: 'Triage both as accepted')",
+      "disposition": "N/A confirmed on both grounds. Same disposition as BED-01 AF-09 and AUTH-03 AF-02."
+    }
+  ],
+  "impl": "complete",
+  "impl_branch": "feature/AUTH-04",
+  "decisions_referenced": [
+    "D-01",
+    "D-02"
+  ],
+  "pr": 130,
+  "tracker_review_comment": "IC_kwDOUEtK8c8AAAABRot_tg"
+}

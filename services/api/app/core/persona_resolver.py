@@ -34,6 +34,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
+from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -223,3 +224,13 @@ class PersonaResolver:
         if tier3_latency_ms is not None:
             payload["tier3_latency_ms"] = round(tier3_latency_ms, 3)
         logger.info("persona_mapping_loaded", extra=payload)
+
+
+def get_persona_resolver(request: Request) -> PersonaResolver:
+    """FastAPI dependency returning the per-app `PersonaResolver` (D-07 addendum).
+
+    `create_app` constructs exactly one `PersonaResolver` per app instance and
+    assigns it to `app.state.persona_resolver`; consumers reach it via
+    `Depends(get_persona_resolver)`, never a module global.
+    """
+    return request.app.state.persona_resolver
