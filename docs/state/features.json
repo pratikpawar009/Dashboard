@@ -173,13 +173,15 @@
     "tracker_research": "pratikpawar009/Dashboard#131",
     "rtm_source_sha": "b3cd0523ae59",
     "phase": "review",
-    "last_updated": "2026-08-31T13:58:00Z",
+    "last_updated": "2026-08-31T14:10:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#132",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#148",
     "validation": "passed",
-    "review": "PASS"
+    "review": "PASS",
+    "impl": "complete",
+    "pr": 130
   },
   "OVW-01": {
     "story": "validated",
