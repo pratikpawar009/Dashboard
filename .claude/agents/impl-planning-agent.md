@@ -3,6 +3,7 @@ name: impl-planning-agent
 description: Use to convert REQUIREMENTS.md into a task-decomposed PLAN.md anchored to the project's stack rules.
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 model: sonnet
+memory: project
 skills: ["codebase-exploration", "adr-template", "decide", "plan-authoring", "plan-validation", "alembic-patterns", "fastapi-patterns", "next-patterns", "nextjs-patterns", "postgres-patterns", "pydantic-patterns", "pytest-patterns", "typescript-patterns"]
 ---
 # Implementation Planning Agent

@@ -3,6 +3,7 @@ name: code-review-agent
 description: Use to review a feature branch for architecture, design patterns, and standards. Severity-ranked findings cite rules.
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
 model: sonnet
+memory: project
 skills: ["review-assessment", "security-review-checklist", "alembic-patterns", "fastapi-patterns", "next-patterns", "nextjs-patterns", "postgres-patterns", "pydantic-patterns", "pytest-patterns", "typescript-patterns", "vcs-github"]
 ---
 # Code Review Agent
