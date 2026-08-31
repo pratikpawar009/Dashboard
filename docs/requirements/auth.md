@@ -38,13 +38,27 @@ shape:
 produced_by: AUTH-03
 consumed_by: [AUTH-04, OVW-01, OVW-02, OVW-03, OVW-04, PGD-01, PGD-02, PGD-03, PGD-04, PGD-05, PGD-06, SHP-02, SHP-03, SHP-04, SHP-05, SHP-06]
 shape:
+  module: "app.core.rbac (services/api/app/core/rbac.py) — pure in-process functions, no route surface of its own; each of the 16 consumers imports directly, e.g. `from app.core.rbac import org_access`"
   checks:
     - org_access: "cio only; org-wide /api/overview/* endpoints"
     - program_visibility: "open-aggregate — any authenticated session; program id not used for gating (A-004)"
     - individual_usage_visibility: "self always; else cio only"
     - member_in_program_visibility: "program_visibility AND (self OR cio)"
     - governance_visibility: "architect | product-manager | developer only (cio, engineering-manager excluded); includes developer from day one per FR-DV-05, no later scope-reversal story needed"
-  logging: "every check outcome logged (rbac_check_org_access, individual_view_denied, member_view_denied)"
+  signatures: |
+    async def org_access(current_user: CurrentUser) -> None
+    async def program_visibility(current_user: CurrentUser, program_id: str) -> None
+    async def individual_usage_visibility(current_user: CurrentUser, target_user_id: str) -> None
+    async def member_in_program_visibility(current_user: CurrentUser, program_id: str, target_member_id: str) -> None
+    async def governance_visibility(current_user: CurrentUser, program_id: str | None = None) -> None
+    # all five: async, current_user is always the first positional argument (AUTH-03-FR-5,
+    # AUTH-03-TC-25 asserts this via inspect.iscoroutinefunction + inspect.signature).
+    # Names, parameter order, and count are locked from AUTH-03's Product Gate forward — a
+    # post-hoc rename requires a coordinated migration across all 16 consumers, not a silent
+    # signature change.
+  behavior: "each check either returns None (authorized) or raises fastapi.HTTPException(status_code=403) (denied) — never a bool return, never a 5xx for a denial. PersonaResolutionError and PersonaNotFoundError (both from app.core.persona_resolver, AUTH-02) are caught at every call site that resolves persona and converted to HTTPException(403); neither ever propagates to the caller (AUTH-03-FR-1, fail-closed, zero default-permit)."
+  cascades: "member_in_program_visibility calls program_visibility(current_user, program_id) first — a denial there short-circuits immediately, without evaluating self-or-cio (AUTH-03-FR-4). governance_visibility, when given a program_id, evaluates the persona gate (AC6) first, then calls program_visibility(current_user, program_id) only if that passed — both must pass (AUTH-03-FR-4)."
+  logging: "every check outcome logged (rbac_check_org_access, rbac_check_governance_visibility, individual_view_denied, member_view_denied); the two rbac_check_* events record both authorized and denied outcomes, the two *_view_denied events record denials only. rbac_check_governance_visibility extends NFR-011's set per AUTH-03 Decision log 2026-08-31. Exact field allowlist per event and outcome semantics: AUTH-03-FR-2 (docs/features/AUTH-03/REQUIREMENTS.md). program_visibility emits no event of its own (no denial branch to log)."
 ```
 
 ### ingest-token-auth

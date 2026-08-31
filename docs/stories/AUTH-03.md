@@ -4,8 +4,11 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-08-26
+**Updated**: 2026-08-31
 **Tracker**: pratikpawar009/Dashboard#17 (https://github.com/pratikpawar009/Dashboard/issues/17)
+**Tracker Research:** pratikpawar009/Dashboard#111 (https://github.com/pratikpawar009/Dashboard/issues/111)
+**Tracker Plan Requirements:** pratikpawar009/Dashboard#112 (https://github.com/pratikpawar009/Dashboard/issues/112)
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#128 (https://github.com/pratikpawar009/Dashboard/issues/128)
 
 ## User story
 
@@ -21,7 +24,7 @@ hiding.
 3. Given any authenticated session, when the program-visibility check runs for any program id, then the check passes regardless of the session's program membership — the open-aggregate model; program id is not used for gating. (FR-AUTH-06, A-004)
 4. Given a session requesting individual-usage data, when the individual-usage-visibility check runs, then it passes when the requester is viewing their own data or the requester is CIO, and rejects with `HTTP 403` (logging `individual_view_denied`) for every other combination. (FR-AUTH-07)
 5. Given a session requesting a program member's popup, when the member-in-program-visibility check runs, then it passes only if the program-visibility check passes AND (the requester is that member OR the requester is CIO); otherwise it rejects with `HTTP 403` and logs `member_view_denied`. (FR-AUTH-08)
-6. Given a session with persona `architect`, `product-manager`, or `developer`, when the governance-visibility check runs, then it passes; given persona `cio` or `engineering-manager`, it rejects with `HTTP 403`. (FR-AUTH-09)
+6. Given a session with persona `architect`, `product-manager`, or `developer`, when the governance-visibility check runs, then it passes and a `rbac_check_governance_visibility` log event records the authorized outcome; given persona `cio` or `engineering-manager`, it rejects with `HTTP 403` and a `rbac_check_governance_visibility` log event records the denied outcome. (FR-AUTH-09)
 7. Given a governance-visibility check invoked with a program id, when the persona check (AC6) passes, then the program-visibility check is also evaluated and must pass before the overall check passes. (FR-AUTH-09)
 
 ## Non-functional requirements
@@ -29,7 +32,7 @@ hiding.
 - Performance: each check is in-process (no I/O, no external calls) and adds `< 5ms p95` to request latency — assumption, source's NFR-002 sets a 2s whole-request refresh budget only, no per-check figure.
 - Security: all five checks are enforced server-side only, never UI-only hiding (per NFR-005); dev-bypass sessions bypass RBAC entirely and are out of scope here (owned by AUTH-01, FR-AUTH-11).
 - Accessibility: N/A — backend library, no UI surface.
-- Observability: structured JSON log events per check outcome for the three named checks — `rbac_check_org_access`, `individual_view_denied`, `member_view_denied` (per NFR-011 and the `rbac-checks` contract's `logging` field).
+- Observability: structured JSON log events per check outcome — `rbac_check_org_access` and `rbac_check_governance_visibility` record both the authorized and the denied outcome; `individual_view_denied` and `member_view_denied` record denials only. The first, third and fourth are per NFR-011 and the `rbac-checks` contract's `logging` field; `rbac_check_governance_visibility` extends both (see Decision log 2026-08-31).
 
 ## Dependencies
 
@@ -44,9 +47,9 @@ hiding.
 
 ## Clarifications
 
-- [NEEDS CLARIFICATION: does the governance-visibility check need its own audit-log event (e.g. a `governance_view_denied` event) on denial, or is logging intentionally limited to the three events NFR-011/`rbac-checks.logging` names (org_access, individual, member)? Governance gates sensitive data, so an unlogged denial path is a possible audit gap.]
-
 ## Decision log
+
+- 2026-08-31 Governance-visibility audit logging: the check emits its own `rbac_check_governance_visibility` event recording **both** outcomes (authorized and denied), not denial-only. Resolved with the user; supersedes the open clarification. Rationale: FR-AUTH-09 is the only one of the five checks whose source text names no logging at all, and NFR-011's event set is described as carried over from the reference implementation ("same event set") rather than derived for this build — leaving the persona gate on the most sensitive surface with no denial trail was judged a real audit gap. The both-outcomes shape and `rbac_check_*` prefix mirror `rbac_check_org_access`, because governance gating is persona-level like org-access rather than row-level like the two `*_view_denied` events. Additive to NFR-011's set, so no existing log consumer changes. Propagated to the `rbac-checks` contract `logging` field in `docs/requirements/auth.md`.
 
 - 2026-08-26 Per-check performance budget: `< 5ms p95`, in-process, no I/O — assumption, source (NFR-002) only budgets the whole request (≤2s), not an individual RBAC check.
 - 2026-08-26 HTTP status code for individual-usage and member-in-program denials (AC4, AC5): `403` — assumption, matches the status code the source states explicitly for the org-access and governance-visibility checks in the same library (FR-AUTH-05, FR-AUTH-09); FR-AUTH-07/FR-AUTH-08 describe the denial behavior but don't name a status code.
