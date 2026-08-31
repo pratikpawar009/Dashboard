@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-04",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-31T12:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/core/persona_resolver.py",
+      "reason": "add get_persona_resolver(request) -> PersonaResolver FastAPI dependency, co-located with the PersonaResolver class, mirroring get_settings (app/core/config.py) and get_jwks_cache (app/auth/jwks.py) \u2014 the new /api/programs route's only way to reach app.state.persona_resolver without importing rbac.py's private _resolver()"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/utils/format.py",
+      "reason": "add dot_style_for_program(program_id) -> str, a deterministic CSS-colour palette function per D-01 (ADR-0005 flagged gap) \u2014 no program_summary column, no migration"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/schemas/programs.py",
+      "reason": "ProgramEntry {program_id, label, href, dotStyle} + ProgramsListResponse {programs} per ADR-0005 response shape"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/api/programs.py",
+      "reason": "GET /api/programs route: fail-closed persona resolution (FR-3), single program_visibility veto-gate call (FR-2), cio-sees-all/non-cio WHERE-clause scoping (AC-1/AC-2), defensive missing-program filtering + discrepancy WARN (FR-4), programs_list_returned log event (FR-1)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "app.include_router(programs_router) \u2014 entry-registration site for the new router (wiring)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_programs.py",
+      "reason": "unit/security/contract tests for TC-01..TC-16, TC-18 (15 of 18 TCs)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_programs_perf.py",
+      "reason": "TC-17 performance baseline (condition C-4): 100 seeded programs, non-cio scoped to 50, p95 < 300ms"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/programs to the root API table (Docs T2 trigger) \u2014 endpoint, scoping rule, response shape"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add get_persona_resolver FastAPI dependency to persona_resolver.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "def get_persona_resolver(request: Request) -> PersonaResolver: return request.app.state.persona_resolver \u2014 same shape as get_settings/get_jwks_cache; no behavior change to PersonaResolver itself.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:30:00Z",
+      "files_touched": [
+        "services/api/app/core/persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add dot_style_for_program deterministic palette function to format.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Per D-01: hash program_id into a fixed small CSS-colour palette (e.g. 6-8 hex values); return a ready-to-bind CSS string, e.g. 'background-color: #4F46E5;'. Deterministic, no I/O, no cache.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:33:00Z",
+      "files_touched": [
+        "services/api/app/utils/format.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Create ProgramEntry / ProgramsListResponse schemas (ADR-0005 shape)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-5"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "ProgramEntry fields exactly {program_id: str, label: str, href: str, dotStyle: str} \u2014 field literally named dotStyle (not dot_style) to match the mockup binding and ADR-0005's exact key set (TC-06 asserts key-set equality, not a subset). ProgramsListResponse{programs: list[ProgramEntry]}.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:35:00Z",
+      "files_touched": [
+        "services/api/app/schemas/programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Implement GET /api/programs route",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-1",
+        "AUTH-04-AC-2",
+        "AUTH-04-AC-3",
+        "AUTH-04-AC-4",
+        "AUTH-04-AC-5",
+        "AUTH-04-AC-6",
+        "AUTH-04-FR-1",
+        "AUTH-04-FR-2",
+        "AUTH-04-FR-3",
+        "AUTH-04-FR-4"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-03",
+        "R-04",
+        "R-05",
+        "R-06"
+      ],
+      "notes": "router = APIRouter(prefix='/api/programs', tags=['programs']) (D-02). Route depends on get_current_user, get_persona_resolver (T-01), get_db. Order: (1) call program_visibility(current_user, sentinel) exactly once as a session-validity veto gate (FR-2/C-2) \u2014 a module-level constant documents the sentinel program_id is never read for scoping; (2) try/except persona_resolver.resolve(current_user.role), catching PersonaNotFoundError before PersonaResolutionError (subclass-first, mirrors rbac.py's own order) \u2014 both log WARN and raise HTTPException(403, 'Access denied'), never 500 (FR-3/C-3); (3) SELECT program_summary, WHERE program_id IN current_user.programs unless persona == 'cio' (AC-1/AC-2/AC-4 \u2014 SQLAlchemy's in_([]) on an empty programs list already yields zero rows, no special-case needed); (4) map rows to ProgramEntry{program_id, label=name, href=f'/api/overview/program-detail/{program_id}', dotStyle=dot_style_for_program(program_id)} (T-02/T-03); (5) log programs_list_returned with exactly {user_id, persona, returned_count} via extra= (FR-1/C-1); (6) ONLY on the non-cio scoping path, if returned_count < len(current_user.programs), log a separate WARN event (e.g. programs_missing_from_summary) with {user_id, expected_count, returned_count} (FR-4/C-5) \u2014 do not apply this comparison on the cio path, where returned_count is the full table size and is not meaningfully compared against current_user.programs. Module/route docstring states program_visibility's veto-gate semantics explicitly (FR-2) per Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:42:00Z",
+      "files_touched": [
+        "services/api/app/api/programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Register programs router in app.main.create_app()",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "from app.api.programs import router as programs_router; app.include_router(programs_router) alongside activities_router/health_router/ingest_router \u2014 unconditional (unlike dev_bypass_router's fail-closed allow-list gate; programs-api has no such gate).",
+      "status": "done",
+      "completed_at": "2026-08-31T12:46:00Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Unit tests: cio-sees-all, non-cio scoping, empty-list (TC-01/02/05)",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-1",
+        "AUTH-04-AC-2",
+        "AUTH-04-AC-4"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Scaffold test_programs.py using migrated_db/test_session (tests/conftest.py) to seed program_summary rows, plus build_app/async_client_for + build_access_token to issue bearer tokens with a stub persona resolver installed via app.state.persona_resolver override. TC-01 (cio sees all 5, groups=[]), TC-02 (non-cio scoped to 2 of 5), TC-05 (non-cio, programs=[], expect 200 + empty list).",
+      "status": "done",
+      "completed_at": "2026-08-31T12:56:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Unit/security tests: 401 fail-fast, no per-program 403, client-filter ignored (TC-03/04/09/18)",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-3",
+        "AUTH-04-AC-6",
+        "AUTH-04-NFR-security"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "TC-03 (no Authorization header), TC-04 (malformed bearer token) \u2014 call-recording spies on persona_resolver.resolve and the program_summary query prove neither is reached before the 401. TC-09 (cio and non-cio scenarios both return single 200, no per-item 403). TC-18 (?programs=... query string ignored; scoping stays session.programs-derived).",
+      "status": "done",
+      "completed_at": "2026-08-31T13:02:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Contract tests: exact key set, href, dotStyle + FR-2 call-count (TC-06/07/08/11)",
+      "complexity": "M",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-AC-5",
+        "AUTH-04-FR-2"
+      ],
+      "risk_refs": [
+        "R-05",
+        "R-03"
+      ],
+      "notes": "TC-06: entry key set == {program_id, label, href, dotStyle} exactly (set equality, not subset) \u2014 'type'/'name'/'icon'/'description' absent. TC-07: href == '/api/overview/program-detail/{program_id}'. TC-08: dotStyle non-empty, bindable-CSS shape. TC-11: program_visibility call-recording spy count == 1 for a request scoped to 5 programs (never 5).",
+      "status": "done",
+      "completed_at": "2026-08-31T13:08:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Security test: programs_list_returned payload key-set equality (TC-10)",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-FR-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Mirrors AUTH-02 TC-15 / AUTH-03 TC-20 pattern: log-capture handler on the programs router logger, CurrentUser fixture with email+groups populated to prove exclusion, assert JSONFormatter payload key set == {timestamp, level, logger, message, user_id, persona, returned_count} exactly \u2014 no email, no groups, no request path.",
+      "status": "done",
+      "completed_at": "2026-08-31T13:14:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Security tests: fail-closed persona-resolution errors (TC-12/13/14)",
+      "complexity": "M",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "TC-12 (PersonaNotFoundError), TC-13 (PersonaResolutionError), TC-14 (mocked Tier-3-timeout PersonaResolutionError with a wall-clock bound proving no unbounded wait) \u2014 each asserts 403 + 'Access denied' + exactly one WARNING log record, never a 500.",
+      "status": "done",
+      "completed_at": "2026-08-31T13:20:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Unit tests: defensive missing-program filtering + discrepancy WARN (TC-15/16)",
+      "complexity": "M",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-04-FR-4"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "TC-15: current_user.programs contains a program_id absent from program_summary \u2014 response is 200, that id silently absent, returned_count reflects only real rows. TC-16: a separate WARN-level event (distinct name from programs_list_returned) fires exactly once for that same discrepancy, alongside (not replacing) the programs_list_returned record.",
+      "status": "done",
+      "completed_at": "2026-08-31T13:26:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Performance baseline test: 100 seeded / 50 scoped, p95 < 300ms (TC-17, condition C-4)",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "AUTH-04-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "Reuses the existing tests/perf/ runner (plain time.perf_counter(), no dedicated benchmark tool \u2014 precedent: test_rbac_perf.py, test_persona_resolver_perf.py); no new runner setup needed. Uses migrated_db/test_session to seed 100 program_summary rows; a stub persona resolver resolves immediately (no simulated I/O) while the program_summary query itself is real, not mocked, per TC-17's own preconditions. 50 iterations, compute p95, assert < 300ms, capture and report the measured baseline value.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:58:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_programs_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "docs(readme): add GET /api/programs to root README API table",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Root README.md (not services/api/README.md \u2014 the root table already documents /auth/* from AUTH-01 and is this repo's established primary API doc location). Add one row: GET /api/programs, request none, response 200 {programs: [{program_id, label, href, dotStyle}]} scoped to cio-sees-all / non-cio session.programs; note program_visibility is a veto gate, not the scoping mechanism.",
+      "status": "done",
+      "completed_at": "2026-08-31T12:50:00Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

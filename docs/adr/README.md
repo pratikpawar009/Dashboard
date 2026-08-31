@@ -6,3 +6,4 @@
 | [ADR-0002](0002-system-architecture.md) | System architecture | Accepted |
 | [ADR-0003](0003-json-columns-jsonb.md) | JSON-typed schema columns use PostgreSQL JSONB | Accepted |
 | [ADR-0004](0004-keycloak-oidc-authlib.md) | Keycloak OIDC via Authlib | Accepted |
+| [ADR-0005](0005-programs-api-switcher-shape.md) | `programs-api` returns the switcher list shape | Accepted |

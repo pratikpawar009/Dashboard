@@ -51,9 +51,24 @@ single "correct" answer to most of it, only a consistent one every one of the
   value this function should coerce or mask.
 """
 
+import hashlib
+
 # (threshold, suffix) pairs, largest bucket first — the order promotion
 # walks toward when a smaller bucket's rounded quotient overflows it.
 _MAGNITUDE_BUCKETS: list[tuple[int, str]] = [(1_000_000, "M"), (1_000, "K")]
+
+# Deterministic per-program dot palette (AUTH-04-AC-5, D-01) — the five
+# distinguishable, non-tint hues already defined in docs/design/tokens.md §
+# Color (brand / success / accent-purple / accent-terracotta / ink). The two
+# pale tints (#eef3fb, #eaf6ef) are excluded: too low-contrast for a small
+# indicator dot. No new hex values are invented here.
+_DOT_PALETTE: tuple[str, ...] = (
+    "#2a6fdb",  # Primary / brand
+    "#1f8a5b",  # Success
+    "#6a4fd0",  # Accent — purple
+    "#d97757",  # Accent — terracotta
+    "#0f1a2e",  # Ink
+)
 
 
 def format_number(value: int | float) -> str:
@@ -112,3 +127,27 @@ def format_duration(minutes: int) -> str:
     if hours > 0:
         return f"{hours}h"
     return f"{remaining_minutes}m"
+
+
+def dot_style_for_program(program_id: str) -> str:
+    """Deterministic per-program dot colour (AUTH-04-AC-5, D-01).
+
+    >>> dot_style_for_program("prog-1")
+    'background-color: #0f1a2e;'
+    >>> dot_style_for_program("prog-1") == dot_style_for_program("prog-1")
+    True
+    >>> dot_style_for_program("apex-core")
+    'background-color: #1f8a5b;'
+
+    Hashes `program_id` into a fixed index in `_DOT_PALETTE` via a stable
+    digest (`hashlib.sha256`, never Python's built-in `hash()` — that one is
+    salted per process by `PYTHONHASHSEED` and would pick a different colour
+    on every restart). Pure function: no I/O, no cache, no TTL. Same
+    `program_id` always yields the same colour across requests, workers, and
+    process restarts, per D-01.
+
+    Returns a ready-to-bind CSS declaration, not a bare hex value.
+    """
+    digest = hashlib.sha256(program_id.encode("utf-8")).digest()
+    color = _DOT_PALETTE[digest[0] % len(_DOT_PALETTE)]
+    return f"background-color: {color};"

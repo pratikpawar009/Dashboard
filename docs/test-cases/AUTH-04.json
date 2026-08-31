@@ -1,0 +1,1212 @@
+{
+  "story_id": "AUTH-04",
+  "test_cases": [
+    {
+      "id": "AUTH-04-TC-01",
+      "requirement_id": "AUTH-04-AC-1",
+      "title": "cio persona receives every program_summary row regardless of session.groups",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a signed-in session whose persona resolves to cio",
+      "when": "GET /api/programs is called",
+      "then": "the response includes every program in program_summary, regardless of the session's groups claims",
+      "objective": "Verify a cio persona's response includes the full program_summary table content, unfiltered by groups claims.",
+      "preconditions": [
+        "program_summary seeded with 5 rows: program_id in [prog-1, prog-2, prog-3, prog-4, prog-5]",
+        "Stub persona resolver installed mapping role 'cio' -> persona 'cio'",
+        "Bearer token issued for a CurrentUser with groups=[] (no program-* claims at all)"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ],
+        "role": "cio",
+        "groups": []
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Install stub persona resolver: role 'cio' -> persona 'cio'",
+        "Issue a valid bearer token for CurrentUser(role='cio', groups=[])",
+        "Call GET /api/programs with the bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Returned programs list contains exactly prog-1..prog-5, in any order",
+        "returned_count equals 5 -- the full table size -- confirming groups was never consulted for cio"
+      ],
+      "tags": [
+        "cio",
+        "scoping",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#133",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 60,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_cio_persona_sees_all_programs_regardless_of_groups_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-02",
+      "requirement_id": "AUTH-04-AC-2",
+      "title": "non-cio persona sees only programs whose slug is in session.programs",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a signed-in session whose persona is not cio and session.programs = ['prog-2','prog-4']",
+      "when": "GET /api/programs is called",
+      "then": "the response includes only prog-2 and prog-4",
+      "objective": "Verify the WHERE program_id IN current_user.programs scoping clause for a non-cio persona.",
+      "preconditions": [
+        "program_summary seeded with prog-1..prog-5",
+        "Stub persona resolver installed mapping role 'developer' -> persona 'developer'",
+        "Bearer token issued for CurrentUser(programs=['prog-2','prog-4'], groups=['program-2','program-4'])"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ],
+        "role": "developer",
+        "session_programs": [
+          "prog-2",
+          "prog-4"
+        ]
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Install stub persona resolver: role 'developer' -> persona 'developer'",
+        "Issue a bearer token for CurrentUser scoped to programs=['prog-2','prog-4']",
+        "Call GET /api/programs with the bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Returned programs list equals exactly {prog-2, prog-4}",
+        "prog-1, prog-3, prog-5 are absent from the response",
+        "returned_count equals 2"
+      ],
+      "tags": [
+        "non-cio",
+        "scoping",
+        "happy-path"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#134",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_non_cio_persona_scoped_to_two_of_five_sees_exactly_those_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-03",
+      "requirement_id": "AUTH-04-AC-3",
+      "title": "missing bearer token is rejected with 401 before any scoping logic runs",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a request to GET /api/programs carries no Authorization header",
+      "when": "GET /api/programs is called",
+      "then": "the shared auth dependency rejects it with 401 before persona-scoping logic runs",
+      "objective": "Verify AUTH-01's shared auth dependency rejects a token-less request with 401, and that no persona resolution or DB query occurs first.",
+      "preconditions": [
+        "program_summary seeded with at least 1 row",
+        "persona_resolver.resolve and the program_summary query are each wrapped in a call-recording spy"
+      ],
+      "test_data": {},
+      "steps": [
+        "Wrap persona_resolver.resolve and the program_summary query with call-recording spies",
+        "Call GET /api/programs with no Authorization header"
+      ],
+      "expected_results": [
+        "Response status is 401",
+        "persona_resolver.resolve was never called",
+        "No program_summary query was executed"
+      ],
+      "tags": [
+        "authn",
+        "401",
+        "fail-closed"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#135",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_missing_bearer_token_returns_401_before_scoping_tc03",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-04",
+      "requirement_id": "AUTH-04-AC-3",
+      "title": "a token that fails JWT/JWKS validation is rejected with 401 before any scoping logic runs",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a request carries a bearer token that fails JWT/JWKS validation (malformed, expired, or wrong signature)",
+      "when": "GET /api/programs is called",
+      "then": "the request is rejected with 401 before persona-scoping logic runs",
+      "objective": "Verify an invalid bearer token is rejected at the auth-dependency layer, never reaching persona resolution or the DB.",
+      "preconditions": [
+        "program_summary seeded with at least 1 row",
+        "persona_resolver.resolve and the program_summary query are each wrapped in a call-recording spy"
+      ],
+      "test_data": {
+        "bearer_token": "not-a-real-jwt.invalid.signature"
+      },
+      "steps": [
+        "Wrap persona_resolver.resolve and the program_summary query with call-recording spies",
+        "Call GET /api/programs with Authorization: Bearer not-a-real-jwt.invalid.signature"
+      ],
+      "expected_results": [
+        "Response status is 401",
+        "persona_resolver.resolve was never called",
+        "No program_summary query was executed"
+      ],
+      "tags": [
+        "authn",
+        "401",
+        "jwt-validation",
+        "fail-closed"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#136",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_malformed_bearer_token_returns_401_before_scoping_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-05",
+      "requirement_id": "AUTH-04-AC-4",
+      "title": "non-cio session with zero matching programs returns 200 with an empty list",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a non-cio session whose groups claims match zero seeded programs",
+      "when": "GET /api/programs is called",
+      "then": "the response is 200 with an empty programs list, not an error",
+      "objective": "Verify a zero-match non-cio session is treated as a valid empty result, not a 403/404.",
+      "preconditions": [
+        "program_summary seeded with prog-1..prog-5",
+        "Stub persona resolver installed mapping role 'developer' -> persona 'developer'",
+        "Bearer token issued for CurrentUser(programs=[], groups=[])"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ],
+        "role": "developer",
+        "session_programs": []
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Install stub persona resolver: role 'developer' -> persona 'developer'",
+        "Issue a bearer token for CurrentUser scoped to programs=[]",
+        "Call GET /api/programs with the bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200 (not 403 or 404)",
+        "programs list equals []",
+        "returned_count equals 0"
+      ],
+      "tags": [
+        "non-cio",
+        "empty-list",
+        "boundary"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#137",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_non_cio_with_empty_programs_returns_200_and_empty_list_tc05",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-06",
+      "requirement_id": "AUTH-04-AC-5",
+      "title": "a program entry's key set equals exactly {program_id, label, href, dotStyle} -- type and description are absent",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a successful GET /api/programs response for any persona",
+      "when": "a program entry is inspected",
+      "then": "the entry's key set equals exactly {program_id, label, href, dotStyle}; type and description are absent, superseding the story's stale AC-5 field set per ADR-0005",
+      "objective": "Verify ADR-0005's response shape by key-set equality (not subset containment) -- type/description must not be present.",
+      "preconditions": [
+        "program_summary seeded with 1 row: program_id='prog-1', name='Alpha'",
+        "Bearer token issued for a cio CurrentUser"
+      ],
+      "test_data": {
+        "seeded_program": {
+          "program_id": "prog-1",
+          "name": "Alpha"
+        }
+      },
+      "steps": [
+        "Seed program_summary with prog-1 (name='Alpha')",
+        "Call GET /api/programs as the cio CurrentUser",
+        "Enumerate the key set of the first entry in the programs list"
+      ],
+      "expected_results": [
+        "The entry's key set equals exactly {program_id, label, href, dotStyle} (set equality, not subset)",
+        "'type' is not a key on the entry",
+        "'description' is not a key on the entry",
+        "'name', 'icon' (AC-5's stale field names) are not keys on the entry"
+      ],
+      "tags": [
+        "ADR-0005",
+        "contract",
+        "response-shape",
+        "C-0"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#138",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_program_entry_key_set_matches_adr_0005_exactly_tc06",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-07",
+      "requirement_id": "AUTH-04-AC-5",
+      "title": "href routes to program-detail-api's path for the entry's program_id",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a program entry for program_id='prog-1'",
+      "when": "href is inspected",
+      "then": "href is a server-derived link to program-detail-api's route for that program_id",
+      "objective": "Verify href = GET /api/overview/program-detail/{program_id}, derived server-side per ADR-0005, not client-constructed.",
+      "preconditions": [
+        "program_summary seeded with 1 row: program_id='prog-1'",
+        "Bearer token issued for a cio CurrentUser"
+      ],
+      "test_data": {
+        "program_id": "prog-1"
+      },
+      "steps": [
+        "Seed program_summary with prog-1",
+        "Call GET /api/programs as the cio CurrentUser",
+        "Extract the href field of the prog-1 entry"
+      ],
+      "expected_results": [
+        "href equals '/api/overview/program-detail/prog-1' -- the exact server-derived program-detail-api path",
+        "href contains the program_id verbatim"
+      ],
+      "tags": [
+        "ADR-0005",
+        "href",
+        "routing"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#139",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_href_routes_to_program_detail_api_path_tc07",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-08",
+      "requirement_id": "AUTH-04-AC-5",
+      "title": "dotStyle arrives pre-formatted CSS, not a raw palette key needing client transformation",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a program entry with a server-assigned dot color",
+      "when": "dotStyle is inspected",
+      "then": "dotStyle is a usable, pre-formatted CSS value, per the design README's 'values arrive pre-formatted' decision",
+      "objective": "Verify dotStyle needs no further client-side lookup or mapping before binding -- exact source (program_summary column vs. server-side palette assignment) is an implementation choice per ADR-0005 \u00a7 Flagged gaps; this TC asserts the observable pre-formatted contract, not a specific literal.",
+      "preconditions": [
+        "program_summary seeded with 1 row: program_id='prog-1'",
+        "Bearer token issued for a cio CurrentUser"
+      ],
+      "test_data": {
+        "program_id": "prog-1"
+      },
+      "steps": [
+        "Seed program_summary with prog-1",
+        "Call GET /api/programs as the cio CurrentUser",
+        "Extract dotStyle from the prog-1 entry"
+      ],
+      "expected_results": [
+        "dotStyle is present and is a non-empty string",
+        "dotStyle is directly bindable as CSS (e.g. a valid color/style value), requiring no further client-side enum-to-CSS mapping",
+        "dotStyle is not the bare icon-name enum that AC-5's superseded 'icon' field would have carried"
+      ],
+      "tags": [
+        "ADR-0005",
+        "dotStyle",
+        "pre-formatted"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#140",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_dot_style_is_pre_formatted_bindable_css_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-09",
+      "requirement_id": "AUTH-04-AC-6",
+      "title": "no per-program 403 is issued -- program_visibility is an open-aggregate gate, not a per-row filter",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "an authenticated session (cio and non-cio) scoped to multiple programs",
+      "when": "GET /api/programs is called",
+      "then": "no per-program 403 is issued for any program the session is scoped to see -- the whole response is a single 200",
+      "objective": "Verify AC-6: scoping is inclusion-based (filter), never a per-program authorization gate that could reject individual rows.",
+      "preconditions": [
+        "program_summary seeded with prog-1..prog-5",
+        "Scenario A: Stub persona resolver mapping role 'cio' -> persona 'cio'",
+        "Scenario B: Stub persona resolver mapping role 'developer' -> persona 'developer', CurrentUser.programs=['prog-1','prog-3']"
+      ],
+      "test_data": {
+        "scenario_a": {
+          "role": "cio"
+        },
+        "scenario_b": {
+          "role": "developer",
+          "session_programs": [
+            "prog-1",
+            "prog-3"
+          ]
+        }
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Scenario A: call GET /api/programs as the cio CurrentUser; capture the single HTTP response",
+        "Scenario B: call GET /api/programs as the developer CurrentUser scoped to ['prog-1','prog-3']; capture the single HTTP response"
+      ],
+      "expected_results": [
+        "Both scenarios return exactly one HTTP status per request: 200",
+        "Neither response body contains a per-item error/403 marker for any entry",
+        "Scenario B's response contains both prog-1 and prog-3 in the same 200 response"
+      ],
+      "tags": [
+        "AC-6",
+        "open-aggregate",
+        "program_visibility"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#141",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_no_per_program_403_open_aggregate_gate_tc09",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-10",
+      "requirement_id": "AUTH-04-FR-1",
+      "title": "programs_list_returned payload key set equals exactly {user_id, persona, returned_count, timestamp}",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "GET /api/programs has completed successfully",
+      "when": "the emitted programs_list_returned log payload is inspected",
+      "then": "its key set equals exactly {user_id, persona, returned_count, timestamp} -- no email, groups, or request path",
+      "objective": "Verify FR-1's payload allowlist via key-set equality, not subset containment (research condition C-1; mirrors AUTH-02 TC-15 / AUTH-03 TC-20 pattern).",
+      "preconditions": [
+        "CurrentUser fixture with email and groups populated on the token, to prove they are excluded from the log payload",
+        "program_summary seeded with 1 matching program",
+        "Log capture attached to the programs router logger"
+      ],
+      "test_data": {
+        "user_id": "u-900",
+        "role": "developer",
+        "email": "dev@example.com",
+        "groups": [
+          "program-alpha"
+        ]
+      },
+      "steps": [
+        "Seed program_summary with 1 program matching the session",
+        "Call GET /api/programs with the CurrentUser fixture",
+        "Format the captured log record with JSONFormatter",
+        "Enumerate the payload's keys"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {timestamp, level, logger, message, user_id, persona, returned_count} -- JSONFormatter meta plus the four allowlisted fields",
+        "Payload contains no 'email' key",
+        "Payload contains no 'groups' key",
+        "Payload contains no request-path key"
+      ],
+      "tags": [
+        "FR-1",
+        "C-1",
+        "pii-audit",
+        "logging"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#142",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_programs_list_returned_log_payload_allowlist_tc10",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-11",
+      "requirement_id": "AUTH-04-FR-2",
+      "title": "program_visibility is called at most once as a session check, never once per returned program",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a GET /api/programs call for a non-cio persona scoped to 5 seeded programs",
+      "when": "the request completes",
+      "then": "program_visibility is invoked at most once, never once per program row",
+      "objective": "Verify FR-2: program_visibility is a single veto-gate call, not a per-program authorization check.",
+      "preconditions": [
+        "program_summary seeded with prog-1..prog-5, all matching CurrentUser.programs",
+        "program_visibility wrapped in a call-recording spy that still executes normally"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ],
+        "session_programs": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ]
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Wrap program_visibility with a call-recording spy",
+        "Call GET /api/programs with CurrentUser scoped to all 5 programs",
+        "Inspect the spy's call count"
+      ],
+      "expected_results": [
+        "program_visibility spy call count equals 1 (not 5)",
+        "Response is still 200 with all 5 programs returned"
+      ],
+      "tags": [
+        "FR-2",
+        "veto-gate",
+        "call-count",
+        "C-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#143",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_program_visibility_called_once_not_once_per_program_tc11",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-12",
+      "requirement_id": "AUTH-04-FR-3",
+      "title": "PersonaNotFoundError fails closed with 403 'Access denied' and a WARN log, never a 500",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "persona_resolver.resolve raises PersonaNotFoundError for the session's role",
+      "when": "GET /api/programs is called",
+      "then": "the response is 403 with detail 'Access denied' and a WARN log is emitted, never a 500",
+      "objective": "Verify FR-3's fail-closed handling of PersonaNotFoundError, consistent with AUTH-03's posture.",
+      "preconditions": [
+        "Stub persona resolver configured to raise PersonaNotFoundError on resolve()",
+        "Log capture attached at WARNING level"
+      ],
+      "test_data": {
+        "role": "unmapped-role"
+      },
+      "steps": [
+        "Install a stub persona resolver whose resolve() raises PersonaNotFoundError",
+        "Call GET /api/programs",
+        "Capture the response and the emitted log record"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body detail equals 'Access denied'",
+        "Exactly one WARNING-level log record is emitted",
+        "No 500 is ever raised"
+      ],
+      "tags": [
+        "FR-3",
+        "fail-closed",
+        "persona-not-found",
+        "C-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#144",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_persona_not_found_error_fails_closed_403_tc12",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-13",
+      "requirement_id": "AUTH-04-FR-3",
+      "title": "PersonaResolutionError fails closed with 403 'Access denied' and a WARN log, never a 500",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "persona_resolver.resolve raises PersonaResolutionError for the session's role",
+      "when": "GET /api/programs is called",
+      "then": "the response is 403 with detail 'Access denied' and a WARN log is emitted, never a 500",
+      "objective": "Verify FR-3's fail-closed handling of PersonaResolutionError, consistent with AUTH-03's posture.",
+      "preconditions": [
+        "Stub persona resolver configured to raise PersonaResolutionError on resolve()",
+        "Log capture attached at WARNING level"
+      ],
+      "test_data": {
+        "role": "cio"
+      },
+      "steps": [
+        "Install a stub persona resolver whose resolve() raises PersonaResolutionError",
+        "Call GET /api/programs",
+        "Capture the response and the emitted log record"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body detail equals 'Access denied'",
+        "Exactly one WARNING-level log record is emitted",
+        "No 500 is ever raised"
+      ],
+      "tags": [
+        "FR-3",
+        "fail-closed",
+        "persona-resolution-error",
+        "C-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#145",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_persona_resolution_error_fails_closed_403_tc13",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-14",
+      "requirement_id": "AUTH-04-FR-3",
+      "title": "a mocked persona_resolver timeout fails closed with 403, never hangs and never 500s",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "persona_resolver.resolve is mocked to raise PersonaResolutionError simulating a Tier-3 Postgres timeout",
+      "when": "GET /api/programs is called",
+      "then": "the response is 403 with detail 'Access denied', returned promptly with no unbounded wait, and a WARN log is emitted",
+      "objective": "Verify the specific mocked persona_resolver timeout scenario named in research condition C-3 fails closed rather than hanging or returning a 500.",
+      "preconditions": [
+        "persona_resolver.resolve mocked to raise PersonaResolutionError, simulating a Tier-3 timeout per AUTH-02's resolver contract",
+        "Log capture attached at WARNING level",
+        "Wall-clock timer wraps the call to assert bounded latency"
+      ],
+      "test_data": {
+        "role": "cio",
+        "simulated_failure": "PersonaResolutionError (Tier-3 timeout)"
+      },
+      "steps": [
+        "Mock persona_resolver.resolve to raise PersonaResolutionError immediately, simulating a Tier-3 timeout",
+        "Start a wall-clock timer, call GET /api/programs, stop the timer",
+        "Capture the response and the emitted log record"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body detail equals 'Access denied'",
+        "Call returns promptly -- no unbounded wait observed",
+        "Exactly one WARNING-level log record is emitted",
+        "No 500 is ever raised"
+      ],
+      "tags": [
+        "FR-3",
+        "C-3",
+        "timeout",
+        "fail-closed"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#146",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_mocked_tier3_timeout_fails_closed_within_wall_clock_bound_tc14",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-15",
+      "requirement_id": "AUTH-04-FR-4",
+      "title": "a session program_id absent from program_summary is silently filtered out, never raised",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "CurrentUser.programs contains a program_id absent from program_summary",
+      "when": "GET /api/programs is called",
+      "then": "the missing program_id is silently excluded from the response, never raised as an error",
+      "objective": "Verify FR-4's defensive WHERE-clause filtering of a data discrepancy between session.programs and program_summary.",
+      "preconditions": [
+        "program_summary seeded with prog-1 and prog-2 only",
+        "Bearer token issued for CurrentUser(programs=['prog-1','prog-2','prog-99']) -- prog-99 not in the table"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2"
+        ],
+        "session_programs": [
+          "prog-1",
+          "prog-2",
+          "prog-99"
+        ]
+      },
+      "steps": [
+        "Seed program_summary with prog-1 and prog-2 only",
+        "Issue a bearer token for CurrentUser scoped to programs=['prog-1','prog-2','prog-99']",
+        "Call GET /api/programs with the bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200 (no exception raised)",
+        "Returned programs list equals exactly {prog-1, prog-2}",
+        "prog-99 is silently absent from the response",
+        "returned_count equals 2"
+      ],
+      "tags": [
+        "FR-4",
+        "C-5",
+        "defensive-filtering",
+        "data-discrepancy"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#147",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_missing_program_silently_filtered_from_response_tc15",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-16",
+      "requirement_id": "AUTH-04-FR-4",
+      "title": "a WARN discrepancy event, distinct from programs_list_returned, is logged when returned_count < len(current_user.programs)",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the same session-vs-table discrepancy as TC-15 (returned_count < len(current_user.programs))",
+      "when": "GET /api/programs completes",
+      "then": "a WARN event distinct from programs_list_returned is logged, signalling the discrepancy for ops investigation",
+      "objective": "Verify FR-4's discrepancy WARN log fires as a separately named event, alongside (not replacing) programs_list_returned.",
+      "preconditions": [
+        "program_summary seeded with prog-1 and prog-2 only",
+        "Bearer token issued for CurrentUser(programs=['prog-1','prog-2','prog-99'])",
+        "Log capture attached to the programs router logger, capturing all event names"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2"
+        ],
+        "session_programs": [
+          "prog-1",
+          "prog-2",
+          "prog-99"
+        ]
+      },
+      "steps": [
+        "Seed program_summary with prog-1 and prog-2 only",
+        "Issue a bearer token for CurrentUser scoped to programs=['prog-1','prog-2','prog-99']",
+        "Call GET /api/programs with the bearer token",
+        "Inspect all captured log records for this call"
+      ],
+      "expected_results": [
+        "Exactly one WARN-level discrepancy log record is emitted, with an event name distinct from 'programs_list_returned'",
+        "A 'programs_list_returned' record is also emitted separately, with returned_count equal to 2"
+      ],
+      "tags": [
+        "FR-4",
+        "C-5",
+        "observability",
+        "discrepancy-log"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#149",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_discrepancy_warn_logged_alongside_programs_list_returned_tc16",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-17",
+      "requirement_id": "AUTH-04-NFR-performance",
+      "title": "end-to-end latency (persona resolution + DB query + serialization) is p95 < 300ms at a 100-program / 50-scoped baseline",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "given": "program_summary seeded with ~100 programs (2x org size) and a non-cio persona scoped to 50 of them",
+      "when": "GET /api/programs latency is measured end-to-end across repeated calls",
+      "then": "p95 latency is under 300ms",
+      "objective": "Verify the C-4 performance baseline: persona resolution + DB query + serialization stay within budget at 2x org scale.",
+      "preconditions": [
+        "program_summary seeded with 100 programs",
+        "CurrentUser.programs set to 50 of the 100 seeded program_ids",
+        "Stub persona resolver resolves immediately (no simulated I/O); the DB query itself is real, not mocked"
+      ],
+      "test_data": {
+        "seeded_program_count": 100,
+        "scoped_program_count": 50,
+        "iterations": 50,
+        "p95_threshold_ms": 300.0
+      },
+      "steps": [
+        "Seed program_summary with 100 programs",
+        "Build a CurrentUser scoped to 50 of the seeded program_ids",
+        "Call GET /api/programs 50 times, measuring wall-clock time.perf_counter() per call (persona resolution + DB query + serialization)",
+        "Compute p95 latency across the 50 measured calls"
+      ],
+      "expected_results": [
+        "p95 latency is under 300ms",
+        "The measured baseline value is captured for future optimization stories"
+      ],
+      "tags": [
+        "performance",
+        "C-4",
+        "nfr",
+        "baseline"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#150",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 360,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 360,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 300ms @ 100 seeded / 50 scoped programs",
+          "measured": "p95 = 6.78ms across 50 calls (min=3.64ms, max=31.25ms)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_programs_perf.py::test_programs_list_p95_under_300ms_at_100_program_baseline_tc17",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-04-TC-18",
+      "requirement_id": "AUTH-04-NFR-security",
+      "title": "a client-supplied program filter parameter never widens scope beyond session.programs",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a request attempts to pass a client-supplied program-filter query parameter to widen scope beyond session.programs",
+      "when": "GET /api/programs is called with that parameter present",
+      "then": "the extra parameter is ignored; scoping remains derived solely from session.programs server-side",
+      "objective": "Verify per A-005/security-baseline that scoping is never taken from a client-supplied filter as a trust boundary.",
+      "preconditions": [
+        "program_summary seeded with prog-1..prog-5",
+        "Bearer token issued for CurrentUser(programs=['prog-1']) only"
+      ],
+      "test_data": {
+        "seeded_program_ids": [
+          "prog-1",
+          "prog-2",
+          "prog-3",
+          "prog-4",
+          "prog-5"
+        ],
+        "session_programs": [
+          "prog-1"
+        ],
+        "attempted_query_string": "?programs=prog-1,prog-2,prog-3,prog-4,prog-5"
+      },
+      "steps": [
+        "Seed program_summary with prog-1..prog-5",
+        "Issue a bearer token for CurrentUser scoped to programs=['prog-1'] only",
+        "Call GET /api/programs?programs=prog-1,prog-2,prog-3,prog-4,prog-5 with the bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Returned programs list equals exactly {prog-1} only",
+        "prog-2..prog-5 are absent from the response despite the client's query-parameter attempt"
+      ],
+      "tags": [
+        "security",
+        "A-005",
+        "client-supplied-filter",
+        "scope-integrity"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#151",
+      "last_run": {
+        "started_at": "2026-08-31T12:28:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_programs.py::test_client_supplied_programs_query_param_ignored_tc18",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-04-AC-1",
+        "covered_by": [
+          "AUTH-04-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-04-AC-2",
+        "covered_by": [
+          "AUTH-04-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-04-AC-3",
+        "covered_by": [
+          "AUTH-04-TC-03",
+          "AUTH-04-TC-04"
+        ]
+      },
+      {
+        "id": "AUTH-04-AC-4",
+        "covered_by": [
+          "AUTH-04-TC-05"
+        ]
+      },
+      {
+        "id": "AUTH-04-AC-5",
+        "covered_by": [
+          "AUTH-04-TC-06",
+          "AUTH-04-TC-07",
+          "AUTH-04-TC-08"
+        ]
+      },
+      {
+        "id": "AUTH-04-AC-6",
+        "covered_by": [
+          "AUTH-04-TC-09"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-04-FR-1",
+        "covered_by": [
+          "AUTH-04-TC-10"
+        ]
+      },
+      {
+        "id": "AUTH-04-FR-2",
+        "covered_by": [
+          "AUTH-04-TC-11"
+        ]
+      },
+      {
+        "id": "AUTH-04-FR-3",
+        "covered_by": [
+          "AUTH-04-TC-12",
+          "AUTH-04-TC-13",
+          "AUTH-04-TC-14"
+        ]
+      },
+      {
+        "id": "AUTH-04-FR-4",
+        "covered_by": [
+          "AUTH-04-TC-15",
+          "AUTH-04-TC-16"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-04-NFR-performance",
+        "covered_by": [
+          "AUTH-04-TC-17"
+        ]
+      },
+      {
+        "id": "AUTH-04-NFR-security",
+        "covered_by": [
+          "AUTH-04-TC-18",
+          "AUTH-04-TC-03",
+          "AUTH-04-TC-04",
+          "AUTH-04-TC-10",
+          "AUTH-04-TC-12",
+          "AUTH-04-TC-13",
+          "AUTH-04-TC-14"
+        ]
+      },
+      {
+        "id": "AUTH-04-NFR-observability",
+        "covered_by": [
+          "AUTH-04-TC-10",
+          "AUTH-04-TC-16"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

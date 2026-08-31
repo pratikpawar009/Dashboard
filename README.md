@@ -25,7 +25,7 @@ Commands: `docs/config/project-commands.yaml`. Stack idioms: `.claude/skills/<fr
 
 ## API
 
-FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table is a quick orientation for the `/auth/*` surface added by AUTH-01.
+FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table is a quick orientation for the `/auth/*` surface added by AUTH-01, plus `/api/programs` (AUTH-04).
 
 | Method | Path | Request | Response |
 |---|---|---|---|
@@ -33,6 +33,7 @@ FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table
 | GET | `/auth/callback` | query: `state` (required — must be one `/auth/login` issued), plus either `code` or the IdP's `error` | 200 `{access_token, refresh_token, expires_in}`; 501 if OIDC config is incomplete; 400 `invalid_state` if `state` is absent, unknown, already used, or expired; 400 `missing_code` if neither `code` nor `error` is present; 401 on a failed code exchange or any IdP-reported `error` |
 | POST | `/auth/refresh` | body: `{refresh_token}` | 200 `{access_token, refresh_token, expires_in}`; 401 on any IdP-reported failure; 501 if OIDC config is incomplete |
 | POST | `/auth/dev-bypass` | body: `{role?, email?, programs?}` (all optional) | 200 `{access_token, refresh_token, expires_in}` |
+| GET | `/api/programs` | none (bearer token via the standard auth dependency) | 200 `{programs: [{program_id, label, href, dotStyle}]}` (ADR-0005 shape) — `cio` sees every program, every other persona is scoped to `session.programs`; 403 `Access denied` if persona resolution fails (fail-closed); 401 if the bearer token is missing or invalid. A `200` is not proof of program membership: `program_visibility` is an open-aggregate veto gate that passes for any authenticated session — the `WHERE program_id IN current_user.programs` clause does the actual scoping — so consumers must read `session.programs` directly rather than infer membership from a successful response |
 
 `/auth/dev-bypass` only exists — is registered at all — when `ENVIRONMENT` resolves to one of `local`, `development`, `dev`, `test`, `ci`; every other value, including `production`, `prod`, `staging`, and any typo, gets a `404` because the route was never registered. This is fail-closed by allow-list, not a "disabled in production" deny-check — nothing named `production` needs to be checked for it to be unreachable. In an allow-listed environment a dev-bypass token is fully usable against protected routes (it's signed by an ephemeral, process-local key that the JWKS cache resolves only there) — that's the point of the feature — but it is never usable outside one, by design.
 

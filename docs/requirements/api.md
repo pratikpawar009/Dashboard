@@ -47,6 +47,10 @@ consumed_by: [PGD-01, EMD-01]
 shape:
   endpoint: "GET /api/programs"
   scoping: "cio sees all programs; every other persona sees only programs matching session.groups program list"
+  fields: { program_id, label, href, dotStyle }
+  authority: "ADR-0005 — the switcher-list bindings of PGD-01 progOptions / EMD-01 projOptions"
+  excluded: "type, description — bound by program-detail-api header and persona-shell program_context, not by this list"
+  client_derived: "current, rowStyle — route-dependent, computed by comparing href against the current route"
 ```
 
 ### persona-shell
