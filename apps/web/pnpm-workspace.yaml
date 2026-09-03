@@ -1,0 +1,17 @@
+# pnpm >=11 requires an explicit trust decision for any dependency that runs an
+# install script, and fails every command with ERR_PNPM_IGNORED_BUILDS until one
+# is recorded here.
+#
+# unrs-resolver — approved (true).
+#   Transitive dep: eslint-config-next -> eslint-plugin-import-x -> unrs-resolver.
+#   It is the Rust module resolver (oxc-resolver family) that eslint's import
+#   resolution uses. Its install script is `napi-postinstall`, the standard
+#   napi-rs helper that links the correct platform-native binary — here
+#   @unrs/resolver-binding-darwin-arm64, already pinned and integrity-hashed as
+#   an optionalDependency in pnpm-lock.yaml. It compiles nothing and fetches
+#   nothing beyond the locked packages.
+#
+# Denying it instead would clear the gate but risks eslint failing to resolve
+# imports when the native binding is left unlinked.
+allowBuilds:
+  unrs-resolver: true
