@@ -134,4 +134,58 @@ describe("PersonaDashboardShell (SHP-01-TC-02)", () => {
       container.getElementsByClassName(shellStyles.jobTitle),
     ).toHaveLength(0);
   });
+
+  // Regression for REVIEW.md F-2 (regression-SHP-01-TC-02): the identity
+  // avatar's neutral fallback used to hardcode `#5b6472`/`#e4e7ec` inline in
+  // this component, duplicating PersonaHeader.module.css `.pillNeutral`. D-02
+  // guarantees the persona tag and the identity avatar can never disagree on a
+  // colour; with two independent literals that guarantee held only because the
+  // values happened to match. These two cases lock the structural version: the
+  // avatar carries NO inline colour on the unresolved path (it takes the shared
+  // `--neutral-unresolved-*` token via `.avatarUnknownPersona`), and carries
+  // ONLY a persona-derived `background` on the resolved path.
+  it("regression-SHP-01-TC-02: unknown persona + known name renders initials with no inline colour, via the shared neutral token", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={{ name: "Devon Rao", jobTitle: "Principal Architect" }}
+        persona="persona-resolution-error"
+        program={PROGRAM}
+      />,
+    );
+
+    const avatars = container.getElementsByClassName(shellStyles.avatar);
+    expect(avatars).toHaveLength(1);
+    const avatar = avatars[0] as HTMLElement;
+
+    // initials still render — the name is known, only the persona is not
+    expect(avatar.textContent).toBe("DR");
+    // the neutral variant class is applied...
+    expect(avatar.className).toContain(shellStyles.avatarUnknownPersona);
+    // ...and NO colour is hardcoded inline (that is the defect this locks)
+    expect(avatar.style.background).toBe("");
+    expect(avatar.style.backgroundColor).toBe("");
+    expect(avatar.style.color).toBe("");
+  });
+
+  it("regression-SHP-01-TC-02: a valid persona passes ONLY its background inline, never a colour pair", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={{ name: "Devon Rao", jobTitle: "Principal Architect" }}
+        persona="architect"
+        program={PROGRAM}
+      />,
+    );
+
+    const avatar = container.getElementsByClassName(
+      shellStyles.avatar,
+    )[0] as HTMLElement;
+
+    // architect -> #6a4fd0, docs/design/tokens.md § Persona colors; jsdom
+    // normalises hex to rgb()
+    expect(avatar.style.backgroundColor).toBe("rgb(106, 79, 208)");
+    // the neutral variant must NOT be applied on the resolved path
+    expect(avatar.className).not.toContain(shellStyles.avatarUnknownPersona);
+    // white text is a static CSS rule (D-06), never an inline declaration
+    expect(avatar.style.color).toBe("");
+  });
 });

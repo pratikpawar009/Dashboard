@@ -1,6 +1,6 @@
 {
   "story_id": "SHP-01",
-  "cap_note": "Deliberate cap of \u22644 test cases per explicit user instruction, overriding this skill's default one-per-FR breadth. Cases are selected for highest-value coverage, not enumerated per FR; FR-1/FR-3 are intentionally left uncovered at this level \u2014 see coverage_audit.uncovered.",
+  "cap_note": "Deliberate cap of \u22644 test cases per explicit user instruction, overriding this skill's default one-per-FR breadth. Cases are selected for highest-value coverage, not enumerated per FR; FR-1/FR-3 are intentionally left uncovered at this level \u2014 see coverage_audit.uncovered. FIX-02 (2026-09-03) added SHP-01-TC-05 and SHP-01-TC-06 above the original <=4 cap: they close coverage gaps on already-merged code (FR-3, and getProgramStyle's fallback/reference behaviour) rather than widening story scope. FR-1 remains deliberately uncovered.",
   "test_cases": [
     {
       "id": "SHP-01-TC-01",
@@ -288,6 +288,104 @@
         "runner": "vitest",
         "rerun_count": 0
       }
+    },
+    {
+      "id": "SHP-01-TC-05",
+      "title": "deriveInitials derives initials from a display name, including the single-token case",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-01-FR-3",
+      "given": "a signed-in user's display name is available as a plain string",
+      "when": "the shell derives the initials rendered inside the identity avatar",
+      "then": "the first letter of each of the first two whitespace-separated tokens is uppercased; a single-token name yields that one letter only, never doubled",
+      "objective": "Close the FR-3 coverage gap. deriveInitials is a pure string function with no dependency on the AUTH-01 session-contract amendment, so the original deferral reasoning did not apply to it.",
+      "preconditions": [
+        "deriveInitials is imported from apps/web/src/lib/"
+      ],
+      "test_data": {
+        "mockup_identities": {
+          "Devon Rao": "DR",
+          "Maya Chen": "MC",
+          "Noah Kim": "NK",
+          "Aisha Bello": "AB"
+        },
+        "single_token": {
+          "Devon": "D"
+        },
+        "whitespace_runs": {
+          "Devon   Rao": "DR"
+        }
+      },
+      "steps": [
+        "Assert each of the four mockup identity names yields its initials",
+        "Assert a >2-token name uses only the first two tokens",
+        "Assert lower-case input is uppercased",
+        "Assert whitespace runs do not emit empty initials",
+        "Assert a single-token name yields one letter, not a doubled pair",
+        "Assert empty/whitespace-only input returns an empty string (documents current behaviour; unspecified)"
+      ],
+      "expected_results": [
+        "All four mockup names match their identity-bar initials",
+        "Single-token name yields exactly one letter (logged assumption, docs/stories/SHP-01.md \u00a7 Decision log)",
+        "No empty or doubled initials for any whitespace shape"
+      ],
+      "tags": [
+        "initials",
+        "pure-function",
+        "logged-assumption",
+        "coverage-gap-closed"
+      ],
+      "added_by": "FIX-02"
+    },
+    {
+      "id": "SHP-01-TC-06",
+      "title": "getProgramStyle falls back to Migration for an unknown type and returns independent style objects",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-01-FR-4",
+      "given": "a program.type value supplied by the composing page",
+      "when": "the shell resolves the avatar/type-chip colour pair for it",
+      "then": "a known type yields its docs/design/tokens.md pair; an unrecognised type falls back to Migration rather than throwing; avatarStyle and typeChip are independent objects",
+      "objective": "Close the direct-coverage gap on getProgramStyle. TC-03 exercised it only indirectly through a rendered component and never covered the unknown-type fallback (condition C-3's fail-soft contrast with formatPersonaTag's fail-loud) or REVIEW.md F-3's shared object reference.",
+      "preconditions": [
+        "getProgramStyle is imported from apps/web/src/lib/"
+      ],
+      "test_data": {
+        "known_types": [
+          "Migration",
+          "Greenfield feature development",
+          "Brownfield feature development",
+          "Maintenance"
+        ],
+        "unknown_types": [
+          "infrastructure",
+          "product",
+          "",
+          "MIGRATION"
+        ]
+      },
+      "steps": [
+        "Assert each of the 4 tokens.md types maps to its exact colour pair",
+        "Assert each unrecognised type resolves to Migration's pair without throwing",
+        "Assert avatarStyle and typeChip are equal in value but not the same object",
+        "Assert mutating one call's result does not affect another call"
+      ],
+      "expected_results": [
+        "All 4 known types match tokens.md \u00a7 Program type colors",
+        "Unknown types fall back to Migration, never throw (contrast with formatPersonaTag)",
+        "avatarStyle !== typeChip by reference (REVIEW.md F-3 closed)"
+      ],
+      "tags": [
+        "program-type",
+        "fail-soft",
+        "fallback",
+        "reference-independence"
+      ],
+      "added_by": "FIX-02"
     }
   ],
   "coverage_audit": {
@@ -333,13 +431,16 @@
       },
       {
         "id": "SHP-01-FR-3",
-        "covered_by": [],
-        "note": "Deferred by design. Initials derivation ('Devon Rao' \u2192 'DR', single-token edge case) depends on the same unlanded signedInUser.name shape as FR-1 \u2014 low value to pin now."
+        "covered_by": [
+          "SHP-01-TC-05"
+        ],
+        "note": "Covered as of 2026-09-03 by FIX-02: apps/web/src/lib/deriveInitials.test.ts. The original deferral reasoned that initials derivation 'depends on the same unlanded signedInUser.name shape as FR-1', but deriveInitials(name: string) takes a plain string and is unaffected by the prop shape or field name \u2014 so it was testable all along. FR-1 remains genuinely deferred."
       },
       {
         "id": "SHP-01-FR-4",
         "covered_by": [
-          "SHP-01-TC-03"
+          "SHP-01-TC-03",
+          "SHP-01-TC-06"
         ]
       },
       {
@@ -376,10 +477,6 @@
       {
         "id": "SHP-01-FR-1",
         "reason": "Deliberately deferred under the \u22644 TC cap: prop shape depends on an unlanded AUTH-01 session-contract amendment that may rename fields; pinning a TC to current field names now has negative value."
-      },
-      {
-        "id": "SHP-01-FR-3",
-        "reason": "Deliberately deferred under the \u22644 TC cap: initials derivation depends on the same unlanded signedInUser.name shape as FR-1."
       }
     ]
   }
