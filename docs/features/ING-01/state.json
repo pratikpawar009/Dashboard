@@ -14,8 +14,8 @@
   "design_artifact": "docs/features/ING-01/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "review",
-  "last_updated": "2026-09-03T15:15:00Z",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-03T17:00:00Z",
   "tracker_prd": "pratikpawar009/Dashboard#153",
   "gate": "APPROVE",
   "plan_validation": "PASS",
@@ -223,7 +223,7 @@
       "added_at": "2026-09-03T14:00:00Z",
       "added_by": "validate-review gate round 3 (code-review LOW)",
       "resolved_at": null,
-      "evidence": null
+      "evidence": "Fix open in PR #180 (branch chore/ING-01) - services/api/README.md now cites D-05a. NOT resolved here: the PR is unmerged, so main still carries the D-05 citation."
     },
     {
       "item_id": "decisions-amendment-convention-undecided",
@@ -252,6 +252,27 @@
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-03T14:00:00Z",
       "added_by": "orchestrator (round 3 bookkeeping)",
+      "resolved_at": "2026-09-03T16:05:00Z",
+      "evidence": "RESOLVED: ING-01-TC-25 pushed as pratikpawar009/Dashboard#181, linked to parent #40. All 25 test cases now carry a tracker_test key (#154-#177 plus #181), verified by reading docs/test-cases/ING-01.json."
+    },
+    {
+      "item_id": "authlib-0.15.6-and-starlette-0.46.2-outdated-17-advisories",
+      "kind": "finding",
+      "reason": "Surfaced by ING-01's security review, OUTSIDE ING-01's diff and PLAN scope, so correctly excluded from its PASS verdict. Verified by the orchestrator against the PROJECT venv (`uv run --with pip-audit pip-audit` from services/api - note a bare `uv tool run pip-audit` audits pip-audit's OWN env and reports nothing about these): authlib==0.15.6 carries 10 unique advisories, starlette==0.46.2 carries 7. THE BLOCKER: pyproject.toml:26 pins 'authlib>=0.15,<1.0'; every authlib fix requires >=1.3.1 and most >=1.6.x, so the upper bound excludes all of them. ASSESSED: PYSEC-2024-52 (= CVE-2024-37568, algorithm confusion, fix 1.3.1) is NOT reachable via this codebase's call pattern - jwks.get_signing_key returns a JWK dict with kty=RSA, so an HS256 forge is rejected at key import ('Missing required field: \"k\"'), verified empirically. Its prescribed mitigation is also unavailable: jwt.decode in 0.15.6 has no `algorithms=` parameter (signature is (s, key, claims_cls, claims_options, claims_params)) - you must upgrade to get it. NOT ASSESSED, and the reason this stays open at high priority: PYSEC-2026-287 (JWK header injection, forge arbitrary tokens, fix 1.6.9), PYSEC-2026-2116 (padding oracle, 1.6.9), PYSEC-2026-1200 (crit-header bypass, 1.6.4), PYSEC-2026-1203 (unbounded header/signature segments, 1.6.5), PYSEC-2026-25 (no CSRF on the starlette_client OAuth cache feature, 1.6.11 - that is the integration family this codebase uses). Reachability of these against app/core/auth.py:217 and app/auth/oidc.py:191 is UNKNOWN. OWNER STORY: needs its own intake - authlib 0.15 -> 1.6 is a major API break across AUTH-01's whole JWT path (10 advisories to verify, plus starlette), not a patch. Do not bundle it into a chore PR.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T16:00:00Z",
+      "added_by": "arh-security-review ING-01 (out-of-scope dependency finding)",
+      "resolved_at": null,
+      "evidence": null,
+      "severity_note": "dependency exposure, out of ING-01 scope; highest-priority open carry-forward"
+    },
+    {
+      "item_id": "M-01-no-detection-control-for-unscoped-tokens",
+      "kind": "finding",
+      "reason": "Security review M-01 (Medium, non-blocking): no compensating detection control exists for the unscoped / never-expiring token that ADR-0006 \u00a73/\u00a74's defaults permit - nothing lists, ages, or flags them. The reviewer agreed it is an accepted trade-off (minting already needs DATABASE_URL + shell access, and revoked_at gives containment) but recommends prioritising ADR-0006 \u00a7 Flagged gaps' token-inventory follow-up before mint usage widens beyond a few operators.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T16:00:00Z",
+      "added_by": "arh-security-review ING-01 (M-01)",
       "resolved_at": null,
       "evidence": null
     }
@@ -275,5 +296,14 @@
   ],
   "pr": "https://github.com/pratikpawar009/Dashboard/pull/179",
   "tracker_review_comment": "5521877654",
-  "tracker_parent_transition": "skipped \u2014 no in-review stage exists in this tracker (only status:approved / status:in-progress). #40 stays status:in-progress, matching AUTH-03 (#17) and AUTH-04 (#18), which are both at review phase with the same label. No label was created: inventing tracker taxonomy is outside this story, and harness state is the source of truth."
+  "tracker_parent_transition": "skipped \u2014 no in-review stage exists in this tracker (only status:approved / status:in-progress). #40 stays status:in-progress, matching AUTH-03 (#17) and AUTH-04 (#18), which are both at review phase with the same label. No label was created: inventing tracker taxonomy is outside this story, and harness state is the source of truth.",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 3,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/ING-01/SECURITY-20260903-0724.md"
 }
