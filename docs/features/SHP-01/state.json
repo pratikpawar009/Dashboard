@@ -36,7 +36,7 @@
     "D-06"
   ],
   "phase": "review",
-  "last_updated": "2026-09-03T22:25:00Z",
+  "last_updated": "2026-09-03T22:35:00Z",
   "pending_carry_forward": [
     {
       "item_id": "R-01-session-seam-unowned",
@@ -95,8 +95,8 @@
       "owner": "SHP-01 owner",
       "added_at": "2026-09-03T21:45:00Z",
       "added_by": "code-review-agent (gate round 1, report-only)",
-      "resolved_at": null,
-      "evidence": null
+      "resolved_at": "2026-09-03T22:35:00Z",
+      "evidence": "docs/fixes/fix-01.md \u2014 FIX-01; regression-SHP-01-TC-02 proven to fail pre-fix"
     },
     {
       "item_id": "AF-05-carry",
@@ -135,8 +135,8 @@
       "owner": "project (repo hygiene)",
       "added_at": "2026-09-03T22:05:00Z",
       "added_by": "human-review/02-apply",
-      "resolved_at": null,
-      "evidence": null
+      "resolved_at": "2026-09-03T22:35:00Z",
+      "evidence": ".gitignore now excludes dashboards/ \u2014 the untracked duplicate can no longer be committed alongside the tracked docs/design/mockups/ copy that schema.json points at."
     }
   ],
   "activity_log": [
@@ -359,5 +359,13 @@
   "design_authored_by": "hand-authored during /arh-implement flag triage (AF-01/02/04 accept) from docs/design/mockups/ \u2014 ux-agent is not installed; post-implementation record, not a pre-implementation spec",
   "impl_branch": "feature/SHP-01",
   "impl_pr": "https://github.com/pratikpawar009/Dashboard/pull/194",
-  "tracker_review_comment": "5528326810"
+  "tracker_review_comment": "5528326810",
+  "fixes": [
+    {
+      "fix_id": "FIX-01",
+      "summary": "Identity-avatar neutral fallback no longer hardcodes its colour pair; --neutral-unresolved-* declared once in globals.css and shared with PersonaHeader's badge, making D-02's colour-agreement guarantee structural (REVIEW.md F-2)",
+      "regression_test": "regression-SHP-01-TC-02 (apps/web/src/components/PersonaDashboardShell.test.tsx, 2 cases)",
+      "added_at": "2026-09-03T22:35:00Z"
+    }
+  ]
 }

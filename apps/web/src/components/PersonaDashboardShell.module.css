@@ -80,6 +80,9 @@
   font-weight: 700;
   font-size: 13px;
   flex: none;
+  /* Static per D-06 — only the persona-derived `background` crosses as a
+   * style prop. White on all four persona colours clears NFR-3 (4.33–5.77:1). */
+  color: #fff;
 }
 
 /* D-05 neutral identity fallback — border-ramp gray, no text/initials. */
@@ -87,8 +90,17 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #e4e7ec;
+  background: var(--neutral-unresolved-bg);
   flex: none;
+}
+
+/* Identity avatar when the name IS known but the persona is not (FLAGS.md
+ * AF-03). Mirrors PersonaHeader's neutral badge via the same shared token,
+ * so D-02's "tag and avatar never disagree" holds by construction. Distinct
+ * from `.avatarNeutral`, which is the D-05 empty circle (no initials). */
+.avatarUnknownPersona {
+  color: var(--neutral-unresolved-fg);
+  background: var(--neutral-unresolved-bg);
 }
 
 .headerRegion {

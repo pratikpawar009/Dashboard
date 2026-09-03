@@ -1,6 +1,19 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Neutral "unresolved" pair, from docs/design/tokens.md § Border and surface
+   * ramp. Shared by every surface that stands in for a value that could not be
+   * resolved: PersonaHeader's "Persona unavailable" badge, and the identity
+   * avatar in both its no-signedInUser (D-05) and unknown-persona (FLAGS.md
+   * AF-03) states. Hoisted to :root rather than duplicated per CSS Module
+   * because DECISIONS.md D-02 guarantees the persona tag and the identity
+   * avatar can never disagree on a colour — a guarantee that only holds if
+   * their neutral fallbacks read the same declaration, not two literals that
+   * happen to match (REVIEW.md F-2). Contrast 4.83:1, meeting NFR-3's
+   * >=4.5:1 bar. */
+  --neutral-unresolved-fg: #5b6472;
+  --neutral-unresolved-bg: #e4e7ec;
 }
 
 @media (prefers-color-scheme: dark) {

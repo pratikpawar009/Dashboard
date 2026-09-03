@@ -20,14 +20,12 @@
 }
 
 /* Neutral error badge — fixed pair, never persona colors (FR-5).
- * Background from docs/design/tokens.md § Border and surface ramp
- * (#e4e7ec, the same value D-05 uses for the identity neutral fallback);
- * text is the mockups' own #5b6472 (used for the program description
- * text, see docs/design/schema.json-mapped mockups) — contrast 4.83:1
- * against #e4e7ec, meeting the >=4.5:1 bar (NFR-3). */
+ * Reads the shared --neutral-unresolved-* pair defined once in
+ * app/globals.css, so this badge and the identity avatar's own neutral
+ * states cannot drift apart (D-02, REVIEW.md F-2). */
 .pillNeutral {
-  color: #5b6472;
-  background: #e4e7ec;
+  color: var(--neutral-unresolved-fg);
+  background: var(--neutral-unresolved-bg);
 }
 
 /* Visually hidden but announced by assistive tech — clip, not display:none

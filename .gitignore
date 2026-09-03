@@ -43,3 +43,7 @@ __pycache__/
 
 # --- docker / build artifacts ---
 *.log
+
+# Duplicate of docs/design/mockups/ (byte-identical, verified 2026-09-03).
+# docs/design/schema.json points at docs/design/mockups/ — that is the tracked copy.
+dashboards/

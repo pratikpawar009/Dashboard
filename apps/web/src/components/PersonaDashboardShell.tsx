@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 import type {
   Persona,
   ProgramContextData,
@@ -63,6 +61,9 @@ export function PersonaDashboardShell({
   program: ProgramContextData;
 }) {
   const isLoading = persona === undefined;
+  // Computed once here rather than inline in the JSX: `persona` is narrowed to
+  // `string` only inside the `!isLoading` branches below.
+  const personaColor = isLoading ? null : personaAvatarColor(persona);
 
   return (
     <>
@@ -85,8 +86,14 @@ export function PersonaDashboardShell({
                   </div>
                 </div>
                 <div
-                  className={styles.avatar}
-                  style={avatarColorStyle(persona)}
+                  className={
+                    personaColor === null
+                      ? `${styles.avatar} ${styles.avatarUnknownPersona}`
+                      : styles.avatar
+                  }
+                  style={
+                    personaColor === null ? undefined : { background: personaColor }
+                  }
                 >
                   {deriveInitials(signedInUser.name)}
                 </div>
@@ -112,29 +119,33 @@ export function PersonaDashboardShell({
 }
 
 /**
- * Identity-avatar `{ color, background }` pair (D-06 — a minimal
- * `CSSProperties` object, never a full CSS declaration string). Background
- * is `formatPersonaTag(persona).color`, the same value `PersonaHeader`'s
- * tag pill uses, so the avatar and the tag can never disagree on a
- * persona's color (D-02); text is white, matching the mockups' identity
- * avatar circle across all four personas.
+ * The identity avatar's persona-derived background colour, or `null` when
+ * the persona is unresolvable.
  *
- * `signedInUser` defined while `persona` is not one of the 4 valid
- * personas is a reachable combination neither PLAN.md nor `SHP-01-TC-02`
- * specify. Resolved by mirroring `PersonaHeader`'s own neutral degradation
- * rather than inventing a new state: only `PersonaTagError` is caught,
- * falling back to the same neutral text/background pair
- * (`#5b6472` on `#e4e7ec`) `PersonaHeader`'s neutral badge uses. Initials
- * still render — the name is known, only the persona is not. Any other
- * error propagates uncaught, staying inside D-03's single fail-loud path.
+ * A non-null result is `formatPersonaTag(persona).color` — the same value
+ * `PersonaHeader`'s tag pill uses, so the avatar and the tag can never
+ * disagree on a persona's colour (D-02). It is the ONLY value that crosses
+ * into a `style` prop (D-06); the avatar's white text and all its geometry
+ * are static rules in `PersonaDashboardShell.module.css`.
+ *
+ * `signedInUser` defined while `persona` is not one of the 4 valid personas
+ * is a reachable combination neither PLAN.md nor `SHP-01-TC-02` specify
+ * (FLAGS.md AF-03). Resolved by mirroring `PersonaHeader`'s own neutral
+ * degradation rather than inventing a new state: only `PersonaTagError` is
+ * caught, and `null` selects the `.avatarUnknownPersona` class, which reads
+ * the same shared `--neutral-unresolved-*` pair the neutral badge does.
+ * Returning `null` rather than a hardcoded pair is what keeps D-02's
+ * agreement guarantee structural instead of coincidental (REVIEW.md F-2).
+ * Initials still render — the name is known, only the persona is not. Any
+ * other error propagates uncaught, staying inside D-03's fail-loud path.
  */
-function avatarColorStyle(persona: Persona): CSSProperties {
+function personaAvatarColor(persona: Persona): string | null {
   try {
-    return { color: "#fff", background: formatPersonaTag(persona).color };
+    return formatPersonaTag(persona).color;
   } catch (error) {
     if (!(error instanceof PersonaTagError)) {
       throw error;
     }
-    return { color: "#5b6472", background: "#e4e7ec" };
+    return null;
   }
 }
