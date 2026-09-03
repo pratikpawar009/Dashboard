@@ -1,0 +1,304 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#14",
+  "tracker_research": "pratikpawar009/Dashboard#183",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": null,
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "impl": "complete",
+  "validation": "passed",
+  "review": "PASS",
+  "security": null,
+  "tracker_prd": "pratikpawar009/Dashboard#184",
+  "tracker_plan": "pratikpawar009/Dashboard#185",
+  "tasks": {
+    "file": "docs/features/BED-04/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/BED-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/BED-04/DATA-DESIGN.md"
+  },
+  "phase": "review",
+  "last_updated": "2026-09-03T16:35:00Z",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-03T09:26:12Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-04/evidence/typecheck.log (services/api) + docs/features/BED-04/evidence/typecheck-web.log (apps/web)",
+        "flag_id": null,
+        "ran_at": "2026-09-03T09:26:12Z",
+        "note": "Re-verified from scratch, both halves independently after AF-03's fix. apps/web: `pnpm -C apps/web exec tsc --noEmit` exit 0, no output. services/api: `uv run mypy .` -- 'Success: no issues found in 91 source files'."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-04/evidence/unit-tests.log (services/api) + docs/features/BED-04/evidence/unit-tests-web.log (apps/web)",
+        "flag_id": null,
+        "ran_at": "2026-09-03T09:26:12Z",
+        "note": "apps/web: `pnpm -C apps/web test` (vitest run) -- 1 test file passed, 1 test passed. services/api: `uv run pytest` -- FULL suite (not narrowed), 430 passed, 0 failed, 38.58s."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-04/evidence/lint.log (services/api) + docs/features/BED-04/evidence/lint-web.log (apps/web)",
+        "flag_id": null,
+        "ran_at": "2026-09-03T09:26:12Z",
+        "note": "apps/web: `pnpm -C apps/web exec eslint .` exit 0, no findings. services/api: `uv run ruff check .` -- 'All checks passed!'."
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-03T09:26:12Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8010",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-04/evidence/runtime-api.log",
+            "boot_log_scan": "clean"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "./node_modules/.bin/next dev --turbopack --port 3011",
+            "exit_code": 0,
+            "evidence_path": "docs/features/BED-04/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "First attempt (port 3010 per directive) collided with a pre-existing unrelated IPv4 listener (python -m agentrise_mcp.server, pid 518) also bound to *:3010 -- 127.0.0.1 requests hit that process (server: uvicorn header, 404) while localhost/IPv6 hit next dev (200): a nondeterministic false signal, not a code defect. Re-ran clean on port 3011 (single listener confirmed via lsof): GET / -> 200 on both 127.0.0.1 and localhost, boot log clean, Turbopack compiled '/' then served 200. render_check unavailable -- no browser-capable E2E tooling installed (project-commands.yaml test_e2e: \"\"); boot+200 is boundary evidence only, flagged for human eyeball (see NEW_FLAGS)."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/BED-04/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T09:26:12Z",
+        "note": "Ran as `cd apps/web && ./node_modules/.bin/next build --turbopack` -- this session's permission classifier blocks `pnpm -C apps/web build` directly; identical underlying command per package.json's `build` script. Exit 0, 5/5 static pages generated. services/api has no compiled step (runs uninterpreted via uvicorn)."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": null
+      }
+    },
+    "verdict": "READY",
+    "verdict_reason": "All six dimensions PASS or accepted-N/A on a from-scratch re-run against the current tree, after AF-03's fix (apps/web/pnpm-workspace.yaml allowBuilds: unrs-resolver: true) cleared the pnpm ERR_PNPM_IGNORED_BUILDS gate that blocked 5/6 dimensions in the prior BLOCKED run (2026-09-03T09:04:45Z). Both stacks independently re-verified: services/api (typecheck 0 errors/91 files, full 430-test unit suite, lint clean, runtime boot+/health 200 clean log, all 5 preflight smoke-imports incl. FreshnessAccessor) and apps/web (typecheck 0 errors, 1/1 vitest passed, eslint clean, next build 5/5 static pages, next dev boot+GET / 200 clean log on a collision-free port). design_check N/A -- no tool wired (AF-04, pre-existing, unaffected by BED-04). This record supersedes the prior BLOCKED record in full; see EVIDENCE-ROUNDS.md for the superseding note (EVIDENCE-ESCALATION.md left untouched as historical record)."
+  },
+  "pending_carry_forward": [
+    {
+      "id": "CF-BED-04-01",
+      "severity": "MED",
+      "source": "docs/research/BED-04.md \u00a7 Path Drift Identified",
+      "summary": "Systemic stale `backend/` path drift from the reference implementation: `backend/` appears 90 times in docs/prd/ai-sdlc-adoption-dashboards.md and across 25 story files, while the real tree is services/api/app/. Only BED-02 has been corrected. No gate catches it \u2014 /arh-validate-story BED-04 explicitly ruled it out of scope on 2026-09-03 because the value is cited to the PRD and the provenance rubric catches invented values, not stale-but-cited ones. Durable fix is at the source (the PRD implementation-mapping table) or a path-existence check in the story template; both are outside BED-04's scope. BED-04's own PRD records the corrected path in \u00a7 Constraints."
+    },
+    {
+      "id": "CF-BED-04-02",
+      "severity": "MED",
+      "source": "docs/features/BED-04/REQUIREMENTS.md \u00a7 Constraints (design check, this phase)",
+      "summary": "No mockup binds a freshness value. All six mockups in docs/design/mockups/ were decoded per docs/design/README.md and searched: no lastUpdated / asOf / updatedAt / freshness binding exists in any of them. BED-04's story states the timestamp is rendered on every dashboard view and five stories (OVW-01, ARC-01, DEV-01, PMD-01, EMD-01) depend on the freshness-api contract to do it, but the authoritative design has nowhere to put it. BED-04 is unaffected \u2014 the contract pins a raw datetime, so there is no pre-formatted display form to satisfy \u2014 but the consuming stories cannot render what the mockups do not show. Owner decision needed before those five reach /arh-plan-requirements: add the element to the mockups, or drop the render obligation from their scope."
+    },
+    {
+      "id": "CF-BED-04-03",
+      "severity": "MED",
+      "source": "code-review-agent REVIEW.md F-5 / validation-agent round 2",
+      "summary": "app/core/db.py:17 create_async_engine sets no connect_args, command_timeout, or statement timeout; pool._timeout=30.0 bounds pool CHECKOUT only. Independently confirmed by both gate agents. BED-04's own NFR is met (D-04's wait_for wraps the whole _query(), so checkout+connect+execute+teardown are bounded at the I/O site BED-04 owns), but every other DB caller in the API remains unbounded. Blast radius spans AUTH-01..04, BED-01..03, ING-01 -> needs its own ADR + story, deliberately NOT fixed in BED-04."
+    },
+    {
+      "id": "CF-BED-04-04",
+      "severity": "LOW",
+      "source": "code-review-agent REVIEW.md F-5",
+      "summary": "asyncio.wait_for cancels a mid-statement pooled connection; how that connection is returned/reset is a repo-wide concern shared with persona_resolver._resolve_tier3, which has the same shape. Fix once alongside CF-BED-04-03, not locally -- a BED-04-only fix would reduce consistency with the precedent D-01 binds this module to (.claude/rules/pattern-consistency.md)."
+    },
+    {
+      "id": "CF-BED-04-05",
+      "severity": "MED",
+      "source": "code-review-agent REVIEW.md F-7",
+      "summary": ".gitignore covers none of .claude/worktrees/, .claude/agent-memory/, services/api/.claude/, or dashboards/ (6 root HTML files duplicating docs/design/mockups/ content with no owning story). A `git add -A` would sweep all of them in, including full git worktrees. Stage BED-04 by explicit path only. Durable fix is a .gitignore update plus deciding where dashboards/ belongs."
+    },
+    {
+      "id": "CF-BED-04-06",
+      "severity": "LOW",
+      "source": "code-review-agent REVIEW.md F-6",
+      "summary": "docs/requirements/api.md is edited by this story (the freshness-api contract gained the D-04 timeout key) but is absent from tasks.json file_plan F-01..F-05. PLAN.md 5 argues contracts are planning-phase deliverables, yet the contract-drift review rule compels editing them during implementation -- so a produced contract should appear in the scope baseline as F-06. Plan-schema gap, not a BED-04 defect; reverting the edit would itself be a HIGH contract-drift finding."
+    },
+    {
+      "id": "CF-BED-04-07",
+      "severity": "MED",
+      "source": "validation-agent round 2, measured concurrency probe",
+      "summary": "D-04's per-call timeout makes queue-depth latency LINEAR under a sustained stall: 3 concurrent callers against a locked table returned at 3.015s / 6.035s / 9.055s -- the Nth queued caller waits N x 3.0s, because each timed-out caller releases the lock and the next re-checks an empty cache. Every caller is bounded (F-1's defect is closed) and BED-04 is unaffected (no route, no shared instance). DATA-DESIGN.md 5's wording has been corrected in-story. REMAINING decision, owned by OVW-01/ARC-01/DEV-01/PMD-01/EMD-01: whether sharing one instance per app needs in-flight-future sharing to flatten the queue to 3.0s for all callers."
+    },
+    {
+      "id": "CF-BED-04-08",
+      "severity": "LOW",
+      "source": "validation-agent round 2",
+      "summary": "/arh-trace cannot surface a bug->fix->test chain for review finding F-1: the regression test (test_stalled_read_times_out_raises_500_and_is_not_cached) is real but carries no regression-<TC-id> tag, because F-1 originated in review rather than a failing TC, and the user-capped 3-case limit plus the test-case file's own audit_notes route unit-shaped coverage out of the manifest. Deliberate, not an oversight; recorded so the traceability gap is visible rather than silent."
+    },
+    {
+      "id": "CF-BED-04-09",
+      "severity": "LOW",
+      "source": "code-review-agent F-1 + validation-agent, independently",
+      "summary": "freshness.py's timeout log hardcodes 'system_metadata query exceeded 3.0s timeout' as a literal, independent of _QUERY_TIMEOUT_SECONDS -- with the constant patched to 0.01s the log still claims 3.0s. Precedent-consistent (persona_resolver.py:197 does the same), so left as-is for pattern consistency; interpolate the constant if that precedent is ever revisited."
+    },
+    {
+      "id": "CF-BED-04-10",
+      "severity": "LOW",
+      "source": "code-review-agent REVIEW.md F-3",
+      "summary": "app/services/__init__.py's barrel docstring and tests/unit/test_freshness.py's module docstring both name only _NOT_RUN_MESSAGE when explaining which constants stay module-private; _QUERY_TIMEOUT_MESSAGE is equally private and equally correct in behaviour, but the prose is one constant behind. LOW findings are PR-body warnings rather than fix triggers under the gate's own rule, and editing source post-gate would have voided both round-2 verdicts -- so deferred rather than patched."
+    }
+  ],
+  "activity_log": [
+    {
+      "at": "2026-09-03T00:00:00Z",
+      "by": "/arh-plan-requirements",
+      "phase_transition": "research -> plan-requirements-approved",
+      "note": "PRD drafted at docs/features/BED-04/REQUIREMENTS.md (12 pinned sections; \u00a7 Addressing Research Conditions omitted \u2014 verdict GO, no conditions; \u00a7 Screen inventory omitted \u2014 backend-only). Test cases at docs/test-cases/BED-04.json, count capped at 3 by user instruction, coverage_audit.uncovered == []. Product Gate APPROVE."
+    },
+    {
+      "at": "2026-09-03T00:00:00Z",
+      "by": "/arh-plan-implementation",
+      "phase_transition": "plan-requirements-approved -> plan-implementation",
+      "note": "PLAN.md written (5 tasks: T-01..T-03 M, T-04..T-05 S; 5 files, 3 create + 2 modify; 1 module: app/services/freshness.py). DECISIONS.md: 3 entries (D-01..D-03), all blast:feature/rev:mechanical, none promoted to ADR. DATA-DESIGN.md written (read-only accessor over BED-01's system_metadata; no migration). freshness-api contract filled with concrete shape at docs/requirements/api.md#freshness-api (plan-authoring step 10). No config-drift, no new runnable surface/route/env var/service \u2014 docs(readme) task (T-05) included regardless per REQUIREMENTS.md \u00a7 Documentation requirements. plan-validation: PASS, round 1/2, all 6 dimensions green. pending_carry_forward CF-BED-04-01/02 preserved unchanged, untouched by this plan."
+    },
+    {
+      "at": "2026-09-03T09:04:45Z",
+      "by": "/arh-implement --evidence",
+      "phase_transition": "plan-implementation -> plan-implementation (evidence pass)",
+      "note": "T-01..T-05 all done. Six-dimension evidence packet run over services/api (BED-04's full scope): typecheck (mypy, 0 errors/91 files), unit_tests (full suite, 430 passed/0 failed, 38.95s), lint (ruff check, clean), runtime (uvicorn boot + /health 200, clean log), plus all 5 preflight smoke-imports incl. `from app.services import FreshnessAccessor` \u2014 all PASS. One in-scope fix applied: T-05's README.md \u00a7 Freshness accessor code fence had a ruff-format line-length violation, wrapped surgically. VERDICT BLOCKED: 5/6 dimensions FAIL solely on the apps/web half of composite commands (typecheck/unit_tests/lint/runtime/compile), root-caused to one pre-existing, repo-wide pnpm ERR_PNPM_IGNORED_BUILDS gate (unrs-resolver@1.12.2, ADR/config unchanged since initial commit, every prior feature's impl_evidence shows these dimensions PASS) \u2014 confirmed unrelated to BED-04, unfixable in-scope (requires a one-time human `pnpm approve-builds` decision). Escalated per EVIDENCE-ESCALATION.md rather than burning rounds 2-3 on an unchanged root cause. AF-03 (env gate, blocks 5 dims) and AF-04 (design_check N/A, config empty) raised for /arh-human-review triage."
+    },
+    {
+      "at": "2026-09-03T16:15:00Z",
+      "by": "/arh-implement",
+      "phase_transition": "plan-implementation -> review",
+      "note": "Steps 1-2 complete. 5/5 tasks done. Evidence pass READY (round 2; round 1 BLOCKED on AF-03's pnpm build-approval gate, fixed via apps/web/pnpm-workspace.yaml allowBuilds unrs-resolver:true). Validate || Review gate GREEN at round 2/3: V=PASS 3/3 cases, R=PASS 0 CRITICAL/0 HIGH/0 MEDIUM/7 LOW. Round 1 was V=PARTIAL/R=PASS WITH WARNINGS -- also GREEN, but the user approved fixing review finding F-1 (HIGH): the system_metadata read had no explicit timeout while REQUIREMENTS.md:46 promised one and app/core/db.py provided none to inherit. Fix = D-04, an explicit 3.0s asyncio.wait_for mirroring persona_resolver._TIER3_TIMEOUT_SECONDS, with a distinct _QUERY_TIMEOUT_MESSAGE, one PII-free warning, and no negative-caching; validated against a real Postgres table lock (raised at 3.034s; pre-fix it blocked indefinitely). Full suite 431 passed / 0 failed. Doc drift the gate surfaced was fixed in-story (PLAN.md 1/2, REQUIREMENTS.md Observability NFR, DATA-DESIGN.md 5's one-read-per-burst claim). 8 new carry-forward entries CF-BED-04-03..10; agents' proposed ids collided with each other and with existing CF-BED-04-01/02, renumbered here by the single writer. 6 flags AF-01..AF-06 (AF-03 fixed), awaiting /arh-human-review triage before Step 5 commit."
+    }
+  ],
+  "validation_summary": "2026-09-03 P=3/3 in 2 round(s)",
+  "validation_report": "docs/features/BED-04/VALIDATION-20260903-1606.md",
+  "review_report": "docs/features/BED-04/REVIEW.md",
+  "review_rounds": 2,
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "plan-gap",
+      "task": "implement/step-1 scheduler",
+      "source": "docs/features/BED-04/PLAN.md 5 + Plan validation (Cross-section); docs/features/AUTH-01/FLAGS.md AF-02",
+      "summary": "PLAN.md certifies T-02..T-05 DAG-parallel-safe on pairwise file-disjointness alone, but T-02 and T-03 both drive tests/conftest.py::migrated_db, which runs alembic upgrade head/downgrade base around every test against one shared database (dashboard_test). Two concurrent pytest processes clobber each other's schema - the same defect AUTH-01 already triaged as its AF-02. 01-implement.md's scheduler assumes a shared-DB conflict was serialized at plan time by a predecessors edge; no such edge exists. Orchestrator mitigation: T-02 ran in round 2 with the two DB-free tasks, T-03 alone in round 3. Durable fix belongs in plan-validation's Cross-section dimension.",
+      "status": "accept",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-1 orchestrator",
+      "triaged_at": "2026-09-03T16:20:00Z",
+      "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
+      "disposition": "Accepted as out of BED-04's scope. The shared-test-DB conflict is real and was mitigated by the orchestrator at run time (DB-touching tasks serialized across rounds), so no BED-04 code or test is affected. The durable fix - teaching plan-validation's Cross-section dimension to treat a shared test database as a non-file conflict requiring a predecessors edge - lives in .claude/skills and would change every story's plan validation. Recorded here and in FLAGS.md for whoever picks up that skill work; AUTH-01's AF-02 documents the same defect independently, so this is now twice-observed."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "risky-pattern",
+      "task": "T-03",
+      "source": "services/api/tests/perf/test_freshness_perf.py (monkeypatch.setattr(freshness.time, 'monotonic', clock))",
+      "summary": "freshness.py holds `time` as a module object so the perf test can intercept its clock, but freshness.time IS the singleton stdlib time module, so the patch replaces time.monotonic process-wide - including asyncio.BaseEventLoop.time(). Safe for this test (warm path does no I/O and schedules no timer; independently re-confirmed by the round-1 code review), but a future perf test doing awaited I/O under a timeout inside the patched window could hang or fire timers spuriously, and would look like a flaky perf test rather than a clock artifact. monkeypatch restores it in teardown, so there is no cross-test leak.",
+      "status": "accept",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-1 orchestrator",
+      "triaged_at": "2026-09-03T16:20:00Z",
+      "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
+      "disposition": "Accepted. Both the orchestrator and the round-1 code review independently confirmed the process-global time.monotonic patch is a non-defect for this specific test: the warm path performs no I/O and schedules no timer inside the patched window, and monkeypatch restores the original in teardown, so nothing leaks across tests. Not fixed because the alternatives (a _now() indirection in freshness.py, or an injectable clock alongside session_factory) both change frozen, gate-passed source for no present benefit. Kept open in the record as a constraint for the next author who reuses this seam - a future perf test doing awaited I/O under a timeout inside the patched window could hang, and would present as a flaky test rather than a clock artifact."
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "env-blocker",
+      "task": "evidence-pass",
+      "source": "pnpm 11.20.0 runDepsStatusCheck -> ERR_PNPM_IGNORED_BUILDS (unrs-resolver@1.12.2)",
+      "summary": "Every apps/web pnpm command failed before its tool ran, because unrs-resolver@1.12.2's install script was neither approved nor denied anywhere in the repo. Failed 5 of 6 evidence dimensions on their apps/web half. Pre-existing and unrelated to BED-04 (zero apps/web diff vs main; in the lockfile since the initial commit). Previously hit and deferred as AUTH-04's own AF-01 on the grounds that approving a dependency's install script is a human decision.",
+      "status": "resolved",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-09-03T16:15:00Z",
+      "triaged_by": "user direction (explicit 'fix' instruction)",
+      "disposition": "FIXED, not deferred. Created apps/web/pnpm-workspace.yaml recording allowBuilds: {unrs-resolver: true}, with the rationale in the file's comments: the install script is napi-postinstall, the standard napi-rs helper that links the platform-native binary (@unrs/resolver-binding-darwin-arm64), already pinned and integrity-hashed in pnpm-lock.yaml - it compiles nothing and fetches nothing beyond locked packages. Approved rather than denied because denying also clears the gate but risks eslint failing to resolve imports with the binding unlinked; eslint passing cleanly afterward confirms the binding was what it needed. Verified: pnpm -C apps/web exec tsc --noEmit -> 0, exec eslint . -> 0, test -> 1 passed (the real composite commands, through pnpm), plus next build and next dev via node_modules/.bin (this session's classifier blocks the pnpm wrappers that execute package scripts). Resolves the gate for every future story's evidence pass, not just BED-04. NOTE: apps/web/pnpm-workspace.yaml is outside BED-04's file_plan and must ship in its own chore commit, never folded into the feature commit."
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "evidence-na",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml (design_check: \"\")",
+      "summary": "design_check is empty - no a11y / console-error-scan / perf tool has been declared or installed for this project (docs/design/schema.json still has fileKey/url as TODO). Recorded as N/A rather than silently passed. BED-04 is unaffected: design = n/a because BED has no epic in docs/design/schema.json (the only condition CLAUDE.md permits it under) and the story touches no UI file.",
+      "status": "accept",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-09-03T16:20:00Z",
+      "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
+      "disposition": "Accepted as a legitimate N/A. design_check is empty in project-commands.yaml because no a11y / console-error-scan / perf tool has been declared or installed for this project, and docs/design/schema.json still carries fileKey/url as TODO. BED-04 cannot be affected either way: design = n/a because BED has no epic in docs/design/schema.json - the only condition CLAUDE.md permits that under - and the story adds no UI file, no route, and no rendered surface. Wiring a design_check tool is project setup work, not this story's."
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "evidence-na",
+      "task": "evidence-pass (re-run)",
+      "source": "docs/config/project-commands.yaml (test_e2e: \"\")",
+      "summary": "The nextjs runtime dimension boots next dev and confirms GET / -> 200 with a clean log, but nothing asserts the app mounts and renders - no Playwright/Cypress is declared or installed. Recorded as render_check: unavailable rather than implying a render was verified. BED-04 is backend-only and touches no apps/web file; the web stack is exercised only because project-commands.yaml's commands are composite across both stacks. The five stories that consume freshness-api will want a real render assertion.",
+      "status": "accept",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-1 evidence-pass",
+      "triaged_at": "2026-09-03T16:20:00Z",
+      "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
+      "disposition": "Accepted as a legitimate N/A. The nextjs runtime dimension was boot-checked honestly (GET / -> 200, clean boot log) and recorded render_check: unavailable rather than implying a render assertion that no installed tool can make - test_e2e is empty in project-commands.yaml. BED-04 is backend-only and touches no apps/web file; the web stack appears in its evidence only because project-commands.yaml's commands are composite across both stacks. The five stories consuming freshness-api (OVW-01, ARC-01, DEV-01, PMD-01, EMD-01) are the ones that will need a real render assertion, and the tooling decision belongs with them."
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "harness-defect",
+      "task": "implement/step-2 gate",
+      "source": ".claude/skills/arh-implement/steps/02-validate.md (Snapshot / Join guard)",
+      "summary": "The gate's specified consistency anchor - a hash of `git status --porcelain` - cannot detect content drift, because porcelain emits one status line per path and no content. Demonstrated: after an implementation-agent rewrote seven files (including app/services/freshness.py), the specified anchor returned the SAME hash, because the same paths still had the same statuses. The join guard therefore silently passes on the exact failure it exists to catch, and round 1's 'guard held' was true by construction rather than by evidence. Separately, the exclusion set (docs/features, docs/test-cases, docs/state) omits harness-written paths that change mid-gate: docs/activity/activity.jsonl is appended on agent completion (it alone tripped the corrected round-2 anchor), and a root-level .claude/agent-memory exclusion does not match the nested services/api/.claude/agent-memory this repo's validation-agent actually uses. Orchestrator mitigation: content-sensitive anchor (git diff HEAD + per-file shasum over untracked source) with the full exclusion set, corroborated by an mtime-vs-dispatch check that names the drifting file instead of only reporting that a hash moved. Affects every story's gate.",
+      "status": "accept",
+      "added_at": "2026-09-03T16:15:00Z",
+      "added_by": "implement/step-2 orchestrator",
+      "triaged_at": "2026-09-03T16:20:00Z",
+      "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
+      "disposition": "Accepted as out of BED-04's scope, with the mitigation retained in this story's record. The defect is in .claude/skills/arh-implement/steps/02-validate.md, not in BED-04: a status-based anchor cannot detect content drift, and the exclusion set omits docs/activity/ and nested */.claude/agent-memory/. Both halves were demonstrated concretely this session rather than argued in principle - the specified anchor returned an identical hash after seven files were rewritten, and the corrected content-sensitive anchor was tripped solely by an activity-log append. The orchestrator ran the gate on a corrected anchor plus an mtime-vs-dispatch cross-check, so BED-04's own round-2 GREEN was earned against a source tree proven stable. Fixing the skill would change every story's gate and belongs in harness work."
+    }
+  ],
+  "impl_branch": "feature/BED-04",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04"
+  ],
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/186",
+  "tracker_review_comment": "5524587190"
+}

@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "story_id": "BED-04",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-03T00:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/services/freshness.py",
+      "reason": "FR-1/AC-1..4: FreshnessAccessor class \u2014 300s TTL cache (D-01/D-02), row-absent HTTPException(500, _NOT_RUN_MESSAGE) + logger.warning(), no negative-caching (D-03)"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/services/__init__.py",
+      "reason": "barrel export for FreshnessAccessor \u2014 entry-registration site for the new module (matches BED-02's convention: no route consumes freshness.py yet, so the package barrel is the wiring point)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_freshness.py",
+      "reason": "BED-04-TC-01, BED-04-TC-02 \u2014 row-present read (AC-1) and row-absent exact-message + warning-log path (AC-2/FR-1); plus internal cache-mechanics unit coverage (warm-hit skips DB, lock bounds a concurrent cold call to one read) per test-cases coverage_audit's note that unit-shaped cases belong in this plan, not the capped test-case file"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_freshness_perf.py",
+      "reason": "BED-04-TC-03 \u2014 warm-read p95<10ms budget (AC-3) and TTL-expiry re-read (AC-4) in one boundary test, via a controllable monotonic clock and a SELECT-count spy"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "REQUIREMENTS.md \u00a7 Documentation requirements: document get_last_successful_run()'s return type, the 300s TTL/invalidating-event, and the row-absent error message+status, as consumers (OVW-01 etc.) see the contract"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Create app/services/freshness.py \u2014 FreshnessAccessor cache, row-absent error, warning log",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "BED-04-AC-1",
+        "BED-04-AC-2",
+        "BED-04-AC-3",
+        "BED-04-AC-4",
+        "BED-04-FR-1",
+        "BED-04-NFR-performance",
+        "BED-04-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05"
+      ],
+      "notes": "Class FreshnessAccessor(session_factory: async_sessionmaker[AsyncSession] | None = None), defaulting to app.core.db.SessionLocal (mirrors PersonaResolver's D-06 injectable seam). get_last_successful_run() -> datetime: warm-hit fast path (no lock) on a non-expired _cached_value/_expiry pair; miss path acquires an asyncio.Lock, re-checks (double-check), then issues select(SystemMetadata).where(SystemMetadata.key == 'ingestion').limit(1) via scalar_one_or_none(). Row present -> cache (value, time.monotonic() + _CACHE_TTL_SECONDS) and return last_successful_run_at unchanged (timezone-aware, no reformatting). Row absent -> logger.warning() with the module constant _NOT_RUN_MESSAGE = 'ingestion job may not have run yet' as the log message (extra={'reason': 'system_metadata row not found'}), then raise HTTPException(status_code=500, detail=_NOT_RUN_MESSAGE); never cache the absent outcome (D-03) so the next call re-queries. _CACHE_TTL_SECONDS = 300.0 is a local, private module constant (D-02) \u2014 do not import persona_resolver's. No log on the warm-hit path (REQUIREMENTS.md NFR Observability declines it explicitly). Module docstring must record, per REQUIREMENTS.md \u00a7 Documentation requirements: (a) no writer exists yet, so AC-4 is fixture-verified until ING-02 (research risk #1/R-01), and (b) the 500-over-503 status choice (BED-04-FR-1/R-05).",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/app/services/freshness.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add tests/unit/test_freshness.py \u2014 row-present/absent + cache-mechanics coverage (TC-01, TC-02)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "BED-04-AC-1",
+        "BED-04-AC-2",
+        "BED-04-FR-1",
+        "BED-04-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03"
+      ],
+      "notes": "BED-04-TC-01 and BED-04-TC-02 both need a live, migrated Postgres (their own preconditions: 'Test database migrated to head') \u2014 use tests/conftest.py's migrated_db/test_session/test_engine fixtures, matching test_persona_resolver.py's TC-03/14 live-DB pattern. TC-01: seed system_metadata(key='ingestion', last_successful_run_at=<fixed ts>), construct a fresh FreshnessAccessor(session_factory=async_sessionmaker(bind=test_engine)), assert the returned datetime is tz-aware, UTC-offset +00:00, and equals the seeded value; assert no WARNING record was emitted. TC-02: leave system_metadata empty for 'ingestion', attach a logging handler directly to the app.services.freshness logger (test_persona_resolver.py's 'Log-capture idiom' \u2014 immune to configure_logging()+capsys), call the accessor, assert the raised HTTPException.status_code == 500 and str(detail) matches the imported app.services.freshness._NOT_RUN_MESSAGE constant byte-exactly (not a re-typed literal), and assert exactly one WARNING record was captured whose message is the same constant with no PII field. Additionally (not in docs/test-cases/BED-04.json \u2014 authored here per that file's coverage_audit note that unit-shaped cache mechanics belong in this plan): a pure-mock test using a FakeSessionFactory (mirrors test_persona_resolver.py's _FakeRow/_FakeResult) proving a warm cache hit performs zero session_factory calls, and a concurrency test proving N concurrent cold get_last_successful_run() calls against one instance issue exactly one underlying SELECT (lock double-check, D-01).",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_freshness.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Add tests/perf/test_freshness_perf.py \u2014 warm-read + TTL-expiry boundary (TC-03)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "BED-04-AC-3",
+        "BED-04-AC-4",
+        "BED-04-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-04"
+      ],
+      "notes": "BED-04-TC-03, structured like tests/perf/test_persona_resolver_perf.py (plain time.perf_counter(), no benchmark tool; local _percentile copy per that file's own precedent of not sharing a perf_utils module until a third copy would justify it). Needs a live migrated Postgres (migrated_db/test_engine/test_session). Steps: seed system_metadata(key='ingestion', last_successful_run_at=2026-09-03T09:15:00+00:00); call the accessor once to populate the cache; attach a before_cursor_execute listener on test_engine.sync_engine scoped to SELECTs against system_metadata (mirrors test_rollup_rebuild_query_plan.py's _count_usage_events_selects) and record the count; UPDATE system_metadata.last_successful_run_at to 2026-09-03T09:47:00+00:00 directly via test_session (simulating the out-of-process ingest write); monkeypatch app.services.freshness.time.monotonic with a controllable fake clock (module-level `import time` in freshness.py, so monkeypatch.setattr(freshness.time, 'monotonic', fake) intercepts it) and advance it 299s; call the accessor 200 times timing each with time.perf_counter(), assert every call returns the original 09:15:00 value, assert the SELECT count is unchanged (0 additional queries), and assert p95 < 10ms; advance the fake clock past 301s total; call once more, assert it returns the updated 09:47:00 value and the SELECT count increased by exactly 1. No production-logging fixture needed (unlike test_persona_resolver_perf.py's TC-12) because REQUIREMENTS.md's Observability NFR explicitly omits a log on the warm-hit path.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_freshness_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Export FreshnessAccessor from app/services/__init__.py barrel",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Add `from app.services.freshness import FreshnessAccessor` and append 'FreshnessAccessor' to __all__, alongside the existing rollup/guardrail exports. _NOT_RUN_MESSAGE stays module-private, not re-exported on the barrel (matches guardrail_compute.PASSING_STATUS's precedent in this same __init__.py's own docstring: an internal detail with no second caller yet imports it directly from app.services.freshness if ever needed).",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/app/services/__init__.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Document the freshness-api contract in services/api/README.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-02",
+        "R-05"
+      ],
+      "notes": "New '## Freshness accessor' section, placed after the existing 'Shared modules' section, matching that section's 'not wired into any route yet \u2014 wiring is each consumer story's own scope' framing. Cover: FreshnessAccessor.get_last_successful_run() returns a timezone-aware datetime (not a display string \u2014 no consumer should assume pre-formatted output); the 300s TTL and that TTL expiry is its only invalidating event (writer is out-of-process, D-02/D-03); the row-absent outcome raises HTTPException(500) with the exact message 'ingestion job may not have run yet' and is never negative-cached. Do not restate the persona_resolver TTL-matching rationale beyond a one-line pointer \u2014 that belongs to persona_resolver's own section.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

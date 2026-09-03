@@ -4,8 +4,10 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-08-26
+**Updated**: 2026-09-03
 **Tracker**: pratikpawar009/Dashboard#14 (https://github.com/pratikpawar009/Dashboard/issues/14)
+**Tracker Research**: pratikpawar009/Dashboard#183
+**Tracker Plan Implementation**: pratikpawar009/Dashboard#185
 
 ## User story
 
@@ -15,8 +17,8 @@ As a dashboard viewer (any persona), I want every dashboard view to show when in
 
 1. Given the `system_metadata` table has a row with `key='ingestion'`, when the freshness accessor is called, then it returns `last_successful_run_at` as a timezone-aware datetime.
 2. Given the `system_metadata` table has no row with `key='ingestion'` (fresh DB, never ingested), when the freshness accessor is called, then it raises an error whose message clearly states "ingestion job may not have run yet" (per PRD Error/Edge-case table, FR-BE-05).
-3. Given the accessor was called within the last [NEEDS CLARIFICATION: cache TTL for the freshness accessor — PRD names it "cached" (FR-BE-05) but gives no duration, unlike the persona resolver's explicit 5-minute cache] and the underlying row has not changed, when it is called again, then it returns the cached value without a new database read.
-4. Given a successful ingestion write updates `system_metadata.last_successful_run_at`, when the cache TTL from AC-3 has elapsed and the accessor is called again, then it returns the updated timestamp (cache is not stale beyond the documented TTL).
+3. Given the accessor was called within the last 300 seconds (5 minutes) and the underlying row has not changed, when it is called again, then it returns the cached value without a new database read.
+4. Given a successful ingestion write updates `system_metadata.last_successful_run_at`, when the 300-second TTL from AC-3 has elapsed and the accessor is called again, then it returns the updated timestamp (cache is not stale beyond the documented TTL).
 
 ## Non-functional requirements
 
@@ -38,7 +40,7 @@ As a dashboard viewer (any persona), I want every dashboard view to show when in
 
 ## Clarifications
 
-- [NEEDS CLARIFICATION: cache TTL for the freshness accessor — PRD names it "cached" (FR-BE-05) but gives no duration, unlike the persona resolver's explicit 5-minute cache]
+<!-- Resolved 2026-09-03: cache TTL = 300s. See the Decision log entry below. -->
 
 ## Decision log
 
@@ -46,5 +48,6 @@ As a dashboard viewer (any persona), I want every dashboard view to show when in
 - 2026-08-26 Module path: `backend/app/services/freshness.py` (per PRD FR-BE-05 Source column and Implementation-mapping table).
 - 2026-08-26 Table/key shape: `system_metadata` singleton, `key='ingestion'`, `last_successful_run_at DateTime(timezone=True)` (per PRD data-model section, `docs/requirements/data.md#db-schema`).
 - 2026-08-26 No RBAC gating on this accessor — assumption, per PRD glossary "Freshness timestamp ... surfaced on every dashboard view as the as-of time for the data shown" (no persona restriction named).
+- 2026-09-03 Cache TTL = 300s (5 minutes), in-process, tracked on a monotonic clock — matches `services/api/app/core/persona_resolver.py` (`_CACHE_TTL_SECONDS = 300.0`) so the API has one cache duration to reason about. TTL is the only available mechanism: ingestion runs out-of-process (CLI ingester / MCP push per PRD FR-ING-11), so the writer cannot invalidate an in-process cache, and the TTL length therefore *is* the worst-case apparent staleness. 5 minutes is negligible against a manually-triggered ingestion cadence (no scheduler exists — FR-ING-11 is Could-Have, R-002), while staying short enough to keep staleness visible as R-002 intends. Resolves the AC-3/AC-4 clarification.
 - 2026-08-26 Performance budget < 10ms p95 for cached read — assumption, no source budget given; sized to an in-process cache read with no I/O.
 - 2026-08-26 Warning-level log on row-absent error — assumption, PRD names the error message but not an observability hook.

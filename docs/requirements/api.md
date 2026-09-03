@@ -34,9 +34,13 @@ Wiring into consumer routers (OVW/PGD/SHP endpoints) is explicitly each downstre
 produced_by: BED-04
 consumed_by: [OVW-01, ARC-01, DEV-01, PMD-01, EMD-01]
 shape:
-  endpoint: "cached accessor over system_metadata singleton row (key='ingestion')"
-  fields: { last_successful_run_at: "datetime" }
-  error: "raises a clear 'ingestion job may not have run yet' error if the row is absent"
+  accessor: "class FreshnessAccessor @ app.services.freshness — async def get_last_successful_run(self) -> datetime; no HTTP route (a read-only in-process service, not a router)"
+  construction: "FreshnessAccessor(*, session_factory: async_sessionmaker[AsyncSession] | None = None) -- defaults to app.core.db.SessionLocal; each downstream story owns constructing/sharing its own instance (BED-04 wires no app.state singleton, since no route consumes it yet)"
+  fields: { last_successful_run_at: "datetime, timezone-aware (UTC), sourced from system_metadata.key='ingestion' -- a raw datetime, not a pre-formatted display string" }
+  cache: "300s TTL tracked via time.monotonic(), asyncio.Lock double-check on a cache miss (mirrors app.core.persona_resolver.PersonaResolver's cache shape). TTL expiry is the only invalidating event -- the writer is out-of-process (CLI ingester / MCP push) and cannot invalidate an in-process cache, so the TTL length is the worst-case apparent staleness."
+  error: "row absent -> raises HTTPException(status_code=500, detail=_NOT_RUN_MESSAGE) where _NOT_RUN_MESSAGE = 'ingestion job may not have run yet' (module constant, app.services.freshness), rendered by the existing StarletteHTTPException handler as {\"error\": {\"code\": \"http_500\", \"message\": \"ingestion job may not have run yet\", \"details\": null}}. Also emits logger.warning() with that same constant on every row-absent call. Never negative-cached -- every call re-queries system_metadata while the row stays absent."
+  timeout: "the single system_metadata read is bounded by an explicit 3.0s asyncio.wait_for timeout (D-04, matching app.core.persona_resolver's Tier-3 bound) -- on timeout, raises HTTPException(status_code=500, detail=_QUERY_TIMEOUT_MESSAGE) where _QUERY_TIMEOUT_MESSAGE = 'ingestion freshness query timed out' (module constant, app.services.freshness), a distinct message from _NOT_RUN_MESSAGE since a stalled read is a different outcome from an absent row. Also emits logger.warning() with that same constant. Never negative-cached -- every call re-queries after a timeout."
+  no_rbac: "read-only, no persona/role gating -- the freshness timestamp renders on every dashboard view regardless of persona"
 ```
 
 ### programs-api

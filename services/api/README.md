@@ -269,3 +269,26 @@ Two rules are easy to violate, and a router that re-implements either one breaks
 Full signatures and the authoritative contract: `docs/requirements/api.md#api-conventions`.
 
 None of these are wired into any route yet — wiring is each consumer story's own scope. Not wired ≠ dead code.
+
+## Freshness accessor
+
+`app/services/freshness.py` is service-layer only — no HTTP route, like Rollup rebuild and Ingest token auth above.
+
+```python
+class FreshnessAccessor:
+    def __init__(
+        self, *, session_factory: async_sessionmaker[AsyncSession] | None = None
+    ) -> None: ...  # defaults to app.core.db.SessionLocal
+    async def get_last_successful_run(self) -> datetime: ...
+```
+
+- **Returns a raw, timezone-aware `datetime`** — not a pre-formatted display string. No consumer should assume pre-formatted output; whichever story adds a display element owns its own formatting.
+- **Construction** — each downstream dashboard-composition story (OVW-01, ARC-01, DEV-01, PMD-01, EMD-01) owns constructing/sharing its own instance; BED-04 wires no `app.state` singleton, since no route consumes it yet.
+- **300s TTL, expiry is the only invalidating event** — the writer is out-of-process (CLI ingester / MCP push) and cannot invalidate an in-process cache, so the TTL length is the worst-case apparent staleness. Same cache shape as Persona resolution above; see that section for the TTL-matching rationale.
+- **Row absent** — raises `HTTPException(status_code=500, detail="ingestion job may not have run yet")` and emits a `logger.warning()` on every such call. Never negative-cached: the outcome is not stored, so every call re-queries while the row stays absent.
+- **3.0s read timeout** — the read is bounded by an explicit `asyncio.wait_for(..., timeout=3.0)`, matching Persona resolution's Tier-3 bound above. On timeout, raises `HTTPException(status_code=500, detail="ingestion freshness query timed out")` and emits a `logger.warning()` — never negative-cached, same as the row-absent case.
+- **No writer exists yet** — nothing writes `system_metadata.last_successful_run_at` (ING-01 added ingest-token minting and bearer auth only), so the accessor currently raises against any database that hasn't been seeded by hand.
+
+Full contract: `docs/requirements/api.md#freshness-api`.
+
+Not wired into any route yet — wiring is each consumer story's own scope.
