@@ -1,0 +1,386 @@
+{
+  "story_id": "SHP-01",
+  "cap_note": "Deliberate cap of \u22644 test cases per explicit user instruction, overriding this skill's default one-per-FR breadth. Cases are selected for highest-value coverage, not enumerated per FR; FR-1/FR-3 are intentionally left uncovered at this level \u2014 see coverage_audit.uncovered.",
+  "test_cases": [
+    {
+      "id": "SHP-01-TC-01",
+      "title": "formatPersonaTag resolves all four persona tag/subtitle literals; cio and any invalid value throw",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-01-FR-2",
+      "given": "the persona-context header renders for a resolved persona value",
+      "when": "the shell computes the persona tag and subtitle for each of the four valid personas, and for `cio`/any invalid value",
+      "then": "each valid persona renders its exact tag and subtitle literal; `cio` or any other invalid value throws rather than rendering a fabricated or blank tag",
+      "objective": "Verify formatPersonaTag()/the persona-context header render the correct tag + subtitle literal for each of the 4 valid personas, and throw for `cio` or any unrecognized persona value instead of falling back to a fabricated or blank tag.",
+      "preconditions": [
+        "Test harness can render the persona-context header (or call formatPersonaTag() directly) with session and program already resolved \u2014 the loading gate has already passed",
+        "formatPersonaTag() is imported from apps/web/src/lib/"
+      ],
+      "test_data": {
+        "personas": [
+          {
+            "persona": "architect",
+            "expected_tag": "Architect",
+            "expected_subtitle": "Architect overview"
+          },
+          {
+            "persona": "developer",
+            "expected_tag": "Developer",
+            "expected_subtitle": "Developer overview"
+          },
+          {
+            "persona": "product-manager",
+            "expected_tag": "Product Manager",
+            "expected_subtitle": "Product Manager overview"
+          },
+          {
+            "persona": "engineering-manager",
+            "expected_tag": "Eng Manager",
+            "expected_subtitle": "Engineering manager overview"
+          }
+        ],
+        "invalid_personas": [
+          "cio",
+          "unknown-persona"
+        ]
+      },
+      "steps": [
+        "Render/evaluate with persona='architect' and assert tag/subtitle text",
+        "Repeat for persona='developer'",
+        "Repeat for persona='product-manager'",
+        "Repeat for persona='engineering-manager'",
+        "Render/evaluate with persona='cio' and capture the thrown error",
+        "Render/evaluate with an arbitrary invalid string and capture the thrown error"
+      ],
+      "expected_results": [
+        "architect renders tag 'Architect' and subtitle 'Architect overview'",
+        "developer renders tag 'Developer' and subtitle 'Developer overview'",
+        "product-manager renders tag 'Product Manager' and subtitle 'Product Manager overview'",
+        "engineering-manager renders tag 'Eng Manager' and subtitle 'Engineering manager overview' \u2014 the lowercase 'm' verified byte-exact",
+        "cio throws; no tag, no fabricated string, no blank render",
+        "an arbitrary invalid persona string throws the same way"
+      ],
+      "tags": [
+        "persona-map",
+        "fail-loud",
+        "parameterized",
+        "subtitle-literals"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#189",
+      "last_run": {
+        "started_at": "2026-09-03T15:22:30.500Z",
+        "duration_ms": 4,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 4,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/lib/formatPersonaTag.test.ts",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "SHP-01-TC-02",
+      "title": "Shell suppresses all persona-gated regions while loading, shows the neutral error state on resolver raise or cio, and the identity bar falls back to neutral when signedInUser is undefined",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-01-FR-5",
+      "given": "session and/or persona-resolver output have not yet resolved, or the persona-resolver raises (or a `cio` value reaches the shell), or `signedInUser` is undefined",
+      "when": "the shell is asked to render",
+      "then": "while pending, only the static product header renders (identity bar, persona tag, subtitle, program context all suppressed, no skeleton); on raise/cio, a neutral gray 'Persona unavailable' badge replaces the persona tag, no subtitle renders, and a visually-hidden aria-live='assertive' region announces 'Unable to load your dashboard view.'; when `signedInUser` is undefined the identity bar shows its neutral fallback, never a placeholder name",
+      "objective": "Verify the loading state suppresses every persona-gated region with no partial/mismatched render, the error state shows the exact neutral badge/copy/aria-live announcement on a resolver raise or cio, and the identity bar degrades to a neutral fallback (never a placeholder name) when signedInUser is undefined \u2014 the single data-presence mechanism the phased, no-feature-flag rollout depends on.",
+      "preconditions": [
+        "Test harness can render PersonaDashboardShell with session/persona/signedInUser controlled independently",
+        "A PersonaNotFoundError-raising persona-resolver stub is available"
+      ],
+      "test_data": {
+        "loading_state": {
+          "session": null,
+          "persona": null
+        },
+        "error_state_raise": {
+          "persona_resolver_error": "PersonaNotFoundError"
+        },
+        "error_state_cio": {
+          "persona": "cio"
+        },
+        "signed_in_user_absent": {
+          "signedInUser": "undefined"
+        }
+      },
+      "steps": [
+        "Render the shell with session and persona both unresolved (null)",
+        "Assert only the static product header is present; identity bar, persona tag, subtitle, program context are all absent \u2014 no skeleton markup",
+        "Render the shell with the persona-resolver stub throwing PersonaNotFoundError",
+        "Assert a neutral gray badge reading exactly 'Persona unavailable' replaces the persona tag, no subtitle renders, and a visually-hidden element with aria-live='assertive' contains 'Unable to load your dashboard view.'",
+        "Render the shell with persona='cio' reaching the component directly",
+        "Assert the same neutral badge/announcement as the raise case",
+        "Render the shell with signedInUser=undefined while session/persona are otherwise resolved",
+        "Assert the identity bar renders its neutral fallback, with no placeholder name/jobTitle text"
+      ],
+      "expected_results": [
+        "Loading: no persona-gated region rendered, only the static header, no skeleton",
+        "Raise: badge text is exactly 'Persona unavailable'; subtitle absent; aria-live='assertive' region present with exact copy 'Unable to load your dashboard view.'",
+        "cio: identical neutral badge/announcement as the raise case \u2014 the fail-loud path never reaches render with a fabricated tag",
+        "signedInUser undefined: identity bar shows the neutral fallback, no placeholder name/jobTitle rendered"
+      ],
+      "tags": [
+        "loading-state",
+        "error-state",
+        "aria-live",
+        "rollout-mechanism",
+        "no-feature-flag"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#190",
+      "last_run": {
+        "started_at": "2026-09-03T15:22:30.761Z",
+        "duration_ms": 76,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 76,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/PersonaDashboardShell.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "SHP-01-TC-03",
+      "title": "Program-context block passes icon/name/type/description through unchanged and composes avatarStyle/type-chip color itself, ignoring any caller-supplied style field",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-01-FR-4",
+      "given": "a program object (icon, name, type, description) is supplied by the composing dashboard page",
+      "when": "the persona-shell renders the program-context block",
+      "then": "icon, name, type tag text, and description render unchanged from the prop, and the type-chip color / avatar style are computed by the shell from its own docs/design/tokens.md lookup keyed on program.type \u2014 never from a style value on the prop, even if one is present",
+      "objective": "Verify the program-context block passes icon/name/type/description through verbatim and independently derives avatarStyle/type-chip color from a program.type lookup table, confirming the shell never reads or applies caller-supplied CSS.",
+      "preconditions": [
+        "Test harness renders the program-context block with session+persona already resolved",
+        "The docs/design/tokens.md type-chip color lookup table is available to the test for cross-check"
+      ],
+      "test_data": {
+        "program_a": {
+          "icon": "M",
+          "name": "Payments & Billing",
+          "type": "Migration",
+          "description": "Migration from monolithic core to event-driven microservices, with PCI-compliant tokenization"
+        },
+        "program_b_with_injected_css": {
+          "icon": "MT",
+          "name": "Growth Initiative",
+          "type": "Maintenance",
+          "description": "New market launch",
+          "avatarStyle": "background:#ff0000"
+        }
+      },
+      "steps": [
+        "Render the program-context block with program_a",
+        "Assert icon, name, description render verbatim and the type chip reads 'Migration'",
+        "Cross-check the rendered type-chip color/avatarStyle against the tokens.md lookup for type='Migration' (#2a6fdb on #eaf1fc), accounting for jsdom's rgb() normalisation",
+        "Render the program-context block with program_b_with_injected_css, which carries an extraneous avatarStyle field",
+        "Assert icon/name/description still render verbatim and the type chip reads 'Maintenance'",
+        "Assert the rendered avatarStyle/type-chip color matches the tokens.md lookup for type='Maintenance' (#c08a1e on #fdf3e0), NOT the injected 'background:#ff0000' value, and that #ff0000/rgb(255, 0, 0) appears nowhere in the output"
+      ],
+      "expected_results": [
+        "program_a: icon/name/description unchanged, type chip 'Migration', style matches tokens.md lookup for 'Migration'",
+        "program_b: icon/name/description unchanged, type chip 'Maintenance', style matches tokens.md lookup for 'Maintenance' \u2014 the injected avatarStyle field is never applied"
+      ],
+      "tags": [
+        "program-context",
+        "css-composition",
+        "no-caller-css"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#191",
+      "last_run": {
+        "started_at": "2026-09-03T15:22:30.755Z",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 60,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramContext.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      },
+      "test_data_note": "Reconciled 2026-09-03 (FLAGS.md AF-06, verdict accept). The original test_data keyed on type='infrastructure'/'product', neither of which exists in docs/design/tokens.md \u00a7 Program type colors (Migration / Greenfield feature development / Brownfield feature development / Maintenance, byte-exact from the EMD mockup's tMap). Those steps were unsatisfiable as written \u2014 'infrastructure' resolves to the Migration fallback, so the cross-check would have passed vacuously. tasks.json T-09 already directed the substitution to real types; this reconciles the manifest to what the test asserts."
+    },
+    {
+      "id": "SHP-01-TC-04",
+      "title": "Shell render completes within the 200ms p95 budget once session and persona-resolver output are available",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-01-NFR-1",
+      "given": "session and persona-resolver output are already available as resolved props",
+      "when": "the shell is mounted/rendered",
+      "then": "render completes within 200ms p95, since the shell performs no I/O of its own and the budget covers render time only",
+      "objective": "Verify the presentational shell's render time from already-resolved props stays within the 200ms p95 budget, isolating render cost from the upstream fetch/resolve time owned by the composing pages.",
+      "preconditions": [
+        "session, persona, and program props are pre-resolved \u2014 no async fetch inside the timed window",
+        "Benchmark harness (vitest bench or performance.now() around render) runs \u226530 iterations for a stable p95"
+      ],
+      "test_data": {
+        "iterations": 30,
+        "budget_p95_ms": 200
+      },
+      "steps": [
+        "Mount PersonaDashboardShell with fully-resolved session/persona/program props",
+        "Measure render duration via performance.now() around the render call, repeated for 30 iterations",
+        "Compute p95 render duration across iterations"
+      ],
+      "expected_results": [
+        "p95 render duration < 200ms"
+      ],
+      "tags": [
+        "performance",
+        "budget",
+        "render-only"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#192",
+      "last_run": {
+        "started_at": "2026-09-03T15:22:30.761Z",
+        "duration_ms": 106,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 106,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 200ms @ 30 iterations",
+          "measured": "p95 = 5.083ms (n=30, nearest-rank)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/PersonaDashboardShell.perf.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "SHP-01-AC-1",
+        "covered_by": [
+          "SHP-01-TC-01",
+          "SHP-01-TC-02"
+        ],
+        "note": "Product header text + persona tag portion covered by TC-01; the identity bar's absent-signedInUser neutral-fallback path covered by TC-02. The populated-identity render (real name/jobTitle values) is NOT separately asserted at this cap \u2014 see uncovered SHP-01-FR-1."
+      },
+      {
+        "id": "SHP-01-AC-2",
+        "covered_by": [
+          "SHP-01-TC-03"
+        ]
+      },
+      {
+        "id": "SHP-01-AC-3",
+        "covered_by": [
+          "SHP-01-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-01-AC-4",
+        "covered_by": [
+          "SHP-01-TC-02"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "SHP-01-FR-1",
+        "covered_by": [],
+        "note": "Deferred by design. signedInUser's prop shape depends on an AUTH-01 session-contract amendment that is decided but unlanded and may rename fields (decision log 2026-09-03); a TC pinned to today's `name`/`jobTitle` field names has negative value ahead of that landing. TC-02 exercises the one stable, testable slice \u2014 the `undefined` path \u2014 without asserting populated field names."
+      },
+      {
+        "id": "SHP-01-FR-2",
+        "covered_by": [
+          "SHP-01-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-01-FR-3",
+        "covered_by": [],
+        "note": "Deferred by design. Initials derivation ('Devon Rao' \u2192 'DR', single-token edge case) depends on the same unlanded signedInUser.name shape as FR-1 \u2014 low value to pin now."
+      },
+      {
+        "id": "SHP-01-FR-4",
+        "covered_by": [
+          "SHP-01-TC-03"
+        ]
+      },
+      {
+        "id": "SHP-01-FR-5",
+        "covered_by": [
+          "SHP-01-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "SHP-01-NFR-1",
+        "covered_by": [
+          "SHP-01-TC-04"
+        ]
+      },
+      {
+        "id": "SHP-01-NFR-2",
+        "covered_by": [],
+        "note": "No numeric budget, so the coverage-minimum rule does not mandate a dedicated type:security TC. The flash-prevention rule (never render persona-gated content before both session+persona resolve) is exercised incidentally by TC-02's loading-state assertions; 'never render the raw IdP role string' and 'PII never logged' remain structural/code-review concerns, not asserted by a behavioural TC at this cap."
+      },
+      {
+        "id": "SHP-01-NFR-3",
+        "covered_by": [],
+        "note": "The aria-live='assertive' announcement is asserted inside TC-02. The \u22654.5:1 contrast-ratio check on the four persona tag/background color pairs is explicitly routed to design QA in DESIGN.md per the PRD, not this manifest."
+      },
+      {
+        "id": "SHP-01-NFR-4",
+        "covered_by": [],
+        "note": "N/A \u2014 PRD and story mark this explicitly N/A; the shell emits no telemetry of its own."
+      }
+    ],
+    "uncovered": [
+      {
+        "id": "SHP-01-FR-1",
+        "reason": "Deliberately deferred under the \u22644 TC cap: prop shape depends on an unlanded AUTH-01 session-contract amendment that may rename fields; pinning a TC to current field names now has negative value."
+      },
+      {
+        "id": "SHP-01-FR-3",
+        "reason": "Deliberately deferred under the \u22644 TC cap: initials derivation depends on the same unlanded signedInUser.name shape as FR-1."
+      }
+    ]
+  }
+}

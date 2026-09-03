@@ -14,7 +14,6 @@
   "design_artifact": "docs/features/AUTH-02/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "review",
   "gate": "APPROVE",
   "plan": "complete",
   "plan_validation": "PASS",
@@ -50,7 +49,6 @@
       "evidence": null
     }
   ],
-  "last_updated": "2026-08-28T10:45:00Z",
   "tracker_plan": "pratikpawar009/Dashboard#107",
   "impl_evidence": {
     "session_ended_at": "2026-08-28T10:30:00Z",
@@ -85,5 +83,16 @@
   "impl": "branch:feature/AUTH-02",
   "validation": "2026-08-28 P=18/18",
   "review": "PASS",
-  "gate_rounds": 3
+  "gate_rounds": 3,
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 1,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/AUTH-02/SECURITY-20260903-1730.md",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-03T17:30:00Z"
 }

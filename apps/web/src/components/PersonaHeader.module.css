@@ -1,0 +1,45 @@
+/* Persona-context header line — geometry + static colors only.
+ * Persona-derived color/background (formatPersonaTag()) crosses as a
+ * CSSProperties `style` prop instead (D-06) — never hardcoded here. */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #7a828f;
+  margin-bottom: 12px;
+}
+
+.pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+/* Neutral error badge — fixed pair, never persona colors (FR-5).
+ * Background from docs/design/tokens.md § Border and surface ramp
+ * (#e4e7ec, the same value D-05 uses for the identity neutral fallback);
+ * text is the mockups' own #5b6472 (used for the program description
+ * text, see docs/design/schema.json-mapped mockups) — contrast 4.83:1
+ * against #e4e7ec, meeting the >=4.5:1 bar (NFR-3). */
+.pillNeutral {
+  color: #5b6472;
+  background: #e4e7ec;
+}
+
+/* Visually hidden but announced by assistive tech — clip, not display:none
+ * (screen readers skip display:none) and not visibility:hidden. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

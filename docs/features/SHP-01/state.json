@@ -1,0 +1,363 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#29",
+  "tracker_research": "pratikpawar009/Dashboard#187",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/SHP-01/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tracker_prd": "pratikpawar009/Dashboard#188",
+  "tasks": {
+    "file": "docs/features/SHP-01/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/SHP-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/SHP-01/DATA-DESIGN.md"
+  },
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06"
+  ],
+  "phase": "review",
+  "last_updated": "2026-09-03T22:25:00Z",
+  "pending_carry_forward": [
+    {
+      "item_id": "R-01-session-seam-unowned",
+      "kind": "risk",
+      "reason": "No story yet owns fetching/resolving session+persona and constructing the props PersonaDashboardShell consumes (ARC-01/DEV-01/PMD-01/EMD-01 not yet planned) \u2014 SHP-01 defines the prop interface only, per PRD Scope/Out-of-Scope and research condition 2 (docs/research/SHP-01.md Risk 1).",
+      "owner": "ARC-01 (or whichever downstream story reaches /arh-plan-implementation first)",
+      "added_at": "2026-09-03T20:15:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "R-02-persona-resolver-callsite-unowned",
+      "kind": "risk",
+      "reason": "No frontend call site exists for AUTH-02's persona-resolver; which downstream story invokes app.state.persona_resolver.resolve() (or an /api/me-style endpoint) and passes the result to the shell is undecided (docs/research/SHP-01.md Risk 2).",
+      "owner": "ARC-01 (or whichever downstream story reaches /arh-plan-implementation first)",
+      "added_at": "2026-09-03T20:15:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "NFR-3-contrast-check-unowned",
+      "kind": "risk",
+      "reason": "PRD SHP-01-NFR-3 routes the >=4.5:1 persona tag/background contrast check to 'design QA in DESIGN.md', but DESIGN.md was not produced (approved PRD gap, ux-agent not installed) \u2014 no artifact currently owns this verification.",
+      "owner": "design/ux-agent (once installed) or a human designer",
+      "added_at": "2026-09-03T20:15:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": "2026-09-03T22:05:00Z",
+      "evidence": "docs/features/SHP-01/DESIGN.md \u00a7 Design QA \u2014 contrast audit. Measured; 3 of the 4 persona pairs FAIL. The unowned-verification gap is closed; the resulting design defect is tracked as SHP-01-mockup-contrast-below-AA."
+    },
+    {
+      "item_id": "SHP-01-FR-1-FR-3-uncovered",
+      "kind": "test_case",
+      "reason": "SHP-01-FR-1/FR-3 deliberately uncovered under the approved <=4 test-case cap, pending the unlanded AUTH-01 session-contract amendment (docs/test-cases/SHP-01.json coverage_audit.uncovered).",
+      "owner": "SHP-01 owner",
+      "added_at": "2026-09-03T21:45:00Z",
+      "added_by": "validation-agent (gate round 1, report-only)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "SHP-01-icon-field-mockup-mismatch",
+      "kind": "review_finding",
+      "reason": "REVIEW.md F-1 (HIGH): ProgramContext renders a caller-supplied program.icon verbatim, but the mockups derive the avatar box's glyph from program.type (EMD: avatar = tMap[ptype].ab; ARC/DEV/PMD hardcode 'M' because their fixture is always ptype 'Migration'). No source anywhere supplies a per-program icon, and the 'Avatar abbreviation' column this diff added to docs/design/tokens.md is unread. CLAUDE.md's design-system rule makes the mockup, not the PRD prose, authoritative on shape. Cheapest to correct before ARC-01/DEV-01/PMD-01/EMD-01 plan against docs/requirements/api.md#persona-shell; note that dropping 'icon' also amends an approved PRD (FR-4) and a certified story, so it is not an implement-phase edit.",
+      "owner": "SHP-01 owner (decision), then whichever of ARC-01/DEV-01/PMD-01/EMD-01 reaches planning first",
+      "added_at": "2026-09-03T21:45:00Z",
+      "added_by": "code-review-agent (gate round 1, report-only)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "SHP-01-D06-neutral-hex-duplication",
+      "kind": "review_finding",
+      "reason": "REVIEW.md F-2 (MEDIUM): avatarColorStyle()'s neutral fallback pair (#5b6472/#e4e7ec) is hardcoded in PersonaDashboardShell.tsx rather than declared in its CSS Module, contradicting D-06's own rule and duplicating PersonaHeader.module.css .pillNeutral. D-02's colour-agreement guarantee currently holds only because the two literals happen to match.",
+      "owner": "SHP-01 owner",
+      "added_at": "2026-09-03T21:45:00Z",
+      "added_by": "code-review-agent (gate round 1, report-only)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-05-carry",
+      "kind": "finding",
+      "reason": "Real but unverifiable today: none of ARC-01/DEV-01/PMD-01/EMD-01 exist, and dropping the mockup-specified sticky treatment now would be a silent fidelity regression. Check for sticky stacking when the first consuming page nests the shell.",
+      "owner": "whichever of ARC-01/DEV-01/PMD-01/EMD-01 lands first",
+      "added_at": "2026-09-03T22:05:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-07-carry",
+      "kind": "finding",
+      "reason": "design_check is unwired project-wide (docs/config/project-commands.yaml design_check: empty). Choosing and installing an a11y/console/perf checker (axe-playwright, pa11y-ci) is a project-level decision. SHP-01 is the first story for which such a check would have had something to cover.",
+      "owner": "project (tooling decision)",
+      "added_at": "2026-09-03T22:05:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "SHP-01-mockup-contrast-below-AA",
+      "kind": "finding",
+      "reason": "DESIGN.md \u00a7 Design QA, run 2026-09-03 for the first time (the check PRD SHP-01-NFR-3 routed to DESIGN.md): 13 of 22 colour pairs fall below their WCAG bar, including 3 of the 4 persona tag pills (developer 4.20, product-manager 2.78, engineering-manager 3.91 vs 4.5), all 4 program type chips at 11px, the Maintenance avatar tile even at the 3:1 large-text bar, and the global neutral greys #8a93a1 (3.10) and #7a828f (3.88) on white. Every failing value is the mockups' own, reproduced byte-exactly \u2014 an inherited design defect, not an implementation one. Darkening these tokens has blast radius across every dashboard, so it is a design decision, not an implement-phase edit; CLAUDE.md makes the mockups authoritative and says to raise rather than design. The story's NFR softens the bar to 'WCAG AA, where feasible', so shipping is a documented, now-evidenced deviation. Supersedes NFR-3-contrast-check-unowned, which asked for exactly this measurement.",
+      "owner": "design decision (mockup owner), then whichever UI story adopts the revised tokens",
+      "added_at": "2026-09-03T22:05:00Z",
+      "added_by": "human-review/02-apply (AF-01/02/04 accept)",
+      "resolved_at": null,
+      "evidence": "docs/features/SHP-01/DESIGN.md \u00a7 Design QA \u2014 contrast audit"
+    },
+    {
+      "item_id": "dashboards-dir-duplicates-committed-mockups",
+      "kind": "finding",
+      "reason": "Untracked dashboards/ at the repo root holds byte-identical copies of all six files in docs/design/mockups/ (verified with cmp 2026-09-03; dashboards/ is the Jul-16 original, docs/design/mockups/ the Aug-27 copy taken into the repo). Two uncoordinated copies of the authoritative design source is a drift hazard \u2014 one will eventually be edited and the other not. Either gitignore dashboards/ or drop it; docs/design/schema.json points at docs/design/mockups/.",
+      "owner": "project (repo hygiene)",
+      "added_at": "2026-09-03T22:05:00Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "activity_log": [
+    {
+      "at": "2026-09-03T20:15:00Z",
+      "by": "/arh-plan-implementation",
+      "phase_transition": "plan-requirements-approved -> plan-implementation",
+      "note": "PLAN.md written (12 tasks: T-01/02/04/05/06/09/12 S, T-03/07/08/11 M, T-10 L; 15 files, 14 create + 1 modify; 3 components + 3 lib files + 1 types file under a newly-created apps/web/src/{types,lib,components}/ surface). No DESIGN.md (ux-agent not installed, approved PRD gap) \u2014 planned against the PRD Screen inventory + decoded ARC/DEV/PMD/EMD mockups + docs/design/tokens.md instead. DECISIONS.md: 5 entries (D-01..D-05), all blast:feature/rev:mechanical, none promoted to ADR. DATA-DESIGN.md written (fully prop-driven presentational component; \u00a79 Contract is the substantive section). persona-shell contract filled with concrete shape at docs/requirements/api.md#persona-shell (plan-authoring step 10); docs/design/tokens.md extended with \u00a7 Persona colors / \u00a7 Program type colors (D-04). No docs/runner-setup/config-drift task needed \u2014 no new route/env var/service/port, and vitest is already installed+configured for the one performance TC. Wiring dimension PASS with a documented exception: PersonaDashboardShell.tsx has no in-repo consumer yet (ARC-01/DEV-01/PMD-01/EMD-01 not yet planned), recorded in PLAN.md \u00a76 Cross-Feature Dependency Notes rather than fabricated. Risks R-01/R-02 (session/persona-resolver seam ownership) accepted as carry-forward, not silently absorbed as fetch work; a third gap (NFR-3 contrast check unowned since DESIGN.md was never produced) also carried forward. SHP-01-FR-1/FR-3 test coverage remains deliberately deferred per the approved test-case cap \u2014 not closed by this plan. plan-validation: PASS, round 1/2, all 6 dimensions green."
+    },
+    {
+      "at": "2026-09-03T22:20:00Z",
+      "by": "/arh-implement",
+      "phase_transition": "plan-implementation -> review",
+      "note": "12/12 tasks done across 5 DAG rounds (max 3 concurrent workers), file-disjoint per round. Evidence pass READY round 1 (6 dimensions: 5 PASS, design_check N/A). Validate || Review gate GREEN round 1/3 on snapshot 91f6cadfdbe70b21: V=PASS 4/4, R=PASS WITH WARNINGS (0C/1H/1M/2L). D-06 added mid-implementation (styling mechanism; records the getProgramStyle CSSProperties-vs-string deviation from PLAN.md). 7 agent flags triaged: 4 accept, 1 reject, 2 defer. The AF-01/02/04 accept produced DESIGN.md, hand-authored from docs/design/mockups/ since ux-agent is not installed, which ran the NFR-3 contrast audit for the first time: 13 of 22 pairs below their WCAG bar, all of them the mockups' own values -- raised as SHP-01-mockup-contrast-below-AA rather than redesigned, per CLAUDE.md. AF-06 accept reconciled TC-03's test_data to real tokens.md program types. Review F-1 (HIGH, program.icon has no mockup basis) carried forward by explicit decision: fixing it amends an approved PRD and a certified story. 9 carry-forward items acknowledged at merge. Committed in 2 commits (AUTH-02 security-review chore separated out at the user's direction), PR #194."
+    }
+  ],
+  "tracker_plan": "pratikpawar009/Dashboard#193",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-03T21:10:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-01/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T21:10:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-01/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T21:10:00Z"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-01/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T21:10:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:/Docker: per stack",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-03T21:10:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8010  (8000 occupied by a pre-existing unrelated process; alt port used for isolation, no story impact)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/SHP-01/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "deps_provisioned": "docker run postgres:16 (host port 5434, 5432 unavailable on this host) + uv run alembic upgrade head -> docs/features/SHP-01/evidence/runtime-migrate.log, exit 0; torn down after check (docker stop, --rm)",
+            "health_check": "GET /health -> 200 {\"status\":\"ok\"}"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "pnpm dev --port 3021 (3000 and 3010 occupied by pre-existing unrelated processes; alt port used for isolation, no story impact)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/SHP-01/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "confirmed via SSR HTML body (GET / -> 200, full rendered markup present, not a bare mount node) -- no E2E/browser runner installed (test_e2e: empty) so this substitutes for the browser-tooling render check",
+            "note": "renders the default App Router scaffold page (src/app/page.tsx, untouched by SHP-01) -- PersonaDashboardShell has no in-repo route consumer yet, a plan-documented and carried-forward gap (R-01/R-02), not a defect of this story"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-01/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T21:10:00Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-07",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "passed",
+  "validation_summary": "2026-09-03 P=4/4 in 1 round(s)",
+  "validation_report": "docs/features/SHP-01/VALIDATION-20260903-1523.md",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/SHP-01/REVIEW.md",
+  "review_findings": {
+    "critical": 0,
+    "high": 1,
+    "medium": 1,
+    "low": 2
+  },
+  "gate_rounds": 1,
+  "impl": "complete",
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "summary": "UI task implemented without DESIGN.md \u2014 design pending or n/a",
+      "source": "apps/web/src/components/PersonaHeader.tsx",
+      "task_id": "T-07",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Authored docs/features/SHP-01/DESIGN.md from docs/design/mockups/ (the design source the user pointed at as dashboards/, verified byte-identical to the committed copy), and ran the NFR-3 contrast audit the PRD routed to DESIGN.md and nobody had executed.",
+      "rationale": "The design always existed and was in fact what every worker built against via the decoded-mockup fidelity extract; what was missing was the DESIGN.md artefact, not the design. Authoring it surfaced a real result: 13 of 22 colour pairs fall below their WCAG bar, including 3 of the 4 persona tag pills the PRD specifically asked to verify. Docs-only, so the gate verdicts stand on their snapshot.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "risky-pattern",
+      "summary": "UI task implemented without DESIGN.md \u2014 design pending or n/a",
+      "source": "apps/web/src/components/ProgramContext.tsx",
+      "task_id": "T-08",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Authored docs/features/SHP-01/DESIGN.md from docs/design/mockups/ (the design source the user pointed at as dashboards/, verified byte-identical to the committed copy), and ran the NFR-3 contrast audit the PRD routed to DESIGN.md and nobody had executed.",
+      "rationale": "Same concern and same resolution as AF-01; one verdict covered all three UI tasks.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "risky-pattern",
+      "summary": "invalid-persona + defined-signedInUser avatar colour unspecified by PLAN/TC-02; degraded to the neutral pair mirroring PersonaHeader",
+      "source": "apps/web/src/components/PersonaDashboardShell.tsx:131-140",
+      "task_id": "T-10",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "Flag rejected as noise \u2014 see rationale.",
+      "rationale": "The interpretation is correct and was independently endorsed by code-review-agent, which also confirmed it does not violate condition C-7 (the try/catch branches on validity, not on any specific persona) and that D-02's colour-agreement guarantee survives the fallback. Nothing to fix or defer.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "risky-pattern",
+      "summary": "UI task implemented without DESIGN.md \u2014 design pending or n/a",
+      "source": "apps/web/src/components/PersonaDashboardShell.tsx",
+      "task_id": "T-10",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Authored docs/features/SHP-01/DESIGN.md from docs/design/mockups/ (the design source the user pointed at as dashboards/, verified byte-identical to the committed copy), and ran the NFR-3 contrast audit the PRD routed to DESIGN.md and nobody had executed.",
+      "rationale": "Same concern and same resolution as AF-01.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "risky-pattern",
+      "summary": "header region is position:sticky; top:0 \u2014 may collide with a consumer's own sticky nav",
+      "source": "apps/web/src/components/PersonaDashboardShell.module.css",
+      "task_id": "T-10",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "Deferred to whichever consuming story lands first.",
+      "rationale": "Real but unverifiable today: none of ARC-01/DEV-01/PMD-01/EMD-01 exist, and dropping the sticky treatment now would be a silent fidelity regression against the mockups, which specify it.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": "AF-05-carry"
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "inconsistency",
+      "summary": "SHP-01-TC-03's test_data uses program types that do not exist in tokens.md",
+      "source": "docs/test-cases/SHP-01.json (SHP-01-TC-03.test_data)",
+      "task_id": "T-09",
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Reconciled TC-03's test_data, steps and expected_results to the real tokens.md types (Migration, Maintenance) the test actually asserts, with a test_data_note recording why.",
+      "rationale": "Docs-only and cheap; stops the next reader seeing a test that contradicts its own manifest. The original steps were unsatisfiable \u2014 'infrastructure' resolves to the Migration fallback, so the cross-check would have passed vacuously.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "evidence-na",
+      "summary": "design_check dimension marked N/A \u2014 no a11y/console/perf tool wired",
+      "source": "docs/config/project-commands.yaml (design_check:)",
+      "task_id": null,
+      "raised_at": "2026-09-03T21:05:00Z",
+      "raised_by": "evidence-pass",
+      "status": "defer",
+      "decision": "Confirmed N/A for SHP-01; tool selection carried forward as its own item.",
+      "rationale": "The dimension genuinely cannot run today, and choosing/installing a checker (axe-playwright, pa11y-ci) is a project-level decision with its own dependency and config footprint, not SHP-01 scope. The DESIGN.md contrast audit closes the specific a11y question SHP-01's PRD asked; it does not replace a wired tool.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T22:05:00Z",
+      "carry_forward_ref": "AF-07-carry"
+    }
+  ],
+  "design_authored_by": "hand-authored during /arh-implement flag triage (AF-01/02/04 accept) from docs/design/mockups/ \u2014 ux-agent is not installed; post-implementation record, not a pre-implementation spec",
+  "impl_branch": "feature/SHP-01",
+  "impl_pr": "https://github.com/pratikpawar009/Dashboard/pull/194",
+  "tracker_review_comment": "5528326810"
+}

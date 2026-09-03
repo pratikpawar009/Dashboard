@@ -63,7 +63,20 @@ shape:
 produced_by: SHP-01
 consumed_by: [ARC-01, DEV-01, PMD-01, EMD-01]
 shape:
-  fields: { product_header, signed_in_user: { name, role }, persona_tag, subtitle, program_context: { icon, name, type, description } }
+  component: "PersonaDashboardShell(props) @ apps/web/src/components/PersonaDashboardShell.tsx — presentational, no fetching, no persona conditionals of its own"
+  props:
+    signedInUser: "{ name: string; jobTitle: string } | undefined — undefined pre-AUTH-01-amendment or pre-resolution (renders the FR-5 neutral identity fallback, never a placeholder name/jobTitle); PROVISIONAL field names, pending the AUTH-01 session-contract amendment (SHP-01 Constraints/C-1, DECISIONS.md D-01). Isolated behind apps/web/src/types/persona.ts so a rename there is a two-file change, not a wide refactor."
+    persona: "string | undefined — undefined means session/persona-resolver output has not yet resolved (FR-5 loading gate: suppresses the identity bar, persona tag, subtitle, and program context entirely, no skeleton). A defined value is passed to formatPersonaTag(); one of 'architect' | 'developer' | 'product-manager' | 'engineering-manager' renders normally, any other value (including 'cio', or whatever sentinel the composing page passes after catching AUTH-02's PersonaNotFoundError) throws PersonaTagError, rendered as the one neutral 'Persona unavailable' badge plus an aria-live='assertive' announcement (FR-2, FR-5, DECISIONS.md D-03)."
+    program: "{ icon: string; name: string; type: string; description: string } — one prop name across all 4 pages (never prog/proj, C-4); data only, no avatarStyle/typeChip fields. The shell derives avatarStyle/typeChip color from program.type via its own docs/design/tokens.md-sourced lookup (FR-4, DECISIONS.md D-04), ignoring any style field the prop might carry. The composing page resolves this fully before render (C-3) — the shell owns no loading/empty state for it; an absent/undefined program while persona has resolved is a caller error, not a shell-rendered state."
+  derived_internally:
+    tag_subtitle_color: "formatPersonaTag(persona) @ apps/web/src/lib/formatPersonaTag.ts -> { tag, subtitle, color, background } — 'Architect'|'Developer'|'Product Manager'|'Eng Manager' tags, the 4 subtitle literals verbatim (incl. lowercase 'm' in 'Engineering manager overview'), throws PersonaTagError for 'cio'/any other value (FR-2, DECISIONS.md D-02)"
+    initials: "deriveInitials(signedInUser.name) @ apps/web/src/lib/deriveInitials.ts — uppercase first letter of each of the first 2 space-separated tokens ('Devon Rao' -> 'DR'); a single-token name yields that one letter only (FR-3). Rendered inside a 34x34px circle colored via formatPersonaTag(persona).color. Never computed until signedInUser resolves."
+    program_style: "getProgramStyle(program.type) @ apps/web/src/lib/programStyle.ts -> { avatarStyle, typeChip } — keyed on 'Migration'|'Greenfield feature development'|'Brownfield feature development'|'Maintenance' (FR-4, DECISIONS.md D-04)"
+  states:
+    loading: "persona === undefined — renders only the static product header (brand mark + 'AgentRise Harness'/'AI SDLC Governance'); identity bar, persona tag, subtitle, and program context are all absent, no skeleton (FR-5)"
+    error: "persona is defined but not one of the 4 valid personas — neutral gray 'Persona unavailable' badge in place of the persona tag, no subtitle, plus a visually-hidden aria-live='assertive' region reading 'Unable to load your dashboard view.' (FR-5). Independent of the identity-bar/program-context axes below — both still render per their own rules."
+    populated: "persona is one of the 4 valid personas — tag/subtitle/program context render normally; identity bar renders signedInUser's name/jobTitle/initials if defined, else its own neutral fallback (a plain gray circle, no initials, aria-hidden, DECISIONS.md D-05) — independent of persona validity, per the Rollout plan's no-feature-flag, data-presence-driven design"
+  out_of_scope: "fetching/resolving session, persona, or program (owned by ARC-01/DEV-01/PMD-01/EMD-01, not yet planned — SHP-01 Constraints/condition 2); the 'Switch program' control (EMD-01 renders it as a sibling after the shell, C-4)"
 ```
 
 ### overview-summary-api

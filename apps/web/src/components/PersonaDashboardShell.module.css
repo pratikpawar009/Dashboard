@@ -1,0 +1,102 @@
+/* PersonaDashboardShell — brand bar + header-region geometry, static colors
+ * only (D-06). The identity avatar's data-driven color pair crosses as a
+ * CSSProperties `style` prop instead — never hardcoded here. */
+
+.brandBar {
+  padding: 14px 34px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #eef0f3;
+  background: #fff;
+}
+
+.logoTile {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #2a6fdb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.logoInner {
+  width: 13px;
+  height: 13px;
+  border: 2.4px solid #fff;
+  border-radius: 4px;
+  transform: rotate(45deg);
+}
+
+.brandText {
+  flex: 1;
+}
+
+.productName {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.tagline {
+  font-size: 10.5px;
+  color: #8a93a1;
+  font-weight: 600;
+  margin-top: 1px;
+  letter-spacing: 0.2px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.identityText {
+  text-align: right;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.jobTitle {
+  font-size: 11px;
+  color: #8a93a1;
+  font-weight: 500;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex: none;
+}
+
+/* D-05 neutral identity fallback — border-ramp gray, no text/initials. */
+.avatarNeutral {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #e4e7ec;
+  flex: none;
+}
+
+.headerRegion {
+  padding: 18px 34px 20px;
+  border-bottom: 1px solid #e9ebef;
+  background: #ffffffcc;
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}

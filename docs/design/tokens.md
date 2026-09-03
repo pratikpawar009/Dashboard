@@ -36,6 +36,31 @@ Border and surface ramp: `#e4e7ec` · `#e6e9ef` · `#e9ebef` · `#eef0f3` · `#f
 
 No dark palette exists in the mockups. If the app needs one, it is a new design decision.
 
+### Persona colors
+
+Extracted 2026-09-03 (SHP-01, `DECISIONS.md` D-04) from the ARC/DEV/PMD/EMD mockups' persona tag
+pill and signed-in-identity avatar circle — both use the same color per persona, byte-exact across
+all four mockups.
+
+| Persona | Persona key | Tag / avatar color | Tag pill background |
+|---|---|---|---|
+| Architect | `architect` | `#6a4fd0` | `#f0edfb` |
+| Developer | `developer` | `#2a6fdb` | `#e9f1fd` |
+| Product Manager | `product-manager` | `#d97757` | `#fdefe9` |
+| Eng Manager | `engineering-manager` | `#1f8a5b` | `#eaf6ef` |
+
+### Program type colors
+
+Extracted 2026-09-03 (SHP-01, `DECISIONS.md` D-04) from the Engineering Manager mockup's `tMap` —
+the program-context block's `avatarStyle`/`typeChip` color source, keyed by `program.type`.
+
+| Program type | Color | Background | Avatar abbreviation |
+|---|---|---|---|
+| Migration | `#2a6fdb` | `#eaf1fc` | `M` |
+| Greenfield feature development | `#1f8a5b` | `#e8f5ee` | `G` |
+| Brownfield feature development | `#7c5cff` | `#efebff` | `B` |
+| Maintenance | `#c08a1e` | `#fdf3e0` | `MT` |
+
 ## Radius
 
 `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px` brand mark · `8px`
