@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "story_id": "SHP-01",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-03T20:15:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "apps/web/src/types/persona.ts",
+      "reason": "FR-1 isolation adapter (D-01): SignedInUser/ProgramContextData/Persona/VALID_PERSONAS types, so a future AUTH-01 field rename touches this file plus the shell only"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "apps/web/src/lib/formatPersonaTag.ts",
+      "reason": "FR-2: PersonaTagError + formatPersonaTag(persona) -> {tag, subtitle, color, background}, cio/invalid throws (D-02)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "apps/web/src/lib/formatPersonaTag.test.ts",
+      "reason": "SHP-01-TC-01 (SHP-01-FR-2) \u2014 4 valid personas + cio + one arbitrary invalid value"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "apps/web/src/lib/deriveInitials.ts",
+      "reason": "FR-3: pure initials derivation from signedInUser.name; coverage deferred per approved test-case cap (docs/test-cases/SHP-01.json coverage_audit.uncovered)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "apps/web/src/lib/programStyle.ts",
+      "reason": "FR-4: getProgramStyle(program.type) -> {avatarStyle, typeChip}, sourced from docs/design/tokens.md \u00a7 Program type colors (D-04)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaHeader.tsx",
+      "reason": "Renders the persona tag+subtitle (populated) or the neutral 'Persona unavailable' badge + aria-live announcement (error) \u2014 FR-2/FR-5, story Test mapping"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaHeader.module.css",
+      "reason": "CSS Modules stylesheet for PersonaHeader, per next-patterns' per-route/per-component CSS Modules convention"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramContext.tsx",
+      "reason": "FR-4: renders icon/name/type-chip/description verbatim from the program prop; composes avatarStyle/typeChip itself via programStyle.ts, never from the prop"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramContext.module.css",
+      "reason": "CSS Modules stylesheet for ProgramContext"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramContext.test.tsx",
+      "reason": "SHP-01-TC-03 (SHP-01-FR-4) \u2014 verbatim data passthrough + caller-supplied avatarStyle ignored, cross-checked against tokens.md's lookup"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaDashboardShell.tsx",
+      "reason": "Composing shell (story Test mapping): brand bar + inline signed-in identity block + loading/error gating (FR-5) + PersonaHeader/ProgramContext composition. No in-repo consumer yet \u2014 see PLAN.md \u00a76 Cross-Feature Dependency Notes."
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaDashboardShell.module.css",
+      "reason": "CSS Modules stylesheet for PersonaDashboardShell (brand bar + header layout)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaDashboardShell.test.tsx",
+      "reason": "SHP-01-TC-02 (SHP-01-FR-5) \u2014 loading suppression, cio/raise error badge + aria-live, identity-bar neutral fallback on undefined signedInUser"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/components/PersonaDashboardShell.perf.test.tsx",
+      "reason": "SHP-01-TC-04 (SHP-01-NFR-1) \u2014 render p95 < 200ms over 30 iterations via performance.now(), inside the existing vitest runner"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "docs/design/tokens.md",
+      "reason": "Add \u00a7 Persona colors and \u00a7 Program type colors tables (D-04) so FR-2/FR-4's 'sourced from tokens.md' claim is literally true"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add persona/program prop types \u2014 the FR-1 field-name isolation adapter",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-2"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "apps/web/src/types/persona.ts (D-01): `interface SignedInUser { name: string; jobTitle: string }`; `interface ProgramContextData { icon: string; name: string; type: string; description: string }`; `const VALID_PERSONAS = ['architect','developer','product-manager','engineering-manager'] as const;` `type ValidPersona = typeof VALID_PERSONAS[number];` `type Persona = string` (AUTH-02's resolve() is fully data-driven per docs/requirements/auth.md#persona-resolver \u2014 no hardcoded enum on the wire, so the prop type stays a loose string; VALID_PERSONAS is the runtime allow-list formatPersonaTag validates against). TSDoc on SignedInUser: 'PROVISIONAL \u2014 pending the AUTH-01 session-contract amendment (SHP-01 Constraints/C-1); only this file and PersonaDashboardShell.tsx reference these field names directly.'",
+      "status": "done",
+      "completed_at": "2026-09-03T20:52:00Z",
+      "files_touched": [
+        "apps/web/src/types/persona.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Extend docs/design/tokens.md with persona colors and program-type colors tables",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-2",
+        "SHP-01-AC-3"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "Add the two tables verbatim per DECISIONS.md D-04 (values already verified byte-exact against the decoded ARC/DEV/PMD/EMD mockups and the EMD tMap): \u00a7 Persona colors (architect #6a4fd0/#f0edfb, developer #2a6fdb/#e9f1fd, product-manager #d97757/#fdefe9, engineering-manager #1f8a5b/#eaf6ef) and \u00a7 Program type colors (Migration #2a6fdb/#eaf1fc/M, Greenfield feature development #1f8a5b/#e8f5ee/G, Brownfield feature development #7c5cff/#efebff/B, Maintenance #c08a1e/#fdf3e0/MT).",
+      "status": "done",
+      "completed_at": "2026-09-03T20:52:00Z",
+      "files_touched": [
+        "docs/design/tokens.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Implement formatPersonaTag() \u2014 tag/subtitle/color map with cio/invalid fail-loud invariant",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-3",
+        "SHP-01-AC-4"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-07"
+      ],
+      "notes": "apps/web/src/lib/formatPersonaTag.ts (D-02): `export class PersonaTagError extends Error {}`; internal `PERSONA_DISPLAY: Record<ValidPersona, {tag: string; subtitle: string; color: string; background: string}>` sourced from tokens.md \u00a7 Persona colors (T-02) \u2014 architect->{'Architect','Architect overview',...}, developer->{'Developer','Developer overview',...}, product-manager->{'Product Manager','Product Manager overview',...}, engineering-manager->{'Eng Manager','Engineering manager overview',...} (verbatim, incl. lowercase 'm', C-4 \u2014 never a Title(persona)+' overview' template). `export function formatPersonaTag(persona: Persona): {tag,subtitle,color,background}` looks up PERSONA_DISPLAY; throws `new PersonaTagError(persona)` when the key is absent (covers 'cio' and any other invalid string, FR-2). TSDoc documents the cio-is-an-invariant-violation rationale.",
+      "status": "done",
+      "completed_at": "2026-09-03T20:58:00Z",
+      "files_touched": [
+        "apps/web/src/lib/formatPersonaTag.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Unit test formatPersonaTag \u2014 4 valid personas + cio + one arbitrary invalid value",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-3"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "Covers SHP-01-TC-01. Parameterized over the 4 valid personas asserting exact tag+subtitle strings (byte-exact 'Engineering manager overview'); asserts formatPersonaTag('cio') and formatPersonaTag('unknown-persona') both throw PersonaTagError, never a fabricated or blank tag.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:05:00Z",
+      "files_touched": [
+        "apps/web/src/lib/formatPersonaTag.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Implement deriveInitials() \u2014 pure initials derivation from a display name",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "apps/web/src/lib/deriveInitials.ts (FR-3): `export function deriveInitials(name: string): string` \u2014 splits on whitespace, uppercases the first character of the first 2 tokens ('Devon Rao' -> 'DR'); a single-token name yields that one letter only, no doubling. FR-1/FR-3 test coverage is deferred per the approved <=4 test-case cap (docs/test-cases/SHP-01.json coverage_audit.uncovered \u2014 depends on the unlanded AUTH-01 signedInUser.name shape); implemented now as a plain, isolated pure function so it is trivially unit-testable once that coverage gap is revisited, but no dedicated TC is added here.",
+      "status": "done",
+      "completed_at": "2026-09-03T20:58:00Z",
+      "files_touched": [
+        "apps/web/src/lib/deriveInitials.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Implement programStyle.ts \u2014 program.type to {avatarStyle, typeChip} lookup",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-2"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "apps/web/src/lib/programStyle.ts (D-04): `export function getProgramStyle(type: string): {avatarStyle: string; typeChip: string}` reading tokens.md \u00a7 Program type colors (T-02) \u2014 Migration/Greenfield feature development/Brownfield feature development/Maintenance. An unrecognized type falls back to the Migration entry rather than throwing (program.type is caller-resolved data per C-3, not a shell-owned invariant like persona \u2014 a mismatch here is a display default, not the FR-2 fail-loud case).",
+      "status": "done",
+      "completed_at": "2026-09-03T20:58:00Z",
+      "files_touched": [
+        "apps/web/src/lib/programStyle.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Build PersonaHeader \u2014 tag/subtitle render or neutral error badge + aria-live",
+      "complexity": "M",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06",
+        "F-07"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-3",
+        "SHP-01-AC-4"
+      ],
+      "risk_refs": [
+        "R-08",
+        "R-10"
+      ],
+      "notes": "apps/web/src/components/PersonaHeader.tsx: props `{ persona: Persona }` (never undefined \u2014 PersonaDashboardShell only mounts this once loading has passed, T-10). Calls formatPersonaTag(persona) in a try/catch: success renders the tag pill (color/background from the result) + the subtitle text; catching PersonaTagError renders a neutral gray badge reading exactly 'Persona unavailable' (no subtitle) plus a visually-hidden `<span aria-live=\"assertive\">Unable to load your dashboard view.</span>`. TSDoc documents the fail-loud contract per FR-2/FR-5.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:05:00Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaHeader.tsx",
+        "apps/web/src/components/PersonaHeader.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Build ProgramContext \u2014 icon/name/type-chip/description render, style composed internally",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-08",
+        "F-09"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-2"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "apps/web/src/components/ProgramContext.tsx: props `{ program: ProgramContextData }`. Renders program.icon/name/description verbatim and the type chip text = program.type; avatarStyle/typeChip CSS come only from getProgramStyle(program.type) (T-06) \u2014 the component destructures exactly {icon, name, type, description} off the prop, so an extraneous field (e.g. an injected avatarStyle) on the prop object is never read. TSDoc documents the FR-4 CSS-composition rule (C-3/C-5) and that this component owns no loading/empty state.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:05:00Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramContext.tsx",
+        "apps/web/src/components/ProgramContext.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Unit test ProgramContext \u2014 verbatim passthrough, caller-supplied style ignored",
+      "complexity": "S",
+      "predecessors": [
+        "T-08",
+        "T-02"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-2"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "Covers SHP-01-TC-03. Renders with program_a (type='infrastructure'-analog from tokens.md's 4 real types, e.g. 'Migration') and asserts icon/name/description/type-chip text render unchanged and the rendered color/background match tokens.md \u00a7 Program type colors for that type; renders with a program object carrying an extraneous avatarStyle:'background:#ff0000' field and asserts the rendered style still matches the tokens.md lookup, never the injected value.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:14:00Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramContext.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Build PersonaDashboardShell \u2014 brand bar + inline identity block + loading/error gating + composition",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-05",
+        "T-07",
+        "T-08"
+      ],
+      "files": [
+        "F-11",
+        "F-12"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-2",
+        "SHP-01-AC-3",
+        "SHP-01-AC-4"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-07",
+        "R-08",
+        "R-10"
+      ],
+      "notes": "apps/web/src/components/PersonaDashboardShell.tsx: props `{ signedInUser?: SignedInUser; persona?: Persona; program: ProgramContextData }` (D-01/D-03, docs/requirements/api.md#persona-shell). `isLoading = persona === undefined`. Always renders the brand-bar left half (logo tile + 'AgentRise Harness'/'AI SDLC Governance'). When !isLoading: renders the identity block inline \u2014 signedInUser defined -> name/jobTitle text + deriveInitials(signedInUser.name) (T-05) inside a 34x34px circle colored via formatPersonaTag(persona).color (guarded: only reached when persona is one of the 4 valid, since PersonaHeader/formatPersonaTag already validated it); signedInUser undefined -> the neutral gray circle fallback (D-05, no initials, aria-hidden, no name/jobTitle text). Also when !isLoading, renders `<PersonaHeader persona={persona} />` (T-07) and `<ProgramContext program={program} />` (T-08) inside the header region \u2014 both render regardless of whether persona turns out valid or invalid; PersonaHeader owns its own error-badge branch (T-07), ProgramContext is unconditional once past the outer loading gate (C-3). No persona-conditional branching beyond isLoading exists in this file (C-7). TSDoc: prop contract, FR-1's pending-AUTH-01-amendment caveat, FR-5's suppression semantics, and NFR-2's flash-prevention rationale (persona-gated content never renders before persona resolves).",
+      "status": "done",
+      "completed_at": "2026-09-03T21:14:00Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.tsx",
+        "apps/web/src/components/PersonaDashboardShell.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Integration test: loading suppression, cio/raise error badge, identity-bar neutral fallback",
+      "complexity": "M",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "SHP-01-AC-1",
+        "SHP-01-AC-4"
+      ],
+      "risk_refs": [
+        "R-08",
+        "R-10"
+      ],
+      "notes": "Covers SHP-01-TC-02, via @testing-library/react (already installed). (1) persona=undefined, session unresolved: assert only the brand-bar left half is present, query for identity bar/persona tag/subtitle/program-context text all return null, no skeleton markup. (2) persona set to an invalid sentinel simulating a caught PersonaNotFoundError: assert the neutral 'Persona unavailable' badge, no subtitle text, and an aria-live='assertive' element containing 'Unable to load your dashboard view.'. (3) persona='cio' passed directly: assert the identical badge/announcement as (2). (4) persona a valid value, program resolved, signedInUser=undefined: assert the identity block's neutral gray circle renders with no name/jobTitle text anywhere in the container.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:24:00Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Performance test: PersonaDashboardShell render p95 < 200ms",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-09"
+      ],
+      "notes": "Covers SHP-01-TC-04 (SHP-01-NFR-1). Runs inside the existing vitest runner (no new tool, no bench-mode config change \u2014 the file matches vitest.config.ts's existing `src/**/*.test.{ts,tsx}` include glob). Mounts PersonaDashboardShell via @testing-library/react's render() with fully-resolved signedInUser/persona/program props, wraps each of 30 iterations in performance.now(), computes p95, asserts < 200ms. Each iteration unmounts/remounts (testing-library's cleanup) to avoid cross-iteration DOM buildup skewing later renders.",
+      "status": "done",
+      "completed_at": "2026-09-03T21:24:00Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.perf.test.tsx"
+      ],
+      "reason": null
+    }
+  ]
+}

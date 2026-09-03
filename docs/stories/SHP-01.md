@@ -6,6 +6,9 @@
 **Owner**: —
 **Updated**: 2026-08-26
 **Tracker**: pratikpawar009/Dashboard#29 (https://github.com/pratikpawar009/Dashboard/issues/29)
+**Tracker Research**: pratikpawar009/Dashboard#187
+**Tracker Plan Requirements**: pratikpawar009/Dashboard#188
+**Tracker Plan Implementation**: pratikpawar009/Dashboard#193
 
 ## User story
 
@@ -45,3 +48,6 @@ As a signed-in Architect, Developer, Product Manager, or Engineering Manager, I 
 - 2026-08-26 `program_context` data source: passed in as props by the composing dashboard page (ARC-01/DEV-01/PMD-01/EMD-01) — assumption; SHP-01's Depends-on/Contract list (AUTH-01/AUTH-02 only) excludes any programs-data contract, so this shell is presentational-only for that field.
 - 2026-08-26 Loading/error state on unresolved or raised session/persona data — assumption; PRD specifies the persona-resolver's raise condition but not the shell's UI response to it.
 - 2026-08-26 Render performance budget (200ms) — assumption; no source budget exists for this presentational component.
+- 2026-09-03 `signed_in_user` field naming in the amended persona-shell contract: `{ name, jobTitle }` (was `{ name, role }`) — assumption, logged during PRD drafting (`docs/features/SHP-01/REQUIREMENTS.md` FR-1); avoids overloading `role`, which the contract still uses for the raw IdP claim, distinct from job title and from the persona tag (research Risk 7). Superseded if the landed AUTH-01 amendment uses a different field name.
+- 2026-09-03 Initials for a single-token display name: use that one letter only, no doubling — assumption, logged during PRD drafting (FR-3); neither the story nor the mockups' static markup covers the single-token case.
+- 2026-09-03 Generic error-state fallback: neutral gray badge reading "Persona unavailable" in place of the persona tag, plus a visually-hidden `aria-live="assertive"` announcement ("Unable to load your dashboard view.") — assumption, logged during PRD drafting (FR-5); AC4 specifies the requirement, not the copy/markup.
