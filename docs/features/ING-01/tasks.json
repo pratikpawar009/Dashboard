@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-01",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-08-31T19:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/scripts/mint_ingest_token.py",
+      "reason": "ING-01-FR-1/FR-2: argparse mint CLI, creates services/api/scripts/ (ADR-0006 \u00a72)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/core/ingest_auth.py",
+      "reason": "ING-01-FR-3/FR-4/FR-5/FR-6: get_ingest_token() dependency, scope check, denial log event"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_mint_ingest_token.py",
+      "reason": "TC-01,02,03,04,05,23 \u2014 mint script output/storage/failure-mode/entropy coverage"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_token_auth.py",
+      "reason": "TC-06,07,08,09,10,11,12,13,14,15,16,17,18,19,20,24 \u2014 classification, scope, log-field-allowlist"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_token_isolation.py",
+      "reason": "TC-21 \u2014 get_ingest_token/get_current_user dependency isolation on a real dual-dependency route"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_ingest_token_auth_perf.py",
+      "reason": "TC-22 \u2014 p95 < 10ms budget for get_ingest_token"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "Documentation requirements: mint script invocation + bearer contract + scope/lifetime defaults section"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "docs/requirements/auth.md",
+      "reason": "Fill the ingest-token-auth produced contract with the concrete shape (function signature, log event, mint flags)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add app/core/ingest_auth.py: get_ingest_token() dependency, scope check, denial logging",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "ING-01-AC-3",
+        "ING-01-AC-4",
+        "ING-01-AC-5",
+        "ING-01-FR-3",
+        "ING-01-FR-4",
+        "ING-01-FR-5",
+        "ING-01-FR-6"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05"
+      ],
+      "notes": "Implements DECISIONS.md D-01 (program_id is a direct parameter; scope check runs inside the dependency). Module docstring records the empty-array-allow-all semantic (FR-3) and ADR-0006 \u00a7 Consequences' accepted-risk note per Documentation requirements. Returns the IngestToken row directly (app.models.IngestToken); no separate DTO. Does not write last_used_at (DATA-DESIGN.md \u00a71).",
+      "status": "done",
+      "completed_at": "2026-08-31T20:05:00Z",
+      "files_touched": [
+        "services/api/app/core/ingest_auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add scripts/mint_ingest_token.py: argparse mint CLI",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "ING-01-AC-1",
+        "ING-01-AC-2",
+        "ING-01-FR-1",
+        "ING-01-FR-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-07"
+      ],
+      "notes": "Implements DECISIONS.md D-02 (own SessionLocal session, print only after commit, single except Exception -> stderr + sys.exit(1)) and D-04 (--label/--user-email required, --program-ids optional, split(',') on the given value). File-disjoint from T-01 \u2014 no shared predecessor needed.",
+      "status": "done",
+      "completed_at": "2026-08-31T20:05:00Z",
+      "files_touched": [
+        "services/api/scripts/mint_ingest_token.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Unit tests: mint script output, storage, argparse failure mode, entropy",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "ING-01-AC-1",
+        "ING-01-AC-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-07",
+        "R-10"
+      ],
+      "notes": "TC-01,02,03,04,05,23. Real Postgres via migrated_db+test_session (tests/conftest.py); mint script invoked via subprocess per each TC's own steps. TC-05/TC-23 are type:security in the TC manifest but live in this file (subject-colocated, matching test_rollup_rebuild_*.py precedent of mixed-type files per subject).",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_mint_ingest_token.py"
+      ],
+      "reason": "worker interrupted by session rate limit before returning; artifact verified post-hoc by the orchestrator (mypy+ruff clean, pytest green)"
+    },
+    {
+      "task_id": "T-04",
+      "title": "Unit tests: get_ingest_token() classification, scope check, log-field allowlist",
+      "complexity": "L",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "ING-01-AC-3",
+        "ING-01-AC-4",
+        "ING-01-AC-5"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05",
+        "R-08"
+      ],
+      "notes": "TC-06,07,08,09,10,11,12,13,14,15,16,17,18,19,20,24 (16 TCs). Direct async calls to get_ingest_token(program_id=..., credentials=..., session=test_session) against migrated_db+test_session \u2014 no HTTP/app layer needed here (that's T-05's job). TC-18/19/20 assert the exact required-field set + denial-only emission via a captured logger handler, mirroring tests/unit/test_persona_resolver.py::test_persona_mapping_loaded_event_contains_no_pii_tc15's allowlist-assertion idiom.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:15:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_token_auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Unit test: get_ingest_token()/get_current_user() dependency isolation (TC-21)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "ING-01-FR-6"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "Implements DECISIONS.md D-03: throwaway FastAPI app + one mock route with both Depends(get_current_user) and Depends(get_ingest_token), driven via httpx (conftest.py's async_client_for), mirroring test_auth_jwt_validation.py's _build_app pattern. Independent of T-02/T-03 \u2014 seeds its own IngestToken row via test_session rather than the mint script.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:15:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_token_isolation.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Performance test: get_ingest_token() p95 < 10ms (TC-22)",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "ING-01-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "tests/perf/ already exists and is pytest-driven (no new runner/install) \u2014 mirrors test_rbac_perf.py/test_programs_perf.py's time.perf_counter()+local _percentile() pattern. Seeds one active row via migrated_db+test_session, measures 100 passing get_ingest_token calls against a fixed program_id in scope.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_ingest_token_auth_perf.py"
+      ],
+      "reason": "worker interrupted by session rate limit before returning; artifact verified post-hoc by the orchestrator (mypy+ruff clean, pytest green); measured p95=0.78ms vs 10ms budget"
+    },
+    {
+      "task_id": "T-07",
+      "title": "Fill ingest-token-auth contract shape in docs/requirements/auth.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "Step 10 discipline: replace the decomposition-time sketch with the concrete shape (function signature, mint flags, log event fields) now that T-01/T-02 fix them. Ordered after implementation so the documented shape matches what was actually built.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:30:00Z",
+      "files_touched": [
+        "docs/requirements/auth.md"
+      ],
+      "reason": "no edit needed at first pass (contract already matched the built code); subsequently updated in round 3 of the Validate | Review gate to carry D-05/D-05a - mint_surface trim/usage-error behaviour and authority citation. Round-2 contract-conformance FAIL closed in round 3."
+    },
+    {
+      "task_id": "T-08",
+      "title": "docs(readme): services/api/README.md \u2014 mint script + bearer contract section",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "New '## Ingest token auth' section, mirroring the existing 'Rollup rebuild' section's style (service-internal, no HTTP route): mint invocation example with all three flags, --program-ids optionality (D-04), scope/lifetime defaults, and a pointer to ADR-0006 \u00a7 Consequences for the accepted empty-array/no-expiry risk. Root README.md is not touched \u2014 no HTTP route ships in this story, so there is nothing to add to its API table.",
+      "status": "done",
+      "completed_at": "2026-09-03T00:30:00Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

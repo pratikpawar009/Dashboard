@@ -1,0 +1,1586 @@
+{
+  "story_id": "ING-01",
+  "test_cases": [
+    {
+      "id": "ING-01-TC-01",
+      "requirement_id": "ING-01-FR-1",
+      "title": "Mint prints a raw token matching hrn_pat_ + 64 lowercase hex chars exactly once",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "valid label, user_email, and program scope arguments",
+      "when": "the mint CLI script runs",
+      "then": "stdout contains the raw token exactly once, matching ^hrn_pat_[0-9a-f]{64}$, and the process exits 0",
+      "objective": "Verify the mint script's raw token output matches ADR-0006's 64-hex-char format (32 CSPRNG bytes, superseding AC-1's 48-char figure) and is printed exactly once.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL",
+        "ingest_tokens table has no row for label 'ci-automation-token' before the run"
+      ],
+      "test_data": {
+        "label": "ci-automation-token",
+        "user_email": "ci-bot@example.com",
+        "program_ids": "prog-1,prog-2"
+      },
+      "steps": [
+        "Run `uv run python scripts/mint_ingest_token.py --label ci-automation-token --user-email ci-bot@example.com --program-ids prog-1,prog-2` as a subprocess, capturing stdout and exit code",
+        "Count occurrences of a line matching ^hrn_pat_[0-9a-f]{64}$ in stdout",
+        "Record the subprocess exit code"
+      ],
+      "expected_results": [
+        "Exactly one line in stdout matches ^hrn_pat_[0-9a-f]{64}$ (64 hex chars, not 48)",
+        "Process exit code equals 0"
+      ],
+      "tags": [
+        "mint",
+        "token-format",
+        "ADR-0006",
+        "AC-1"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#154",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 820,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 820,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_mint_prints_raw_token_matching_format_exactly_once_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-02",
+      "requirement_id": "ING-01-FR-2",
+      "title": "Mint script writes exactly one ingest_tokens row on valid input and exits 0",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "valid label, user_email, and program scope arguments",
+      "when": "the mint CLI script runs successfully",
+      "then": "exactly one new ingest_tokens row exists and the process exits 0",
+      "objective": "Verify FR-2's success path persists exactly one row per invocation.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL",
+        "Row count for label 'ci-row-check' is 0 before the run"
+      ],
+      "test_data": {
+        "label": "ci-row-check",
+        "user_email": "ci-bot@example.com",
+        "program_ids": "prog-3"
+      },
+      "steps": [
+        "Query SELECT count(*) FROM ingest_tokens WHERE label = 'ci-row-check' before the run",
+        "Run the mint script with the test_data arguments as a subprocess",
+        "Query SELECT count(*) FROM ingest_tokens WHERE label = 'ci-row-check' after the run"
+      ],
+      "expected_results": [
+        "Pre-run row count is 0",
+        "Post-run row count is exactly 1",
+        "Process exit code equals 0"
+      ],
+      "tags": [
+        "mint",
+        "db-write",
+        "AC-1"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#155",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 810,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 810,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_mint_writes_exactly_one_row_and_exits_zero_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-03",
+      "requirement_id": "ING-01-FR-2",
+      "title": "Mint script exits non-zero with no DB write and no token printed on a missing argument",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the mint CLI is invoked with a required argument missing (in turn: --label, then --user-email)",
+      "when": "the script runs",
+      "then": "argparse's usage-error path exits non-zero, no ingest_tokens row is written, and no token is printed to stdout",
+      "objective": "Verify FR-2's failure path: a missing required argument produces no side effects.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL",
+        "Row count for label 'ci-arg-fail' is 0 before either invocation"
+      ],
+      "test_data": {
+        "invocations": [
+          {
+            "args": [
+              "--user-email",
+              "ci-bot@example.com",
+              "--program-ids",
+              "prog-1"
+            ],
+            "missing": "--label"
+          },
+          {
+            "args": [
+              "--label",
+              "ci-arg-fail",
+              "--program-ids",
+              "prog-1"
+            ],
+            "missing": "--user-email"
+          }
+        ]
+      },
+      "steps": [
+        "For each invocation, run the mint script as a subprocess with the given args, omitting the missing flag",
+        "Capture stdout, stderr, and exit code for each invocation",
+        "Query SELECT count(*) FROM ingest_tokens WHERE label = 'ci-arg-fail' after both invocations"
+      ],
+      "expected_results": [
+        "Both invocations exit with a non-zero code",
+        "Neither invocation's stdout contains a line matching ^hrn_pat_",
+        "Row count for label 'ci-arg-fail' remains 0 after both invocations"
+      ],
+      "tags": [
+        "mint",
+        "argparse",
+        "negative-path",
+        "AC-1"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#156",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 1510,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1510,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_mint_missing_required_argument_exits_nonzero_with_no_side_effects_tc03",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-04",
+      "requirement_id": "ING-01-FR-1",
+      "title": "Minted row persists token_hash as sha256(raw).hexdigest() plus label, user_email, allowed_program_ids, with expires_at and revoked_at null",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a completed mint",
+      "when": "the ingest_tokens row is queried",
+      "then": "token_hash equals the SHA-256 hex digest of the printed raw token, and label/user_email/allowed_program_ids/expires_at/revoked_at match FR-1",
+      "objective": "Verify FR-1's persisted-fields contract, matching AC-2.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL"
+      ],
+      "test_data": {
+        "label": "ci-storage-check",
+        "user_email": "storage-check@example.com",
+        "program_ids": "prog-4,prog-5"
+      },
+      "steps": [
+        "Run the mint script with the test_data arguments, capturing the printed raw token",
+        "Compute hashlib.sha256(raw_token.encode()).hexdigest()",
+        "Query the ingest_tokens row WHERE label = 'ci-storage-check'"
+      ],
+      "expected_results": [
+        "row.token_hash equals the computed SHA-256 hex digest",
+        "row.label == 'ci-storage-check', row.user_email == 'storage-check@example.com', row.allowed_program_ids == ['prog-4', 'prog-5']",
+        "row.expires_at is null and row.revoked_at is null"
+      ],
+      "tags": [
+        "mint",
+        "storage",
+        "AC-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#157",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 860,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 860,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_minted_row_persists_expected_fields_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-05",
+      "requirement_id": "ING-01-AC-2",
+      "title": "No ingest_tokens column or emitted log line contains the raw token value",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a completed mint that emits application logs",
+      "when": "every column of the persisted row and every captured log line are inspected",
+      "then": "the raw token substring appears in neither",
+      "objective": "Verify AC-2's negative assertion and FR-1's 'never persisted, logged, or derivable' clause.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL",
+        "Root logger capture attached for the mint subprocess's duration"
+      ],
+      "test_data": {
+        "label": "ci-no-leak-check",
+        "user_email": "no-leak@example.com",
+        "program_ids": "prog-6"
+      },
+      "steps": [
+        "Run the mint script with the test_data arguments, capturing the printed raw token and all emitted log lines",
+        "Query the full ingest_tokens row WHERE label = 'ci-no-leak-check'",
+        "Search every column value (as a string) and every captured log line for the raw token substring"
+      ],
+      "expected_results": [
+        "The raw token substring is not present in any column value of the row",
+        "The raw token substring is not present in any captured log line",
+        "row.token_hash differs from the raw token (is the SHA-256 digest, not derivable back to it)"
+      ],
+      "tags": [
+        "mint",
+        "pii-audit",
+        "no-leak",
+        "AC-2",
+        "security-baseline"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#158",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 750,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 750,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_no_column_or_subprocess_output_leaks_raw_token_tc05",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-06",
+      "requirement_id": "ING-01-FR-3",
+      "title": "Empty allowed_program_ids passes the scope check (allow-all)",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a resolved, active ingest token whose allowed_program_ids is an empty array",
+      "when": "the scope check runs for any requested program_id",
+      "then": "the check passes (unscoped)",
+      "objective": "Verify ADR-0006 SS3's deliberate empty-array-means-allow-all semantic, the first branch in FR-3's check order.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with allowed_program_ids=[], revoked_at=None, expires_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "allowed_program_ids": [],
+        "requested_program_id": "prog-anything"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=[]",
+        "Build a request carrying `Authorization: Bearer <raw_token>` and program_id='prog-anything'",
+        "Call get_ingest_token(request, db_session, program_id='prog-anything')"
+      ],
+      "expected_results": [
+        "get_ingest_token returns the resolved token record without raising",
+        "No HTTPException is raised for any program_id value tried against this row"
+      ],
+      "tags": [
+        "scope-check",
+        "empty-array",
+        "allow-all",
+        "FR-3",
+        "C-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#159",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 130,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 130,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_empty_allowed_program_ids_passes_scope_check_tc06",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-07",
+      "requirement_id": "ING-01-FR-3",
+      "title": "Wildcard-array ['*'] passes the scope check",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a resolved, active ingest token whose allowed_program_ids is the single-element array ['*']",
+      "when": "the scope check runs for a requested program_id",
+      "then": "the check passes (explicit wildcard)",
+      "objective": "Verify ADR-0006 SS3's wildcard representation, the second branch in FR-3's check order, distinct from the empty-array branch.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with allowed_program_ids=['*'], revoked_at=None, expires_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "allowed_program_ids": [
+          "*"
+        ],
+        "requested_program_id": "prog-7"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=['*']",
+        "Build a request carrying `Authorization: Bearer <raw_token>` and program_id='prog-7'",
+        "Call get_ingest_token(request, db_session, program_id='prog-7')"
+      ],
+      "expected_results": [
+        "get_ingest_token returns the resolved token record without raising",
+        "The same row passes for a second, different program_id value in the same test run"
+      ],
+      "tags": [
+        "scope-check",
+        "wildcard",
+        "FR-3",
+        "C-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#160",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 130,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 130,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_wildcard_array_passes_scope_check_tc07",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-08",
+      "requirement_id": "ING-01-AC-3",
+      "title": "Program-id membership hit in a specific-ids array passes the scope check",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a resolved, active ingest token whose allowed_program_ids contains the requested program_id",
+      "when": "the scope check runs",
+      "then": "the check passes (membership)",
+      "objective": "Verify AC-3/FR-3's third branch: a non-wildcard, non-empty array with a matching entry passes.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with allowed_program_ids=['prog-8','prog-9'], revoked_at=None, expires_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "allowed_program_ids": [
+          "prog-8",
+          "prog-9"
+        ],
+        "requested_program_id": "prog-9"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=['prog-8','prog-9']",
+        "Build a request carrying `Authorization: Bearer <raw_token>` and program_id='prog-9'",
+        "Call get_ingest_token(request, db_session, program_id='prog-9')"
+      ],
+      "expected_results": [
+        "get_ingest_token returns the resolved token record without raising"
+      ],
+      "tags": [
+        "scope-check",
+        "membership",
+        "AC-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#161",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 150,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 150,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_membership_hit_passes_scope_check_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-09",
+      "requirement_id": "ING-01-AC-5",
+      "title": "Program-id membership miss on a non-wildcard array raises 403",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a valid, active ingest token whose allowed_program_ids does not include the requested program_id and is not wildcard-scoped",
+      "when": "the scope check runs",
+      "then": "HTTPException(403) is raised",
+      "objective": "Verify AC-5/FR-3's fourth (else) branch.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with allowed_program_ids=['prog-10'], revoked_at=None, expires_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "allowed_program_ids": [
+          "prog-10"
+        ],
+        "requested_program_id": "prog-11"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=['prog-10']",
+        "Build a request carrying `Authorization: Bearer <raw_token>` and program_id='prog-11'",
+        "Call get_ingest_token(request, db_session, program_id='prog-11')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 403",
+        "No token record is returned"
+      ],
+      "tags": [
+        "scope-check",
+        "membership-miss",
+        "403",
+        "AC-5"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#162",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_membership_miss_raises_403_tc09",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-10",
+      "requirement_id": "ING-01-AC-4",
+      "title": "Missing Authorization header raises 401 reason=missing",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a request with no Authorization header",
+      "when": "the auth-check dependency runs",
+      "then": "HTTPException(401) is raised, classified reason=missing",
+      "objective": "Verify FR-4's first outcome row for the no-header case, part of AC-4.",
+      "preconditions": [
+        "No ingest_tokens row needs to exist for this case"
+      ],
+      "test_data": {
+        "authorization_header": null,
+        "requested_program_id": "prog-1"
+      },
+      "steps": [
+        "Build a request with no Authorization header",
+        "Call get_ingest_token(request, db_session, program_id='prog-1')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 401",
+        "The classified denial reason is 'missing'",
+        "No token record is returned"
+      ],
+      "tags": [
+        "auth-check",
+        "401",
+        "missing",
+        "AC-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#163",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 140,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 140,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_missing_authorization_header_raises_401_missing_tc10",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-11",
+      "requirement_id": "ING-01-FR-4",
+      "title": "A non-Bearer Authorization scheme raises 401 reason=missing",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a request whose Authorization header uses a non-Bearer scheme (e.g. Basic)",
+      "when": "the auth-check dependency runs",
+      "then": "HTTPException(401) is raised, classified reason=missing",
+      "objective": "Verify FR-4's first outcome row covers both a wholly absent header and a wrong-scheme header under the same 'missing' reason.",
+      "preconditions": [
+        "No ingest_tokens row needs to exist for this case"
+      ],
+      "test_data": {
+        "authorization_header": "Basic dXNlcjpwYXNz",
+        "requested_program_id": "prog-1"
+      },
+      "steps": [
+        "Build a request with Authorization header 'Basic dXNlcjpwYXNz'",
+        "Call get_ingest_token(request, db_session, program_id='prog-1')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 401",
+        "The classified denial reason is 'missing'"
+      ],
+      "tags": [
+        "auth-check",
+        "401",
+        "non-bearer-scheme",
+        "FR-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#164",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 150,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 150,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_non_bearer_scheme_raises_401_missing_tc11",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-12",
+      "requirement_id": "ING-01-AC-4",
+      "title": "An unknown token hash (no matching row) raises 401 reason=unknown",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a bearer token whose SHA-256 hash matches no ingest_tokens row",
+      "when": "the auth-check dependency runs",
+      "then": "HTTPException(401) is raised, classified reason=unknown",
+      "objective": "Verify FR-4's second outcome row.",
+      "preconditions": [
+        "No ingest_tokens row exists with a matching token_hash for the test token"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "requested_program_id": "prog-1"
+      },
+      "steps": [
+        "Build a request carrying `Authorization: Bearer <raw_token>` for a token never minted",
+        "Call get_ingest_token(request, db_session, program_id='prog-1')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 401",
+        "The classified denial reason is 'unknown'",
+        "No token record is returned"
+      ],
+      "tags": [
+        "auth-check",
+        "401",
+        "unknown",
+        "AC-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#165",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 120,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 120,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_unknown_token_hash_raises_401_unknown_tc12",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-13",
+      "requirement_id": "ING-01-AC-4",
+      "title": "A revoked token raises 401 reason=revoked",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a bearer token whose row has revoked_at set to a past timestamp",
+      "when": "the auth-check dependency runs",
+      "then": "HTTPException(401) is raised, classified reason=revoked",
+      "objective": "Verify FR-4's third outcome row.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with revoked_at set to a past UTC timestamp, expires_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "revoked_at": "2026-08-01T00:00:00Z",
+        "requested_program_id": "prog-1"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), revoked_at='2026-08-01T00:00:00Z', allowed_program_ids=[]",
+        "Build a request carrying `Authorization: Bearer <raw_token>`",
+        "Call get_ingest_token(request, db_session, program_id='prog-1')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 401",
+        "The classified denial reason is 'revoked'",
+        "The scope check (which would otherwise pass on the empty array) is never reached"
+      ],
+      "tags": [
+        "auth-check",
+        "401",
+        "revoked",
+        "AC-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#166",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_revoked_token_raises_401_revoked_tc13",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-14",
+      "requirement_id": "ING-01-AC-4",
+      "title": "An expired token (expires_at in the past) raises 401 reason=expired",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a bearer token whose row has expires_at set to a past timestamp and revoked_at null",
+      "when": "the auth-check dependency runs",
+      "then": "HTTPException(401) is raised, classified reason=expired",
+      "objective": "Verify FR-4's fourth outcome row.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with expires_at set 1 hour in the past, revoked_at=None"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "expires_at_offset_seconds": -3600,
+        "requested_program_id": "prog-1"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), expires_at = now() - 3600s, allowed_program_ids=[]",
+        "Build a request carrying `Authorization: Bearer <raw_token>`",
+        "Call get_ingest_token(request, db_session, program_id='prog-1')"
+      ],
+      "expected_results": [
+        "HTTPException is raised with status_code == 401",
+        "The classified denial reason is 'expired'"
+      ],
+      "tags": [
+        "auth-check",
+        "401",
+        "expired",
+        "AC-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#167",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_expired_token_raises_401_expired_tc14",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-15",
+      "requirement_id": "ING-01-FR-4",
+      "title": "expires_at exactly now() classifies as expired; a value one second in the future does not",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "given": "two otherwise-identical active tokens, one with expires_at pinned to the exact instant of the check, one with expires_at one second later",
+      "when": "the auth-check dependency runs for each",
+      "then": "the expires_at == now() token is classified expired (401); the future-dated token is not expired and proceeds to the scope check",
+      "objective": "Verify FR-4's <= now() boundary condition precisely: equal-to-now is expired, one second later is not.",
+      "preconditions": [
+        "Two ingest_tokens rows seeded directly in the test DB, allowed_program_ids=[] on both so only the expiry branch is under test"
+      ],
+      "test_data": {
+        "raw_token_at_now": "<RAW_TOKEN_AT_NOW>",
+        "raw_token_future": "<RAW_TOKEN_FUTURE>",
+        "expires_at_offset_seconds": [
+          0,
+          1
+        ]
+      },
+      "steps": [
+        "Freeze the check's now() to a fixed instant T",
+        "Seed row A with expires_at = T (exactly)",
+        "Seed row B with expires_at = T + 1 second",
+        "Call get_ingest_token for row A's token and separately for row B's token, both at frozen instant T"
+      ],
+      "expected_results": [
+        "Row A's call raises HTTPException(401) with reason='expired'",
+        "Row B's call does not raise for the expiry branch (proceeds past it to the scope check, which passes on the empty array)"
+      ],
+      "tags": [
+        "auth-check",
+        "boundary",
+        "expires_at",
+        "FR-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#168",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_expires_at_boundary_now_vs_one_second_future_tc15",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-16",
+      "requirement_id": "ING-01-AC-3",
+      "title": "A valid, active, in-scope token resolves the token record and authorization succeeds",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a bearer token whose hash matches a non-revoked, non-expired row and whose allowed_program_ids includes the requested program_id",
+      "when": "the auth-check dependency runs",
+      "then": "it returns the resolved token record and authorization succeeds",
+      "objective": "Verify the full authorized happy path (AC-3), combining hash lookup, revocation/expiry checks, and the scope check.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with revoked_at=None, expires_at=None, allowed_program_ids=['prog-12']"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "requested_program_id": "prog-12"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=['prog-12']",
+        "Build a request carrying `Authorization: Bearer <raw_token>`",
+        "Call get_ingest_token(request, db_session, program_id='prog-12')"
+      ],
+      "expected_results": [
+        "get_ingest_token returns the resolved token record (no exception)",
+        "The returned record's id matches the seeded row's id"
+      ],
+      "tags": [
+        "auth-check",
+        "happy-path",
+        "AC-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#169",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_valid_active_in_scope_token_resolves_tc16",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-17",
+      "requirement_id": "ING-01-FR-4",
+      "title": "The scope check uses the caller-supplied program_id, never a program_id read off the token record",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a token record with no program_id field consulted for the caller's request",
+      "when": "the auth-check dependency is called with an explicit program_id argument",
+      "then": "the scope check evaluates against the argument value, not any value derivable from the token row",
+      "objective": "Verify FR-4's closing clause: program_id is supplied by the caller's own request, never read off the token record.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with allowed_program_ids=['prog-13']"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "requested_program_id": "prog-13"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), allowed_program_ids=['prog-13']",
+        "Inspect the get_ingest_token / scope-check function signature to confirm program_id is a required parameter distinct from the resolved token record's fields",
+        "Call get_ingest_token(request, db_session, program_id='prog-13') and separately with program_id='prog-99'"
+      ],
+      "expected_results": [
+        "The call with program_id='prog-13' passes",
+        "The call with program_id='prog-99' raises HTTPException(403), proving the same token row's outcome depends solely on the passed-in argument"
+      ],
+      "tags": [
+        "auth-check",
+        "caller-supplied-program-id",
+        "FR-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#170",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 120,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 120,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_scope_check_uses_caller_supplied_program_id_tc17",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-18",
+      "requirement_id": "ING-01-FR-5",
+      "title": "ingest_token_auth_failed payload key set equals exactly {token_id, reason, program_id, timestamp}",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a denied auth-check call that emits ingest_token_auth_failed",
+      "when": "the emitted JSON payload is inspected",
+      "then": "its key set equals exactly the required allowlist, with user_email, the raw token, and token_hash absent",
+      "objective": "Verify FR-5's exact field allowlist and the explicit PII/credential exclusions.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with revoked_at set (to trigger a deterministic denial)",
+        "Log capture attached to the ingest auth-check logger"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "user_email": "owner@example.com",
+        "requested_program_id": "prog-14"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest(), revoked_at set, user_email='owner@example.com'",
+        "Call get_ingest_token(request, db_session, program_id='prog-14') expecting a 401 denial",
+        "Capture and JSON-parse the emitted ingest_token_auth_failed log record"
+      ],
+      "expected_results": [
+        "Payload key set equals exactly {token_id, reason, program_id, timestamp} plus the formatter's own meta fields",
+        "Payload contains no 'user_email' key, no raw-token value, and no 'token_hash' key",
+        "payload['reason'] == 'revoked' and payload['token_id'] equals the seeded row's id (UUID)"
+      ],
+      "tags": [
+        "ingest-token-auth-failed",
+        "pii-audit",
+        "FR-5",
+        "C-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#171",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 120,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 120,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_log_event_key_set_exact_allowlist_tc18",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-19",
+      "requirement_id": "ING-01-FR-5",
+      "title": "reason takes each of the five literal values across the five denial branches",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "five separately triggered denial scenarios (missing, unknown, revoked, expired, scope)",
+      "when": "each scenario's ingest_token_auth_failed payload is inspected",
+      "then": "payload['reason'] equals the exact literal for that branch, and no other literal is ever emitted",
+      "objective": "Verify FR-5's reason enum is exactly {missing, unknown, revoked, expired, scope}, one value per denial branch.",
+      "preconditions": [
+        "Log capture attached to the ingest auth-check logger",
+        "One ingest_tokens row seeded per branch that needs a DB row (unknown needs none; revoked/expired/scope need a seeded row with the matching state)"
+      ],
+      "test_data": {
+        "branches": [
+          {
+            "case": "missing",
+            "authorization_header": null
+          },
+          {
+            "case": "unknown",
+            "raw_token": "<RAW_TOKEN>"
+          },
+          {
+            "case": "revoked",
+            "revoked_at": "2026-08-01T00:00:00Z"
+          },
+          {
+            "case": "expired",
+            "expires_at_offset_seconds": -60
+          },
+          {
+            "case": "scope",
+            "allowed_program_ids": [
+              "prog-other"
+            ],
+            "requested_program_id": "prog-15"
+          }
+        ]
+      },
+      "steps": [
+        "For each of the 5 branches, set up its precondition (as described) and invoke get_ingest_token with the corresponding request",
+        "Capture and JSON-parse the ingest_token_auth_failed payload emitted by each call"
+      ],
+      "expected_results": [
+        "The 'missing' branch's payload has reason == 'missing'",
+        "The 'unknown' branch's payload has reason == 'unknown'",
+        "The 'revoked' branch's payload has reason == 'revoked'",
+        "The 'expired' branch's payload has reason == 'expired'",
+        "The 'scope' branch's payload has reason == 'scope'",
+        "No payload across the five calls carries a reason value outside this five-item set"
+      ],
+      "tags": [
+        "ingest-token-auth-failed",
+        "reason-enum",
+        "FR-5",
+        "C-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#172",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_reason_takes_each_of_five_literal_values_tc19",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-20",
+      "requirement_id": "ING-01-FR-5",
+      "title": "No ingest_token_auth_failed event is emitted on a successful auth check",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a valid, active, in-scope bearer token",
+      "when": "the auth-check dependency runs and succeeds",
+      "then": "no ingest_token_auth_failed log record is emitted",
+      "objective": "Verify FR-5's 'emitted once per denial ... never on success' clause and NFR-observability's success-is-silent contract.",
+      "preconditions": [
+        "An ingest_tokens row seeded directly in the test DB with revoked_at=None, expires_at=None, allowed_program_ids=[]",
+        "Log capture attached to the ingest auth-check logger"
+      ],
+      "test_data": {
+        "raw_token": "<RAW_TOKEN>",
+        "requested_program_id": "prog-16"
+      },
+      "steps": [
+        "Seed the ingest_tokens row with token_hash = sha256(raw_token).hexdigest()",
+        "Call get_ingest_token(request, db_session, program_id='prog-16') expecting success",
+        "Inspect all log records captured during the call"
+      ],
+      "expected_results": [
+        "get_ingest_token returns the resolved token record without raising",
+        "Zero ingest_token_auth_failed records are present in the captured logs"
+      ],
+      "tags": [
+        "ingest-token-auth-failed",
+        "observability",
+        "success-is-silent",
+        "FR-5"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#173",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 130,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 130,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_no_log_event_emitted_on_success_tc20",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-21",
+      "requirement_id": "ING-01-FR-6",
+      "title": "get_ingest_token and get_current_user resolve independently on a mock dual-dependency route",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "a mock FastAPI route declaring both get_ingest_token() and get_current_user() as dependencies",
+      "when": "a valid ingest token is presented, and separately a valid Keycloak-issued JWT is presented",
+      "then": "the ingest token does not satisfy get_current_user(), and the JWT does not satisfy get_ingest_token()",
+      "objective": "Verify FR-6's structural dependency isolation (Research Condition C-4): neither auth path accepts the other's credential.",
+      "preconditions": [
+        "A test-only route wired with both get_ingest_token and get_current_user as dependencies",
+        "A minted ingest token row seeded in the test DB",
+        "A valid Keycloak-issued JWT obtained via the AUTH-01 dev-bypass flow"
+      ],
+      "test_data": {
+        "raw_ingest_token": "<RAW_INGEST_TOKEN>"
+      },
+      "steps": [
+        "Call get_current_user with a request carrying `Authorization: Bearer <raw_ingest_token>`",
+        "Call get_ingest_token with a request carrying `Authorization: Bearer <valid_keycloak_jwt>`"
+      ],
+      "expected_results": [
+        "get_current_user raises an authentication failure for the ingest token (it does not resolve a user principal)",
+        "get_ingest_token raises an authentication failure for the Keycloak JWT (it does not resolve a token record)"
+      ],
+      "tags": [
+        "dependency-isolation",
+        "FR-6",
+        "C-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#174",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 220,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 220,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_isolation.py::test_ingest_and_jwt_paths_resolve_independently_tc21",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-22",
+      "requirement_id": "ING-01-NFR-performance",
+      "title": "Token verification adds under 10ms p95 to request latency",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "given": "a warm, indexed test DB with an active ingest_tokens row",
+      "when": "get_ingest_token is called repeatedly for a passing outcome across N iterations",
+      "then": "p95 added latency (hash + lookup + scope check) is under 10ms",
+      "objective": "Verify the story's p95 < 10ms performance budget for the full verification path.",
+      "preconditions": [
+        "Test Postgres DB reachable, ingest_tokens.token_hash unique index present",
+        "One active row seeded, allowed_program_ids=[] to isolate lookup+hash cost from scope-array size"
+      ],
+      "test_data": {
+        "iterations": 100,
+        "p95_threshold_ms": 10.0
+      },
+      "steps": [
+        "Seed one active ingest_tokens row",
+        "Measure time.perf_counter() delta across 100 consecutive get_ingest_token calls with a passing outcome",
+        "Compute p95 latency across the 100 measurements"
+      ],
+      "expected_results": [
+        "p95 latency is under 10ms",
+        "Each call performs exactly one indexed token_hash lookup (no N+1 query pattern)"
+      ],
+      "tags": [
+        "performance",
+        "nfr",
+        "token-hash-lookup"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#175",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 50,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 50,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 10ms (ING-01-NFR-performance)",
+          "measured": "p95 = 0.6250ms across 100 calls (min=0.3507ms, max=2.9287ms)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "tests/perf/test_ingest_token_auth_perf.py::test_get_ingest_token_p95_under_10ms_tc22",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-23",
+      "requirement_id": "ING-01-NFR-security",
+      "title": "Two consecutive mints produce cryptographically distinct raw tokens and token_hash values",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the mint script is run twice with identical label/user_email/scope arguments",
+      "when": "the two printed raw tokens and persisted token_hash values are compared",
+      "then": "both the raw tokens and their hashes differ, evidencing CSPRNG (secrets.token_hex(32)) rather than a deterministic value",
+      "objective": "Verify ADR-0006 SS1's CSPRNG >= 32 bytes requirement produces non-repeating output, not just correctly-shaped output.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL"
+      ],
+      "test_data": {
+        "label": "ci-entropy-check",
+        "user_email": "entropy@example.com",
+        "program_ids": "prog-17"
+      },
+      "steps": [
+        "Run the mint script twice with identical arguments, capturing each printed raw token",
+        "Query both resulting ingest_tokens rows' token_hash values"
+      ],
+      "expected_results": [
+        "The two raw tokens are not equal",
+        "The two token_hash values are not equal",
+        "Both raw tokens independently match ^hrn_pat_[0-9a-f]{64}$"
+      ],
+      "tags": [
+        "security",
+        "entropy",
+        "CSPRNG",
+        "ADR-0006"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#176",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 1670,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 1670,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_two_mints_produce_distinct_tokens_and_hashes_tc23",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-24",
+      "requirement_id": "ING-01-FR-3",
+      "title": "Scope membership check compares program_id as an opaque string, whether UUID-formatted or a plain slug",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "given": "an ingest token scoped to a UUID-formatted program id, and separately to a plain-slug program id",
+      "when": "the scope check runs with a matching, exact-string requested program_id in each case",
+      "then": "both pass identically -- the check performs a plain string comparison with no UUID-specific parsing or normalization",
+      "objective": "Verify Research Condition 5's program_id-type edge case: the check treats program_id as an opaque string regardless of its shape.",
+      "preconditions": [
+        "Two ingest_tokens rows seeded directly in the test DB: one with allowed_program_ids=['550e8400-e29b-41d4-a716-446655440000'], one with allowed_program_ids=['prog-slug-18']"
+      ],
+      "test_data": {
+        "raw_token_uuid_scope": "<RAW_TOKEN_UUID_SCOPE>",
+        "raw_token_slug_scope": "<RAW_TOKEN_SLUG_SCOPE>",
+        "uuid_program_id": "550e8400-e29b-41d4-a716-446655440000",
+        "slug_program_id": "prog-slug-18"
+      },
+      "steps": [
+        "Seed row A with allowed_program_ids=['550e8400-e29b-41d4-a716-446655440000']",
+        "Seed row B with allowed_program_ids=['prog-slug-18']",
+        "Call get_ingest_token for row A's token with program_id='550e8400-e29b-41d4-a716-446655440000'",
+        "Call get_ingest_token for row B's token with program_id='prog-slug-18'"
+      ],
+      "expected_results": [
+        "Both calls return their resolved token record without raising",
+        "A UUID-formatted program_id with different casing (e.g. uppercase hex) does NOT match, confirming a literal string comparison with no UUID canonicalization"
+      ],
+      "tags": [
+        "scope-check",
+        "program-id-type",
+        "boundary",
+        "research-condition-5"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#177",
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 190,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_ingest_token_auth.py::test_program_id_scope_check_is_opaque_string_comparison_tc24",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "ING-01-TC-25",
+      "requirement_id": "ING-01-FR-2",
+      "title": "Mint script exits non-zero with no DB write and no token printed when --program-ids is supplied as an empty string",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "given": "the mint CLI is invoked with --program-ids explicitly supplied as an empty string (e.g. via --program-ids \"$IDS\" with an unset or empty shell variable)",
+      "when": "the script runs",
+      "then": "the input-validation usage-error path exits non-zero, no ingest_tokens row is written, and no token is printed to stdout",
+      "objective": "Verify FR-2/DECISIONS.md D-05a's failure path: a *supplied* empty --program-ids value is a usage error, not the allow-all [] default that is reachable only by omitting the flag entirely.",
+      "preconditions": [
+        "Test Postgres DB reachable via DATABASE_URL",
+        "Row count for label 'f2-supplied-empty-string' is 0 before the invocation"
+      ],
+      "test_data": {
+        "label": "f2-supplied-empty-string",
+        "user_email": "f2-usage-error@example.com",
+        "program_ids": ""
+      },
+      "steps": [
+        "Run the mint script as a subprocess with --label, --user-email, and --program-ids explicitly set to the empty string \"\"",
+        "Capture stdout, stderr, and exit code",
+        "Query SELECT count(*) FROM ingest_tokens WHERE label = 'f2-supplied-empty-string' after the invocation"
+      ],
+      "expected_results": [
+        "The invocation exits with a non-zero code",
+        "stdout is empty -- no line matches ^hrn_pat_, nothing else is printed either",
+        "Row count for label 'f2-supplied-empty-string' remains 0 after the invocation"
+      ],
+      "tags": [
+        "mint",
+        "argparse",
+        "negative-path",
+        "D-05a",
+        "regression-f2"
+      ],
+      "last_run": {
+        "started_at": "2026-09-03T06:50:18Z",
+        "duration_ms": 790,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 790,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "tests/unit/test_mint_ingest_token.py::test_mint_supplied_empty_program_ids_is_usage_error_regression_f2",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-01-AC-1",
+        "covered_by": [
+          "ING-01-TC-01",
+          "ING-01-TC-02"
+        ]
+      },
+      {
+        "id": "ING-01-AC-2",
+        "covered_by": [
+          "ING-01-TC-04",
+          "ING-01-TC-05"
+        ]
+      },
+      {
+        "id": "ING-01-AC-3",
+        "covered_by": [
+          "ING-01-TC-08",
+          "ING-01-TC-16"
+        ]
+      },
+      {
+        "id": "ING-01-AC-4",
+        "covered_by": [
+          "ING-01-TC-10",
+          "ING-01-TC-12",
+          "ING-01-TC-13",
+          "ING-01-TC-14"
+        ]
+      },
+      {
+        "id": "ING-01-AC-5",
+        "covered_by": [
+          "ING-01-TC-09"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-01-FR-1",
+        "covered_by": [
+          "ING-01-TC-01",
+          "ING-01-TC-04",
+          "ING-01-TC-05"
+        ]
+      },
+      {
+        "id": "ING-01-FR-2",
+        "covered_by": [
+          "ING-01-TC-02",
+          "ING-01-TC-03",
+          "ING-01-TC-25"
+        ]
+      },
+      {
+        "id": "ING-01-FR-3",
+        "covered_by": [
+          "ING-01-TC-06",
+          "ING-01-TC-07",
+          "ING-01-TC-08",
+          "ING-01-TC-09",
+          "ING-01-TC-24"
+        ]
+      },
+      {
+        "id": "ING-01-FR-4",
+        "covered_by": [
+          "ING-01-TC-09",
+          "ING-01-TC-10",
+          "ING-01-TC-11",
+          "ING-01-TC-12",
+          "ING-01-TC-13",
+          "ING-01-TC-14",
+          "ING-01-TC-15",
+          "ING-01-TC-16",
+          "ING-01-TC-17"
+        ]
+      },
+      {
+        "id": "ING-01-FR-5",
+        "covered_by": [
+          "ING-01-TC-18",
+          "ING-01-TC-19",
+          "ING-01-TC-20"
+        ]
+      },
+      {
+        "id": "ING-01-FR-6",
+        "covered_by": [
+          "ING-01-TC-21"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-01-NFR-performance",
+        "covered_by": [
+          "ING-01-TC-22"
+        ]
+      },
+      {
+        "id": "ING-01-NFR-security",
+        "covered_by": [
+          "ING-01-TC-05",
+          "ING-01-TC-18",
+          "ING-01-TC-23"
+        ]
+      },
+      {
+        "id": "ING-01-NFR-observability",
+        "covered_by": [
+          "ING-01-TC-18",
+          "ING-01-TC-19",
+          "ING-01-TC-20"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

@@ -1,0 +1,279 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 76,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#40",
+  "tracker_research": "pratikpawar009/Dashboard#152",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/ING-01/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "last_updated": "2026-09-03T15:15:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#153",
+  "gate": "APPROVE",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/ING-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/ING-01/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/ING-01/tasks.json"
+  },
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#178",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-03T10:35:00Z",
+    "rounds": 1,
+    "verdict": "READY",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "apps/web/node_modules/.bin/tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-01/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T10:20:00Z",
+        "note": "web half run via the direct binary because the canonical `pnpm -C apps/web exec` wrapper fails on the pre-existing ERR_PNPM_IGNORED_BUILDS gate (AF-03); api: Success, no issues found in 88 source files"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "apps/web/node_modules/.bin/vitest run && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-01/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T10:22:00Z",
+        "summary": "web: 1 file / 1 test passed; api: 419 passed, 0 failed, 232 warnings in 27.15s (matches orchestrator pre-measurement exactly; warnings are pre-existing app.main on_event deprecation notices, not from this story)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "apps/web/node_modules/.bin/eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-01/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T10:24:00Z",
+        "note": "web half run via the direct binary for the AF-03 reason above; api: All checks passed! (first `uv run ruff check .` attempt hit a transient 'Failed to spawn: ruff' subprocess error, not reproducible \u2014 immediate retry of the identical command exited 0; not counted as a fix-loop round, no code changed)"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-03T10:30:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8199",
+            "exit_code": 0,
+            "evidence_path": "docs/features/ING-01/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "own instance on an isolated port (8000 already held by an unrelated pre-existing --reload dev server, PID 21566); ownership of 8199 confirmed via lsof before trusting the response. GET /health -> 200 {\"status\":\"ok\"}. ingest_auth.py is not yet imported by app.main (no HTTP route consumes it in this story), so this is a whole-app boot proof, not a feature-path exercise -- that is unit_tests' job (TC-06..24). Real dev Postgres (localhost:5432/dashboard, already migrated) used read-only for /health; ingest_tokens count verified 0 before and after (AF-01)."
+          },
+          {
+            "stack": "nextjs/next (web)",
+            "status": "PASS",
+            "command": "apps/web/node_modules/.bin/next dev --turbopack --port 3199",
+            "exit_code": 0,
+            "evidence_path": "docs/features/ING-01/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "verified \u2014 server-rendered HTML body (25468 bytes) contains real page content ('Get started', 'Deploy now', '<main'), not an empty mount node; own instance on isolated port 3199 (3000 already held by an unrelated pre-existing next-server, PID 9908), ownership confirmed via lsof",
+            "note": "ING-01 touches zero apps/web files; this proves the frontend's runnable surface is unaffected, per evidence-pass anti-pattern (don't let one story's scope excuse skipping the other stack)"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "apps/web/node_modules/.bin/next build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-01/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-03T10:26:00Z",
+        "note": "Compiled successfully in 1471ms, static pages 5/5. build: is non-empty in project-commands.yaml so this dimension is applicable regardless of ING-01 being Python-only (evidence-pass applicability is a function of repo config, not story scope). Python side is interpreted, no compile step."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check: (empty)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": null,
+        "note": "N/A on two grounds: no design_check tool wired in project-commands.yaml, and state.json design='n/a' (ING has no entry in docs/design/schema.json designSystem.pages.features -- no UI surface). Matches BED-01 AF-09 / AUTH-03 AF-02 / AUTH-04 AF-02."
+      }
+    },
+    "flags": [
+      "AF-03",
+      "AF-04"
+    ]
+  },
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "observation",
+      "status": "defer",
+      "task": "T-02",
+      "source": "services/api/app/core/config.py (Settings.database_url default)",
+      "summary": "live native Postgres answers on the Settings.database_url default, so an unset DATABASE_URL writes to the real dev database instead of failing",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T11:00:00Z",
+      "rationale": "Out of ING-01 file scope - app/core/config.py is owned by no ING-01 task and shared by every other feature and test. The operator-facing hazard is already documented in services/api/README.md by T-08. A fail-closed config default is its own change.",
+      "carry_forward_ref": "AF-01-dev-db-default-writes-real-db"
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "observation",
+      "status": "reject",
+      "task": "T-01",
+      "source": "services/api/app/core/ingest_auth.py vs app/core/auth.py:33",
+      "summary": "distinct 401 detail per denial reason diverges from auth.py's single generic invalid_token; now load-bearing for TC-21's attribution",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T11:00:00Z",
+      "rationale": "The per-reason detail is what makes TC-21 two-direction isolation observable, and the disclosure is negligible: the caller already holds the token it presented, so distinguishing revoked from unknown about its own credential leaks nothing new. FR-4 defines the five literals; no test or contract forbids surfacing them. Kept as built."
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "env-blocker",
+      "status": "defer",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml (pnpm segment)",
+      "summary": "ERR_PNPM_IGNORED_BUILDS on unrs-resolver@1.12.2 breaks every composite command's frontend half; pre-existing, same as AUTH-04 AF-01",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T11:00:00Z",
+      "rationale": "Pre-existing and outside ING-01 (zero frontend files), but it degrades every future feature evidence pass - this one required bypassing pnpm via node_modules/.bin. Stays visible until the unrs-resolver build-script approval is made, which is a human supply-chain decision.",
+      "carry_forward_ref": "AF-03-pnpm-ignored-builds-gate"
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "evidence-na",
+      "status": "accept",
+      "task": "evidence-pass",
+      "source": "docs/config/project-commands.yaml (design_check empty)",
+      "summary": "design_check dimension N/A - no tool wired and feature is design:n/a with no UI surface",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-03T11:00:00Z",
+      "rationale": "Confirmed genuinely N/A on both grounds: no design_check tool wired (project-commands.yaml design_check empty) and feature is design:n/a with no UI surface. Matches BED-01 AF-09 / AUTH-03 / AUTH-04. No code fix implied."
+    }
+  ],
+  "pending_carry_forward": [
+    {
+      "item_id": "AF-01-dev-db-default-writes-real-db",
+      "kind": "finding",
+      "reason": "live native Postgres answers on the Settings.database_url default, so an unset DATABASE_URL writes to the real dev database instead of failing - deferred at /arh-human-review: Out of ING-01 file scope - app/core/config.py is owned by no ING-01 task and shared by every other feature and test. The operator-facing hazard is already documented in services/api/README.md by T-08. A fail-closed config default is its own change.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T11:00:00Z",
+      "added_by": "arh-human-review (flag defer)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-03-pnpm-ignored-builds-gate",
+      "kind": "finding",
+      "reason": "ERR_PNPM_IGNORED_BUILDS on unrs-resolver@1.12.2 breaks every composite command's frontend half; pre-existing, same as AUTH-04 AF-01 - deferred at /arh-human-review: Pre-existing and outside ING-01 (zero frontend files), but it degrades every future feature evidence pass - this one required bypassing pnpm via node_modules/.bin. Stays visible until the unrs-resolver build-script approval is made, which is a human supply-chain decision.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T11:00:00Z",
+      "added_by": "arh-human-review (flag defer)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "ING-01-TC-11-non-bearer-header-not-round-tripped",
+      "kind": "finding",
+      "reason": "TC-11 passes but asserts equivalence to TC-10 via credentials=None rather than round-tripping a real Authorization: Basic header through HTTPBearer. Advisory from validation-agent: strengthen it using the dual-dependency HTTP harness already established in test_ingest_token_isolation.py.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T12:00:00Z",
+      "added_by": "validate-review gate (validation-agent carry-forward)",
+      "resolved_at": "2026-09-03T14:05:00Z",
+      "evidence": "RESOLVED round 3: TC-11 now round-trips a real Authorization: Basic header through HTTPBearer via a throwaway app (tests/unit/test_ingest_token_auth.py), replacing the credentials=None equivalence assertion. Confirmed resolved by validation-agent round 3."
+    },
+    {
+      "item_id": "F-1-program-ids-whitespace-not-trimmed",
+      "kind": "finding",
+      "reason": "code-review MEDIUM: scripts/mint_ingest_token.py:59-62 _parse_program_ids splits --program-ids on ',' without trimming, and ingest_auth.py:99-111 does exact-string membership, so --program-ids \"a, b\" stores \" b\" which can never match. Fails closed (denies, never over-permits) and no TC covers it.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T12:00:00Z",
+      "added_by": "validate-review gate (code-review-agent F-1)",
+      "resolved_at": "2026-09-03T14:05:00Z",
+      "evidence": "RESOLVED round 3, superseded by D-05/D-05a: _parse_program_ids trims elements and drops empties, and a supplied value collapsing to zero elements is a usage error. Regression coverage: 4x *_regression_f1 tests + ING-01-TC-25/*_regression_f2. Verified by both gate agents across 13+ input shapes."
+    },
+    {
+      "item_id": "README-cites-D-05-not-D-05a",
+      "kind": "finding",
+      "reason": "services/api/README.md's 'a typo cannot silently mint an unscoped token' bullet cites D-05, but D-05a is the decision that actually closes the gap. LOW/advisory (code-review round 3). Deliberately NOT fixed: README.md is inside the gate's source anchor, so editing it would invalidate the round-3 GREEN verdict, and the 3-round cap leaves no round to re-earn it.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T14:00:00Z",
+      "added_by": "validate-review gate round 3 (code-review LOW)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "decisions-amendment-convention-undecided",
+      "kind": "finding",
+      "reason": "D-05a is the first amendment in this project's DECISIONS.md log and set an edit-in-place-with-forward-pointer precedent. Code-review asks the team to deliberately pick one convention (edit-in-place-with-pointer vs freeze-and-supersede) before the next amendment. Process decision, not a code defect.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T14:00:00Z",
+      "added_by": "validate-review gate round 3 (code-review advisory)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "bare-program-ids-flag-untested",
+      "kind": "finding",
+      "reason": "No test explicitly covers the bare `--program-ids` form with no value. Behaviour is correct (argparse SystemExit(2) before _parse_args returns, no DB write, no stdout) and structurally identical to TC-03's missing-required-argument path, so this is a nice-to-have rather than a coverage gap.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T14:00:00Z",
+      "added_by": "validate-review gate round 3 (code-review advisory)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "TC-25-not-pushed-to-tracker",
+      "kind": "finding",
+      "reason": "ING-01-TC-25 was added to docs/test-cases/ING-01.json during round 3's fix pass. The tracker carries TC-01..TC-24 as issues #154-#177; TC-25 has no tracker issue because test-case push is a /arh-plan-requirements Phase 4b concern, not an /arh-implement step. Re-run that phase to push it.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T14:00:00Z",
+      "added_by": "orchestrator (round 3 bookkeeping)",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-09-03 P=25/25 in 3 round(s)",
+  "review": "PASS",
+  "review_report": "docs/features/ING-01/REVIEW.md",
+  "validation_report": "docs/features/ING-01/VALIDATION-20260903-0651.md",
+  "gate_rounds": 3,
+  "review_blocked_rounds": 1,
+  "impl": "complete",
+  "impl_branch": "feature/ING-01",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-05a"
+  ],
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/179",
+  "tracker_review_comment": "5521877654",
+  "tracker_parent_transition": "skipped \u2014 no in-review stage exists in this tracker (only status:approved / status:in-progress). #40 stays status:in-progress, matching AUTH-03 (#17) and AUTH-04 (#18), which are both at review phase with the same label. No label was created: inventing tracker taxonomy is outside this story, and harness state is the source of truth."
+}

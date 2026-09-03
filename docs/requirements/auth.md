@@ -67,7 +67,20 @@ shape:
 produced_by: ING-01
 consumed_by: [ING-02, ING-03, ING-07]
 shape:
-  token_format: "hrn_pat_ + 24 random bytes hex, printed once, never stored raw"
-  storage: "ingest_tokens.token_hash (SHA-256 hex), label, user_email, allowed_program_ids (array or literal wildcard \"*\")"
-  authz: "bearer hash lookup -> 401 if missing/revoked/expired; program-scope check -> 403 if target program not in allowed set and no wildcard"
+  token_format: "hrn_pat_ + 32 CSPRNG bytes hex (64 hex chars, secrets.token_hex(32)), printed once, never stored raw"
+  storage: "ingest_tokens.token_hash = hashlib.sha256(raw).hexdigest(); label, user_email, allowed_program_ids (array; wildcard is the single element \"*\"; empty array = allow-all); expires_at/revoked_at null at mint"
+  auth_check_function: "app.core.ingest_auth.get_ingest_token(program_id: str, credentials: HTTPAuthorizationCredentials | None = Depends(HTTPBearer(auto_error=False)), session: AsyncSession = Depends(get_db)) -> IngestToken"
+  auth_check_behavior: >
+    SHA-256-hashes the bearer token, looks up ingest_tokens.token_hash (unique index).
+    401 reason=missing (no header or non-Bearer scheme) | reason=unknown (no matching hash) |
+    reason=revoked (revoked_at is not null) | reason=expired (expires_at is not null and <= now()).
+    403 reason=scope when the row is active but ING-01-FR-3's check fails. On pass, returns the
+    resolved IngestToken row. program_id is a caller-supplied parameter of the dependency itself
+    (resolved by FastAPI the same way any route parameter of that name is) -- never read off the
+    token row (ING-01-FR-6 / DECISIONS.md D-01).
+  scope_semantics: "empty allowed_program_ids == allow-all (unscoped, ADR-0006 accepted default); [\"*\"] == explicit wildcard; otherwise exact-string membership test (no UUID-specific parsing)"
+  lifetime: "expires_at defaults to null (no expiry); revocation via revoked_at is the containment mechanism"
+  mint_surface: "uv run python scripts/mint_ingest_token.py --label <str> --user-email <str> [--program-ids <comma-separated ids or \"*\">] (stdlib argparse, no new dependency); --label/--user-email required, --program-ids optional. Each comma-separated element is whitespace-trimmed and empty elements dropped (\"a, b\" -> [\"a\", \"b\"]; \"*\" -> [\"*\"]); allowed_program_ids=[] (allow-all) is reachable ONLY by omitting --program-ids entirely (DECISIONS.md D-04, D-05a) -- a supplied value that collapses to zero usable elements after trimming (e.g. \"\", \" \", \",\") is a usage error, never allow-all. Exits 0 with one raw-token stdout line and one committed row on success; exits non-zero with no DB write and no token printed on any argparse failure, the input-validation usage-error case above, or a DB failure"
+  log_event: "ingest_token_auth_failed, emitted from app.core.ingest_auth, INFO level, once per denial (never on success); required fields exactly {token_id, reason, program_id, timestamp}, optional {} -- token_id is null when no row was resolved (reason missing|unknown), else ingest_tokens.id; reason in {missing, unknown, revoked, expired, scope}; never user_email, raw token, or token_hash"
+  authority: "ADR-0006 - supersedes story AC-1's 24-byte figure per security-baseline CSPRNG >= 32 bytes; DECISIONS.md D-01..D-05a (docs/features/ING-01/DECISIONS.md) settle the implementation-surface choices ADR-0006 leaves open"
 ```
