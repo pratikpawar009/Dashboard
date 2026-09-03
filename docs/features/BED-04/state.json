@@ -33,7 +33,7 @@
     "file": "docs/features/BED-04/DATA-DESIGN.md"
   },
   "phase": "review",
-  "last_updated": "2026-09-03T16:20:00Z",
+  "last_updated": "2026-09-03T16:30:00Z",
   "impl_evidence": {
     "session_ended_at": "2026-09-03T09:26:12Z",
     "rounds": 1,
@@ -291,5 +291,13 @@
       "triaged_by": "user direction (Step 5 RC4 triage: 'Accept all 5')",
       "disposition": "Accepted as out of BED-04's scope, with the mitigation retained in this story's record. The defect is in .claude/skills/arh-implement/steps/02-validate.md, not in BED-04: a status-based anchor cannot detect content drift, and the exclusion set omits docs/activity/ and nested */.claude/agent-memory/. Both halves were demonstrated concretely this session rather than argued in principle - the specified anchor returned an identical hash after seven files were rewritten, and the corrected content-sensitive anchor was tripped solely by an activity-log append. The orchestrator ran the gate on a corrected anchor plus an mtime-vs-dispatch cross-check, so BED-04's own round-2 GREEN was earned against a source tree proven stable. Fixing the skill would change every story's gate and belongs in harness work."
     }
-  ]
+  ],
+  "impl_branch": "feature/BED-04",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04"
+  ],
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/186"
 }
