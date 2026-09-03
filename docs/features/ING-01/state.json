@@ -15,7 +15,7 @@
   "design_provider": "html-mockup",
   "design_iteration": 0,
   "phase": "security-reviewed",
-  "last_updated": "2026-09-03T16:05:00Z",
+  "last_updated": "2026-09-03T17:00:00Z",
   "tracker_prd": "pratikpawar009/Dashboard#153",
   "gate": "APPROVE",
   "plan_validation": "PASS",
@@ -256,14 +256,15 @@
       "evidence": "RESOLVED: ING-01-TC-25 pushed as pratikpawar009/Dashboard#181, linked to parent #40. All 25 test cases now carry a tracker_test key (#154-#177 plus #181), verified by reading docs/test-cases/ING-01.json."
     },
     {
-      "item_id": "authlib-0.15.6-jwt-algorithm-confusion-CVE-2024-37568",
+      "item_id": "authlib-0.15.6-and-starlette-0.46.2-outdated-17-advisories",
       "kind": "finding",
-      "reason": "Surfaced by ING-01's security review's confirmatory pip-audit, OUTSIDE ING-01's diff and PLAN scope, so correctly excluded from its PASS verdict. authlib==0.15.6 carries 11 advisories incl. CVE-2024-37568 (JWT algorithm confusion); starlette==0.46.2 carries 9. Both jwt.decode() call sites lack an explicit algorithms= allow-list: app/auth/oidc.py:191 passes no options at all, app/core/auth.py:217 passes only claims_options. The pyproject pin 'authlib>=0.15,<1.0' keeps the resolution on the vulnerable 0.15.x line. Belongs to AUTH-01/AUTH-04. Needs its own dependency-upgrade story: lift the upper pin and add explicit algorithms= at both sites.",
+      "reason": "Surfaced by ING-01's security review, OUTSIDE ING-01's diff and PLAN scope, so correctly excluded from its PASS verdict. Verified by the orchestrator against the PROJECT venv (`uv run --with pip-audit pip-audit` from services/api - note a bare `uv tool run pip-audit` audits pip-audit's OWN env and reports nothing about these): authlib==0.15.6 carries 10 unique advisories, starlette==0.46.2 carries 7. THE BLOCKER: pyproject.toml:26 pins 'authlib>=0.15,<1.0'; every authlib fix requires >=1.3.1 and most >=1.6.x, so the upper bound excludes all of them. ASSESSED: PYSEC-2024-52 (= CVE-2024-37568, algorithm confusion, fix 1.3.1) is NOT reachable via this codebase's call pattern - jwks.get_signing_key returns a JWK dict with kty=RSA, so an HS256 forge is rejected at key import ('Missing required field: \"k\"'), verified empirically. Its prescribed mitigation is also unavailable: jwt.decode in 0.15.6 has no `algorithms=` parameter (signature is (s, key, claims_cls, claims_options, claims_params)) - you must upgrade to get it. NOT ASSESSED, and the reason this stays open at high priority: PYSEC-2026-287 (JWK header injection, forge arbitrary tokens, fix 1.6.9), PYSEC-2026-2116 (padding oracle, 1.6.9), PYSEC-2026-1200 (crit-header bypass, 1.6.4), PYSEC-2026-1203 (unbounded header/signature segments, 1.6.5), PYSEC-2026-25 (no CSRF on the starlette_client OAuth cache feature, 1.6.11 - that is the integration family this codebase uses). Reachability of these against app/core/auth.py:217 and app/auth/oidc.py:191 is UNKNOWN. OWNER STORY: needs its own intake - authlib 0.15 -> 1.6 is a major API break across AUTH-01's whole JWT path (10 advisories to verify, plus starlette), not a patch. Do not bundle it into a chore PR.",
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-03T16:00:00Z",
       "added_by": "arh-security-review ING-01 (out-of-scope dependency finding)",
       "resolved_at": null,
-      "evidence": null
+      "evidence": null,
+      "severity_note": "dependency exposure, out of ING-01 scope; highest-priority open carry-forward"
     },
     {
       "item_id": "M-01-no-detection-control-for-unscoped-tokens",
