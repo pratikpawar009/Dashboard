@@ -14,8 +14,8 @@
   "design_artifact": "docs/features/ING-01/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "review",
-  "last_updated": "2026-09-03T15:15:00Z",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-03T16:05:00Z",
   "tracker_prd": "pratikpawar009/Dashboard#153",
   "gate": "APPROVE",
   "plan_validation": "PASS",
@@ -223,7 +223,7 @@
       "added_at": "2026-09-03T14:00:00Z",
       "added_by": "validate-review gate round 3 (code-review LOW)",
       "resolved_at": null,
-      "evidence": null
+      "evidence": "Fix open in PR #180 (branch chore/ING-01) - services/api/README.md now cites D-05a. NOT resolved here: the PR is unmerged, so main still carries the D-05 citation."
     },
     {
       "item_id": "decisions-amendment-convention-undecided",
@@ -252,6 +252,26 @@
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-03T14:00:00Z",
       "added_by": "orchestrator (round 3 bookkeeping)",
+      "resolved_at": "2026-09-03T16:05:00Z",
+      "evidence": "RESOLVED: ING-01-TC-25 pushed as pratikpawar009/Dashboard#181, linked to parent #40. All 25 test cases now carry a tracker_test key (#154-#177 plus #181), verified by reading docs/test-cases/ING-01.json."
+    },
+    {
+      "item_id": "authlib-0.15.6-jwt-algorithm-confusion-CVE-2024-37568",
+      "kind": "finding",
+      "reason": "Surfaced by ING-01's security review's confirmatory pip-audit, OUTSIDE ING-01's diff and PLAN scope, so correctly excluded from its PASS verdict. authlib==0.15.6 carries 11 advisories incl. CVE-2024-37568 (JWT algorithm confusion); starlette==0.46.2 carries 9. Both jwt.decode() call sites lack an explicit algorithms= allow-list: app/auth/oidc.py:191 passes no options at all, app/core/auth.py:217 passes only claims_options. The pyproject pin 'authlib>=0.15,<1.0' keeps the resolution on the vulnerable 0.15.x line. Belongs to AUTH-01/AUTH-04. Needs its own dependency-upgrade story: lift the upper pin and add explicit algorithms= at both sites.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T16:00:00Z",
+      "added_by": "arh-security-review ING-01 (out-of-scope dependency finding)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "M-01-no-detection-control-for-unscoped-tokens",
+      "kind": "finding",
+      "reason": "Security review M-01 (Medium, non-blocking): no compensating detection control exists for the unscoped / never-expiring token that ADR-0006 \u00a73/\u00a74's defaults permit - nothing lists, ages, or flags them. The reviewer agreed it is an accepted trade-off (minting already needs DATABASE_URL + shell access, and revoked_at gives containment) but recommends prioritising ADR-0006 \u00a7 Flagged gaps' token-inventory follow-up before mint usage widens beyond a few operators.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-03T16:00:00Z",
+      "added_by": "arh-security-review ING-01 (M-01)",
       "resolved_at": null,
       "evidence": null
     }
@@ -275,5 +295,14 @@
   ],
   "pr": "https://github.com/pratikpawar009/Dashboard/pull/179",
   "tracker_review_comment": "5521877654",
-  "tracker_parent_transition": "skipped \u2014 no in-review stage exists in this tracker (only status:approved / status:in-progress). #40 stays status:in-progress, matching AUTH-03 (#17) and AUTH-04 (#18), which are both at review phase with the same label. No label was created: inventing tracker taxonomy is outside this story, and harness state is the source of truth."
+  "tracker_parent_transition": "skipped \u2014 no in-review stage exists in this tracker (only status:approved / status:in-progress). #40 stays status:in-progress, matching AUTH-03 (#17) and AUTH-04 (#18), which are both at review phase with the same label. No label was created: inventing tracker taxonomy is outside this story, and harness state is the source of truth.",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 3,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/ING-01/SECURITY-20260903-0724.md"
 }
