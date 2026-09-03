@@ -24,8 +24,15 @@ export function getProgramStyle(type: string): {
   typeChip: CSSProperties;
 } {
   const t = PROGRAM_TYPE_COLORS[type] ?? PROGRAM_TYPE_COLORS["Migration"];
-  const style: CSSProperties = { color: t.color, background: t.background };
-  return { avatarStyle: style, typeChip: style };
+  // Two distinct objects, not one aliased into both keys (REVIEW.md F-3). The
+  // values are identical, so sharing a reference was harmless while both were
+  // only ever read — but it made a caller mutating one silently mutate the
+  // other, and it would quietly couple them if the avatar and chip ever need
+  // to diverge. Cheaper to keep them independent than to rely on nobody writing.
+  return {
+    avatarStyle: { color: t.color, background: t.background },
+    typeChip: { color: t.color, background: t.background },
+  };
 }
 
 const PROGRAM_TYPE_COLORS: Record<

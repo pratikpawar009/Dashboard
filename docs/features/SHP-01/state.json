@@ -36,7 +36,7 @@
     "D-06"
   ],
   "phase": "review",
-  "last_updated": "2026-09-03T22:35:00Z",
+  "last_updated": "2026-09-03T22:50:00Z",
   "pending_carry_forward": [
     {
       "item_id": "R-01-session-seam-unowned",
@@ -69,9 +69,9 @@
       "evidence": "docs/features/SHP-01/DESIGN.md \u00a7 Design QA \u2014 contrast audit. Measured; 3 of the 4 persona pairs FAIL. The unowned-verification gap is closed; the resulting design defect is tracked as SHP-01-mockup-contrast-below-AA."
     },
     {
-      "item_id": "SHP-01-FR-1-FR-3-uncovered",
+      "item_id": "SHP-01-FR-1-uncovered",
       "kind": "test_case",
-      "reason": "SHP-01-FR-1/FR-3 deliberately uncovered under the approved <=4 test-case cap, pending the unlanded AUTH-01 session-contract amendment (docs/test-cases/SHP-01.json coverage_audit.uncovered).",
+      "reason": "SHP-01-FR-1 remains deliberately uncovered: its prop shape rides the unlanded AUTH-01 session-contract amendment, so pinning a test to today's field names has negative value. FR-3 is NO LONGER part of this item \u2014 closed by FIX-02 (SHP-01-TC-05); its deferral reason (shared dependency on signedInUser.name's shape) did not apply, since deriveInitials takes a plain string.",
       "owner": "SHP-01 owner",
       "added_at": "2026-09-03T21:45:00Z",
       "added_by": "validation-agent (gate round 1, report-only)",
@@ -366,6 +366,12 @@
       "summary": "Identity-avatar neutral fallback no longer hardcodes its colour pair; --neutral-unresolved-* declared once in globals.css and shared with PersonaHeader's badge, making D-02's colour-agreement guarantee structural (REVIEW.md F-2)",
       "regression_test": "regression-SHP-01-TC-02 (apps/web/src/components/PersonaDashboardShell.test.tsx, 2 cases)",
       "added_at": "2026-09-03T22:35:00Z"
+    },
+    {
+      "fix_id": "FIX-02",
+      "summary": "Closed SHP-01's remaining coverage gaps: deriveInitials had no direct test (FR-3's deferral reason did not apply \u2014 it takes a plain string, not the AUTH-01-dependent prop shape), and getProgramStyle's unknown-type fallback was untested. Also closed REVIEW.md F-3 (avatarStyle/typeChip were one aliased object).",
+      "regression_test": "SHP-01-TC-05, SHP-01-TC-06 (apps/web/src/lib/{deriveInitials,programStyle}.test.ts); the F-3 case proven to fail pre-fix",
+      "added_at": "2026-09-03T22:50:00Z"
     }
   ]
 }
