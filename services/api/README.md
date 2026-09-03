@@ -83,6 +83,37 @@ The token is signed by an ephemeral RSA keypair generated once per process, at f
 - **The same token is rejected (401) in production** — the signing key is process-local and the `kid` never resolves outside an allow-listed environment, by design.
 - **Each worker holds its own key** — under `uvicorn --workers N`, gunicorn, or several API instances, a token 401s on any worker that did not mint it. The `Dockerfile` runs a single uvicorn process, so this only bites if you add workers yourself.
 
+## Ingest token auth
+
+`app/core/ingest_auth.py` is service-internal only, like Rollup rebuild above — no HTTP route consumes it yet (ING-02 wires the first `/ingest/*` route). `scripts/mint_ingest_token.py` is the only way to issue a credential today.
+
+```bash
+cd services/api
+uv run python scripts/mint_ingest_token.py --label "ci-pipeline" --user-email ops@example.com --program-ids alpha,beta
+# -> prints the raw token to stdout exactly once, and only after the DB commit succeeds
+```
+
+- **`--label` and `--user-email` are required; `--program-ids` is optional.** **Omitting** it produces `allowed_program_ids=[]`, which is **allow-all** — the token is valid for every program, not none. This is the deliberate, accepted default (ADR-0006 §3 / § Consequences), not a bug: pass an explicit comma-separated id list, or the literal `"*"`, to scope it.
+- **`--program-ids` values are trimmed** — `"alpha, beta"` stores `["alpha", "beta"]`, and empty elements between commas are dropped. A value that is supplied but collapses to nothing after trimming (`" "`, `","`) is a **usage error**: non-zero exit, no row written, no token printed. Only omitting the flag reaches the allow-all default, so a typo cannot silently mint an unscoped token (DECISIONS.md D-05).
+- **Printed once, stored hashed.** The raw `hrn_pat_...` token reaches stdout exactly once and is never logged or stored; only `hashlib.sha256(raw).hexdigest()` is persisted, in `ingest_tokens.token_hash`. Lose it and mint a new one — there is no way to recover or redisplay it.
+- **`expires_at` defaults to null — the token never expires.** Revocation via `revoked_at` is the only containment mechanism (ADR-0006 §4). No revoke command ships in this story; that is ING-03's scope.
+- **Set `DATABASE_URL` deliberately before minting.** A live local Postgres answers on `Settings.database_url`'s default (`localhost:5432/dashboard`) — running the script with `DATABASE_URL` unset writes a real row into the dev database instead of failing.
+
+### Bearer contract
+
+Callers present the token the same way as a session JWT — `Authorization: Bearer <raw-token>` — but against a separate dependency, `app.core.ingest_auth.get_ingest_token(program_id, ...)`, which never imports or shares state with `app/core/auth.py::get_current_user` (structural isolation, FR-6). `program_id` is an ordinary route parameter FastAPI resolves independently — never read off the token itself.
+
+| Outcome | Status | `detail` | Cause |
+|---|---|---|---|
+| Authorized | — | — | header present, hash matches an active row, program in scope |
+| Missing/malformed header | 401 | `missing` | no `Authorization` header, or not a Bearer scheme |
+| Unknown token | 401 | `unknown` | hash matches no row |
+| Revoked | 401 | `revoked` | `revoked_at` is set |
+| Expired | 401 | `expired` | `expires_at` is set and in the past |
+| Out of scope | 403 | `scope` | `allowed_program_ids` is non-empty, has no `"*"`, and excludes the requested `program_id` |
+
+No route declares `Depends(get_ingest_token)` yet — this story ships the dependency only.
+
 ## RBAC checks
 
 `app/core/rbac.py` is a pure in-process authorization library — five async check functions, no route surface of its own. Each of 16 downstream stories (AUTH-04, OVW-01..04, PGD-01..06, SHP-02..06) imports directly, e.g. `from app.core.rbac import org_access`; full contract at `docs/requirements/auth.md#rbac-checks`.
