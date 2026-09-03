@@ -1,0 +1,284 @@
+{
+  "story_id": "BED-04",
+  "generated_at": "2026-09-03",
+  "generation_note": "Case count capped at 3 by explicit user instruction (\"just create 2-3 test cases not more than that\"). Coverage is complete against the machine-enforced minimum — every story AC, the single delta FR, and the one budgeted NFR are covered, and uncovered is empty — by mapping AC-3 and AC-4 onto one TTL-boundary case and AC-2 onto the delta-FR case. Not written because of the cap: a type:contract case pinning the freshness-api field shape for its five consumers, and a type:security case asserting the deliberate absence of RBAC gating. Both are unbudgeted NFRs, so neither is required by the coverage minimum. Unit-shaped cases are absent by design, not by the cap (see test-case-generation skill, § Scope) — they belong in docs/features/BED-04/tasks.json.",
+  "test_cases": [
+    {
+      "id": "BED-04-TC-01",
+      "title": "Seeded ingestion row returns a timezone-aware last_successful_run_at",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-04-AC-1",
+      "given": "system_metadata holds a row with key='ingestion' and a known last_successful_run_at",
+      "when": "the freshness accessor is called",
+      "then": "it returns that timestamp as a timezone-aware datetime equal to the seeded value",
+      "objective": "Verify the accessor reads the system_metadata singleton and returns last_successful_run_at as a timezone-aware datetime matching the seeded row, establishing the freshness-api contract's field and type for its five consumers.",
+      "preconditions": [
+        "Test database migrated to head via `alembic upgrade head` (BED-01's 001_initial_schema creates system_metadata)",
+        "system_metadata seeded with exactly one row: key='ingestion', last_successful_run_at=2026-09-03T09:15:00+00:00",
+        "A fresh accessor instance (or cleared module cache) so the read is a cache miss, not a warm hit from a prior case"
+      ],
+      "test_data": {
+        "metadata_key": "ingestion",
+        "seeded_last_successful_run_at": "2026-09-03T09:15:00+00:00"
+      },
+      "steps": [
+        "Seed system_metadata with key='ingestion' and last_successful_run_at=2026-09-03T09:15:00+00:00",
+        "Call the freshness accessor against the test database session"
+      ],
+      "expected_results": [
+        "The call returns without raising",
+        "The returned value is a datetime instance",
+        "Its tzinfo is not None and its UTC offset resolves to +00:00 — the DateTime(timezone=True) column round-trips aware, not naive",
+        "It equals 2026-09-03T09:15:00+00:00",
+        "No warning-level log event is emitted on this path"
+      ],
+      "tags": [
+        "happy-path",
+        "freshness-api",
+        "contract-shape",
+        "bed-04"
+      ],
+      "last_run": {
+        "started_at": "2026-09-03T10:30:41Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "docs/features/BED-04/VALIDATION-20260903-1606.md#bed-04-tc-01",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 1432,
+          "log_tail": null
+        },
+        "node_id": "services/api/tests/unit/test_freshness.py::test_seeded_row_returns_timezone_aware_datetime_tc01",
+        "round": 2
+      }
+    },
+    {
+      "id": "BED-04-TC-02",
+      "title": "Absent ingestion row raises the verbatim never-run message and logs a warning",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-04-FR-1",
+      "given": "system_metadata has no row with key='ingestion' (migrated but never ingested)",
+      "when": "the freshness accessor is called",
+      "then": "it raises with the exact message 'ingestion job may not have run yet' sourced from the module constant, and emits one warning-level log event",
+      "objective": "Verify the row-absent path is a first-class, exactly-worded outcome: the raised message is byte-identical to the module constant that the log event also uses, so the string cannot drift between the two or across refactors (research risk #2 — five downstream consumers may log or match it).",
+      "preconditions": [
+        "Test database migrated to head",
+        "system_metadata contains no row with key='ingestion' (table empty, or seeded only with unrelated keys)",
+        "A fresh accessor instance so the absent-row state is actually queried, not masked by a cached value from another case",
+        "Log capture attached at WARNING level over the accessor module's logger"
+      ],
+      "test_data": {
+        "metadata_key": "ingestion",
+        "seeded_rows": "none",
+        "expected_message_constant": "_NOT_RUN_MESSAGE"
+      },
+      "steps": [
+        "Assert the precondition: a select on system_metadata where key='ingestion' returns no row",
+        "Attach a WARNING-level log capture over the accessor module's logger",
+        "Call the freshness accessor and capture the raised exception"
+      ],
+      "expected_results": [
+        "The call raises rather than returning None or a sentinel datetime",
+        "The raised message contains 'ingestion job may not have run yet' byte-exactly — asserted against the imported module constant, not a re-typed literal, so a change to the constant fails this case instead of silently passing",
+        "The raised error carries HTTP status 500, per BED-04-FR-1's recorded 500-over-503 choice",
+        "Exactly one WARNING-level record was emitted during the call",
+        "That record's message is the same module constant, and it carries no user identifier or request content (security NFR: no PII in logs)"
+      ],
+      "tags": [
+        "negative",
+        "edge-case",
+        "unseeded-database",
+        "observability",
+        "bed-04"
+      ],
+      "last_run": {
+        "started_at": "2026-09-03T10:30:41Z",
+        "duration_ms": 10,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 10,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "docs/features/BED-04/VALIDATION-20260903-1606.md#bed-04-tc-02",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 1432,
+          "log_tail": null
+        },
+        "node_id": "services/api/tests/unit/test_freshness.py::test_absent_row_raises_exact_message_and_logs_warning_tc02",
+        "round": 2
+      }
+    },
+    {
+      "id": "BED-04-TC-03",
+      "title": "Warm reads stay under 10 ms p95 within the 300s TTL, then pick up the updated timestamp once it expires",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-04-NFR-performance",
+      "given": "the accessor has been called once and the underlying row is then updated out-of-band",
+      "when": "it is called repeatedly inside the 300-second TTL and again after the TTL has elapsed",
+      "then": "the in-TTL calls serve the original value from cache at p95 < 10 ms with no further database read, and the post-TTL call returns the updated timestamp",
+      "objective": "Verify both legs of the TTL contract in one boundary case — that a warm hit does no I/O and meets the < 10 ms p95 budget (AC-3), and that apparent staleness is bounded at exactly the documented 300s rather than being indefinite (AC-4). TTL expiry is the only invalidating event, because the ingestion writer runs out-of-process and cannot invalidate an in-process cache.",
+      "preconditions": [
+        "Test database migrated to head",
+        "system_metadata seeded with key='ingestion', last_successful_run_at=2026-09-03T09:15:00+00:00",
+        "A fresh accessor instance with an empty cache",
+        "The monotonic clock the accessor reads is controllable by the test (fake/patched), so the 300s boundary is crossed without a real 5-minute wait",
+        "Database reads are countable for the duration of the case (query counter or session-level spy)"
+      ],
+      "test_data": {
+        "metadata_key": "ingestion",
+        "seeded_last_successful_run_at": "2026-09-03T09:15:00+00:00",
+        "updated_last_successful_run_at": "2026-09-03T09:47:00+00:00",
+        "ttl_seconds": 300,
+        "clock_advance_within_ttl_seconds": 299,
+        "clock_advance_past_ttl_seconds": 301,
+        "warm_read_sample_size": 200,
+        "p95_budget_ms": 10
+      },
+      "steps": [
+        "Call the accessor once to populate the cache; record the database read count after this call",
+        "Update system_metadata.last_successful_run_at to 2026-09-03T09:47:00+00:00 out-of-band, simulating an out-of-process ingest write",
+        "Advance the accessor's monotonic clock by 299 seconds — inside the TTL",
+        "Call the accessor 200 times, timing each call",
+        "Advance the accessor's monotonic clock past the boundary, to 301 seconds since the populating call",
+        "Call the accessor once more"
+      ],
+      "expected_results": [
+        "Every in-TTL call returns 2026-09-03T09:15:00+00:00 — the cached value, not the row's new value",
+        "The database read count is unchanged across all 200 in-TTL calls: the warm path performs no query",
+        "p95 of the 200 warm-read durations is < 10 ms",
+        "The post-TTL call returns 2026-09-03T09:47:00+00:00, still timezone-aware",
+        "The database read count increased by exactly 1 across the post-TTL call — one primary-key read per TTL window, not one per call",
+        "Worst-case observed staleness never exceeds the 300s TTL"
+      ],
+      "tags": [
+        "boundary",
+        "cache-ttl",
+        "performance-budget",
+        "ac-3",
+        "ac-4",
+        "bed-04"
+      ],
+      "last_run": {
+        "started_at": "2026-09-03T10:30:41Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 10 ms warm cached read (BED-04-NFR-performance)",
+          "measured": "p95 = 0.000292 ms (292 ns) over 200 warm reads; 0 SELECTs in-TTL, exactly 1 SELECT post-TTL",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "docs/features/BED-04/VALIDATION-20260903-1606.md#bed-04-tc-03",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 1432,
+          "log_tail": null
+        },
+        "node_id": "services/api/tests/perf/test_freshness_perf.py::test_warm_reads_under_p95_budget_then_ttl_expiry_picks_up_update",
+        "round": 2
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "BED-04-AC-1",
+        "covered_by": [
+          "BED-04-TC-01"
+        ]
+      },
+      {
+        "id": "BED-04-AC-2",
+        "covered_by": [
+          "BED-04-TC-02"
+        ]
+      },
+      {
+        "id": "BED-04-AC-3",
+        "covered_by": [
+          "BED-04-TC-03"
+        ]
+      },
+      {
+        "id": "BED-04-AC-4",
+        "covered_by": [
+          "BED-04-TC-03"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "BED-04-FR-1",
+        "covered_by": [
+          "BED-04-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "BED-04-NFR-performance",
+        "covered_by": [
+          "BED-04-TC-03"
+        ]
+      },
+      {
+        "id": "BED-04-NFR-observability",
+        "covered_by": [
+          "BED-04-TC-02"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "BED-04-AC-2 is covered by TC-02, whose requirement_id is the delta FR that extends it (BED-04-FR-1) rather than the AC id — FR-1 adds the module-constant, warning-log and status constraints on top of AC-2's assertion, so one case satisfies both obligations under the 3-case cap.",
+      "BED-04-AC-3 and BED-04-AC-4 are both covered by TC-03: they are the two legs of a single TTL boundary (serve-from-cache before 300s, re-read after), and testing them as one case is what makes the boundary itself — not just each side of it — the thing under test.",
+      "BED-04-NFR-security carries no numeric budget and asserts an absence (no RBAC gating on a read-only accessor), so the coverage minimum requires no typed case for it. TC-02 partially covers its no-PII-in-logs clause. A dedicated type:security case was omitted under the user-directed cap.",
+      "BED-04-NFR-accessibility is N/A — backend accessor, no UI surface in this story.",
+      "No unit-shaped cases appear here by design (test-case-generation § Scope): the accessor's internal cache mechanics belong in docs/features/BED-04/tasks.json as a pytest task, authored at /arh-plan-implementation."
+    ]
+  }
+}
