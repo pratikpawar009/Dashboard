@@ -47,3 +47,20 @@ export interface ProgramSwitcherEntry {
   href: string;
   dotStyle: string;
 }
+
+/**
+ * `fetchProgramDetail()`'s result. Shared by `programDetailApi.ts` (server)
+ * and `programDetailApi.client.ts` (client) so neither module keeps its own
+ * copy (DECISIONS.md D-08) -- both `page.tsx` and `ProgramDetailView.tsx`
+ * consume this discriminated union.
+ *
+ * `"unauthorized"` means the caller (a proxy route or `page.tsx`) already ran
+ * `tokenStore.callWithAuth`'s retry-once and was still rejected -- it is a
+ * terminal outcome, NOT a signal for client-side JS to retry the fetch again
+ * (DECISIONS.md D-10).
+ */
+export type ProgramDetailResult =
+  | { status: "ok"; data: ProgramDetailData }
+  | { status: "not_found" }
+  | { status: "unauthorized" }
+  | { status: "error" };

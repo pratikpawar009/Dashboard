@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import {
   fetchProgramDetail,
   fetchPrograms,
-  type ProgramDetailResult,
-} from "@/lib/programDetailApi";
-import type { ProgramSwitcherEntry } from "@/types/programDetail";
+} from "@/lib/programDetailApi.client";
+import type {
+  ProgramDetailResult,
+  ProgramSwitcherEntry,
+} from "@/types/programDetail";
 
 import { ProgramDetailHeader } from "./ProgramDetailHeader";
 import { ProgramSummaryCards } from "./ProgramSummaryCards";
@@ -46,6 +48,16 @@ export interface ProgramDetailViewProps {
  * for the switcher's option list — skipped entirely when the initial fetch
  * already 404d (D-03: no valid current program to compare a switcher option
  * against).
+ *
+ * Auth (AUTH-05, ADR-0008/D-08/D-10): both fetches go through
+ * `@/lib/programDetailApi.client`, which calls the frontend's own same-origin
+ * `/api/proxy/*` Route Handlers. This component never reaches FastAPI
+ * directly and holds no token, cookie, or session concept of any kind — the
+ * proxy resolves the access token server-side, so there is nothing here to
+ * attach. An `"unauthorized"` result is therefore terminal rather than
+ * retryable: the proxy already exhausted `tokenStore.callWithAuth`'s
+ * retry-once before responding (D-10), so the only remaining move is to send
+ * the user back through sign-in.
  */
 export function ProgramDetailView({
   initialProgramId,
@@ -95,10 +107,29 @@ export function ProgramDetailView({
       switchedFrom: previousProgramId,
     }).then((nextResult) => {
       // A newer switch was issued before this one resolved -- discard the
-      // stale response rather than overwrite fresher state.
+      // stale response rather than overwrite fresher state. This guard runs
+      // BEFORE the `unauthorized` branch below on purpose: a superseded
+      // in-flight request must never be able to navigate the browser away.
       if (requestId !== latestSwitchRequestId.current) {
         return;
       }
+
+      // AUTH-05 AC-8/FR-5, client-side half. The proxy already exhausted
+      // `callWithAuth`'s retry-once server-side (D-10), so this is terminal:
+      // re-authenticate. `window.location.href` rather than `router.push` is
+      // deliberate -- re-auth must be a full document navigation out of the
+      // React tree and into the `/login` Route Handler's redirect chain, not
+      // a client-side route transition. FR-4's "no hard reload" rule governs
+      // the switcher's happy path (below), not this bail-out.
+      //
+      // Nothing else is updated on the way out: leaving `isSwitching` set
+      // keeps the loading state up while the navigation lands, where flipping
+      // back to a populated view would flash stale content first.
+      if (nextResult.status === "unauthorized") {
+        window.location.href = "/login";
+        return;
+      }
+
       setResult(nextResult);
       setProgramId(newProgramId);
       setIsSwitching(false);

@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/lib/apiConfig";
 import type {
   ProgramDetailData,
+  ProgramDetailResult,
   ProgramSwitcherEntry,
 } from "@/types/programDetail";
 
@@ -11,29 +12,32 @@ import type {
 const FETCH_TIMEOUT_MS = 5000;
 
 /**
- * Additive on purpose (DECISIONS.md D-08) -- a future `accessToken` field
- * extends this object rather than renaming either call's signature.
+ * Server-only module (D-08): targets FastAPI directly via `getApiBaseUrl()`
+ * and attaches a caller-supplied bearer token. Imported by `page.tsx` and,
+ * internally, by the two proxy Route Handlers -- never by
+ * `ProgramDetailView.tsx` or `programDetailApi.client.ts` (D-08's coupling
+ * boundary; the client module has no token to attach and hits the frontend's
+ * own same-origin proxy instead).
+ *
+ * `accessToken` is additive on purpose (DECISIONS.md D-08) -- `switchedFrom`
+ * predates it and neither call's signature was renamed to add it.
  */
 export interface FetchProgramDetailOptions {
   switchedFrom?: string;
+  accessToken?: string;
 }
-
-/**
- * `fetchProgramDetail()`'s result (T-07). Both `ProgramDetailView` and
- * `page.tsx` consume this discriminated union.
- */
-export type ProgramDetailResult =
-  | { status: "ok"; data: ProgramDetailData }
-  | { status: "not_found" }
-  | { status: "error" };
 
 /**
  * `GET /api/overview/program-detail/{programId}` (ADR-0007).
  *
  * Sets `X-Program-Switch-From` only when `opts.switchedFrom` is provided --
  * absent means an initial page load, present means a switcher-triggered
- * reload (DECISIONS.md D-07). A 404 maps to `not_found`; any other non-ok
- * response or a network/timeout throw maps to `error`.
+ * reload (DECISIONS.md D-07). Attaches `Authorization: Bearer <token>` only
+ * when `opts.accessToken` is present -- the header is omitted, not sent
+ * empty, otherwise. Status mapping: `404` -> `not_found`; `401` ->
+ * `unauthorized` (checked before the generic non-ok branch below, since a
+ * bare `!response.ok` check would otherwise swallow it into `error`); any
+ * other non-ok response or a network/timeout throw -> `error`.
  */
 export async function fetchProgramDetail(
   programId: string,
@@ -43,11 +47,11 @@ export async function fetchProgramDetail(
   if (opts?.switchedFrom) {
     headers["X-Program-Switch-From"] = opts.switchedFrom;
   }
+  if (opts?.accessToken) {
+    headers["Authorization"] = `Bearer ${opts.accessToken}`;
+  }
 
   try {
-    // D-08: no Authorization header -- no frontend token-acquisition
-    // mechanism exists yet (accepted, disclosed gap; carried forward as
-    // `frontend-auth-token-gap`).
     const response = await fetch(
       `${getApiBaseUrl()}/api/overview/program-detail/${programId}`,
       { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
@@ -55,6 +59,9 @@ export async function fetchProgramDetail(
 
     if (response.status === 404) {
       return { status: "not_found" };
+    }
+    if (response.status === 401) {
+      return { status: "unauthorized" };
     }
     if (!response.ok) {
       return { status: "error" };
@@ -69,13 +76,25 @@ export async function fetchProgramDetail(
 
 /**
  * `GET /api/programs` (ADR-0005), for the switch-program selector's option
- * list. Returns `[]` on ANY failure -- a degraded switcher must never block
- * the rest of the page from rendering.
+ * list. Attaches `Authorization: Bearer <token>` only when
+ * `opts.accessToken` is present, same rule as `fetchProgramDetail()` above.
+ *
+ * Returns `[]` on ANY failure, 401 included -- never `unauthorized`. This is
+ * intentional, not an oversight: a degraded switcher list is a background,
+ * non-critical fetch and must never force a full-page redirect. Do not
+ * "fix" this into a 401 signal.
  */
-export async function fetchPrograms(): Promise<ProgramSwitcherEntry[]> {
+export async function fetchPrograms(opts?: {
+  accessToken?: string;
+}): Promise<ProgramSwitcherEntry[]> {
+  const headers: HeadersInit = {};
+  if (opts?.accessToken) {
+    headers["Authorization"] = `Bearer ${opts.accessToken}`;
+  }
+
   try {
-    // D-08: no Authorization header -- see fetchProgramDetail() above.
     const response = await fetch(`${getApiBaseUrl()}/api/programs`, {
+      headers,
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
