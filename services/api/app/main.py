@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.activities import router as activities_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
+from app.api.overview import router as overview_router
 from app.api.programs import router as programs_router
 from app.auth.dev_bypass import router as dev_bypass_router
 from app.auth.jwks import JwksCache
@@ -73,13 +74,14 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
         allow_origins=cfg.cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-Program-Switch-From"],  # D-07
     )
 
     app.include_router(health_router)
     app.include_router(ingest_router)
     app.include_router(activities_router)
     app.include_router(programs_router)
+    app.include_router(overview_router)
     app.include_router(oidc_router)  # FR-2 gates at request time (501) -- always registered
     if cfg.dev_bypass_enabled:  # D-01 fail-closed allow-list, never a `!=` deny-check
         app.include_router(dev_bypass_router)

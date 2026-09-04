@@ -1,0 +1,72 @@
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #2a6fdb;
+  flex: none;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.toDate {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9aa2ae;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e6e9ef;
+  border-radius: 16px;
+  padding: 18px 19px;
+  box-shadow: 0 1px 2px rgba(15, 26, 46, 0.04);
+}
+
+.glyph {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3fb;
+  color: #2a6fdb;
+  font-size: 15px;
+  font-weight: 800;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.value {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1;
+  color: #0f1a2e;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 7px;
+}

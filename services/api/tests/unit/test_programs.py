@@ -574,8 +574,8 @@ async def test_program_entry_key_set_matches_adr_0005_exactly_tc06(
 
 
 # -----------------------------------------------------------------------------
-# AUTH-04-TC-07 (AC-5) -- href is the exact server-derived program-detail-api
-# path for the entry's program_id.
+# AUTH-04-TC-07 (AC-5) -- href is the exact server-derived frontend page route
+# for the entry's program_id (PGD-01 D-04: not the program-detail-api path).
 # -----------------------------------------------------------------------------
 
 
@@ -589,8 +589,9 @@ async def test_href_routes_to_program_detail_api_path_tc07(
     rsa_test_keypair: RSATestKeypair,
     build_access_token: Callable[..., str],
 ) -> None:
-    """AUTH-04-TC-07: href equals the exact server-derived program-detail-api
-    path for the entry's program_id, not a client-constructed value."""
+    """AUTH-04-TC-07: href equals the exact server-derived frontend page route
+    for the entry's program_id, not a client-constructed value (PGD-01 D-04
+    fixed this from the program-detail-api JSON path to a navigable route)."""
     await _seed_programs(test_session, ["prog-1"])
     persona_resolver = _configure_persona_resolver(_StubPersonaResolver(mapping={"cio": "cio"}))
     app = _build_programs_app(build_app, test_session, persona_resolver)
@@ -601,7 +602,7 @@ async def test_href_routes_to_program_detail_api_path_tc07(
 
     assert resp.status_code == 200
     entry = resp.json()["programs"][0]
-    assert entry["href"] == "/api/overview/program-detail/prog-1"
+    assert entry["href"] == "/programs/prog-1"
 
 
 # -----------------------------------------------------------------------------

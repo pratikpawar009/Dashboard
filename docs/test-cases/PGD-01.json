@@ -1,0 +1,391 @@
+{
+  "story_id": "PGD-01",
+  "generated_at": "2026-09-03",
+  "generation_note": "Case count capped at 4 by explicit user instruction. All 16 ids (7 ACs + 5 delta FRs + 4 NFRs) are covered by consolidating along natural seams, as directed: TC-01 is one backend sealed-contract pytest run covering the RBAC-pass (AC-1), header sourcing (AC-2, rider alongside TC-03), 7-card formatting (AC-3; FR-2 is its primary anchor), byte-identical-across-personas (AC-6), the route/RBAC-call-shape half of FR-1 (primary here), and the bearer-JWT-required + no-cross-program-leak half of NFR-security. TC-02 is the dedicated 404 negative case (AC-7; FR-3 primary). TC-03 is one frontend vitest/Testing-Library page-integration run covering back-nav (AC-4), switcher reload (AC-5; FR-4 primary), the frontend half of the 404 error-state (AC-7, riding alongside TC-02), and baseline keyboard/aria affordances on the switcher trigger and back-link (NFR-accessibility) -- it also incidentally exercises initial header/card rendering (AC-2, AC-3 riders) via its setup step. TC-04 is one backend performance run covering the bounded-single-select half of FR-1 (rider), NFR-performance (primary), and the program_drilldown log-event shape (FR-5 primary, NFR-observability rider). Unit-shaped cases (ProgramDetailHeader.tsx, ProgramSummaryCards.tsx, ProgramSwitcher.tsx, BackToProgramBoard.tsx component tests, per the story's own Test mapping section) are absent by design, not by the cap -- they belong in docs/features/PGD-01/tasks.json. Field names on the response (token_consumption, features_delivered, releases_done, repos_with_harness_installed, repos_total, commands_executed, lines_of_code_generated, user_stories_delivered) are drawn from the PRD/story prose and FR-2's explicit naming; the endpoint is not yet implemented, so these are the best-available names for TDD authoring, not a confirmed schema.",
+  "test_cases": [
+    {
+      "id": "PGD-01-TC-01",
+      "title": "Program Detail endpoint: bearer-JWT required, RBAC-open, header + 7-card contract, byte-identical across personas",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-01-FR-1",
+      "given": "a program_summary row seeded for program_id=prog-042, and two authenticated sessions differing only by persona (CIO, Engineering Manager)",
+      "when": "GET /api/overview/program-detail/prog-042 is called once per session, plus once with no Authorization header",
+      "then": "the unauthenticated call is rejected, both authenticated calls pass program_visibility and return the seeded header and correctly formatted 7 summary-card values, and the two persona responses are byte-identical",
+      "objective": "Verify the endpoint's full response contract in one pass: bearer-JWT enforcement, the open-aggregate RBAC check with the real program_id, header field sourcing, per-field numeric formatting (6 magnitude fields via format_number, repos ratio unformatted), the FR-PD-17 byte-identical-across-personas invariant, and that no cross-program data leaks into the response.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded for program_id='prog-042' with header fields and the 7 raw metric columns",
+        "Two valid bearer JWTs available: one resolving to the cio persona, one resolving to engineering-manager with session.programs including 'prog-042'",
+        "No test double stubs the handler's persona logic -- this exercises the shipped handler directly"
+      ],
+      "test_data": {
+        "program_id": "prog-042",
+        "seeded_name": "Apex Core Migration",
+        "seeded_type": "Platform",
+        "seeded_description": "Core platform migration to the harness pipeline",
+        "seeded_token_consumption": 2500000,
+        "seeded_features_delivered": 45,
+        "seeded_releases_done": 12,
+        "seeded_repos_with_harness_installed": 5,
+        "seeded_repos_total": 6,
+        "seeded_commands_executed": 8500,
+        "seeded_loc_generated": 125000,
+        "seeded_user_stories_delivered": 320,
+        "expected_token_consumption": "2.5M",
+        "expected_commands_executed": "8.5K",
+        "expected_loc_generated": "125.0K",
+        "expected_repos_ratio": "5 / 6",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "em_bearer_token": "<EM_TEST_JWT>"
+      },
+      "steps": [
+        "Seed program_summary for program_id='prog-042' with the header and 7 raw metric values from test_data",
+        "Call GET /api/overview/program-detail/prog-042 with no Authorization header",
+        "Call GET /api/overview/program-detail/prog-042 with the CIO bearer token",
+        "Call GET /api/overview/program-detail/prog-042 with the Engineering Manager bearer token",
+        "Diff the CIO and EM response bodies byte-for-byte",
+        "Inspect the handler/service source under test for any persona-conditional branch (grep for session.persona/role checks in the code path)"
+      ],
+      "expected_results": [
+        "The unauthenticated call returns 401 -- bearer-JWT is required, not client-side-only gating",
+        "Both authenticated calls return 200, not 403 -- program_visibility passed without checking program_id against session.programs",
+        "Both responses' header fields (name, type, description, icon) equal the seeded values",
+        "token_consumption == '2.5M', commands_executed == '8.5K', lines_of_code_generated == '125.0K' -- each computed via format_number, not string-built ad hoc",
+        "features_delivered == '45', releases_done == '12', user_stories_delivered == '320' -- bare int, no suffix, per format_number's <1000 rule",
+        "repos_with_harness_installed renders as '5 / 6', not passed through format_number",
+        "The CIO and EM response bodies are byte-identical",
+        "No persona-conditional branch exists in the request path",
+        "The response JSON contains only header + 7 summary-card fields -- no session.programs or other cross-program data"
+      ],
+      "tags": [
+        "happy-path",
+        "sealed-contract",
+        "rbac-open-aggregate",
+        "byte-identical",
+        "pgd-01"
+      ],
+      "last_run": {
+        "started_at": "2026-09-04T10:09:12Z",
+        "duration_ms": 450,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 450, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_program_detail_contract_bearer_required_rbac_open_byte_identical_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#198"
+    },
+    {
+      "id": "PGD-01-TC-02",
+      "title": "Unknown program_id returns the standard 404 JSON error envelope",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-01-FR-3",
+      "given": "no program_summary row exists for program_id=prog-404",
+      "when": "GET /api/overview/program-detail/prog-404 is called with a valid bearer token",
+      "then": "the response is 404 with the app's existing single error envelope, matching every other exception handler in the codebase -- no new envelope shape is introduced",
+      "objective": "Verify an unknown program_id fails closed with the existing app-wide error envelope (app/core/errors.py) rather than a bespoke shape or a 200 with empty/null card values.",
+      "preconditions": [
+        "Test database migrated to head; no program_summary row exists for program_id='prog-404'",
+        "A valid bearer token for any persona -- RBAC is open-aggregate, so the negative outcome under test is 404-for-unknown-id, not RBAC denial"
+      ],
+      "test_data": {
+        "program_id": "prog-404",
+        "bearer_token": "<TEST_JWT>",
+        "expected_status": 404,
+        "expected_error_code": "http_404"
+      },
+      "steps": [
+        "Call GET /api/overview/program-detail/prog-404 with a valid bearer token",
+        "Parse the JSON response body",
+        "Compare the body's top-level shape against another already-shipped 404 response elsewhere in the codebase for structural parity"
+      ],
+      "expected_results": [
+        "HTTP status is 404",
+        "Response body is exactly {\"error\": {\"code\": \"http_404\", \"message\": <string>, \"details\": <any>}} -- a single top-level 'error' key, no additional top-level keys",
+        "message is a human-readable string containing no internal identifiers or stack-trace content",
+        "The shape matches the codebase's existing single error envelope -- no new 404 shape was introduced for this endpoint"
+      ],
+      "tags": [
+        "negative",
+        "error-contract",
+        "not-found",
+        "pgd-01"
+      ],
+      "last_run": {
+        "started_at": "2026-09-04T10:09:12Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 190, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_unknown_program_id_returns_standard_404_envelope_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#199"
+    },
+    {
+      "id": "PGD-01-TC-03",
+      "title": "Program Detail page: switcher reloads in place, back-link navigates, error state on unknown program, switcher/back controls are keyboard- and screen-reader-addressable",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-01-FR-4",
+      "given": "the /programs/[program_id] route is rendered for a valid program_id with GET /api/overview/program-detail/{program_id} and GET /api/programs mocked at the fetch boundary",
+      "when": "the user selects a different program in 'Switch program', activates '← Back to program board', and the route is rendered for a program_id whose mock 404s",
+      "then": "selecting a program re-fetches the detail endpoint for the new id and re-renders header/cards in place with the URL updated client-side (no full navigation), the back-link navigates to the Adoption Overview route, the 404 fixture renders an error state instead of a blank shell, and the switcher trigger and back-link expose a correct accessible role/name and respond to keyboard activation",
+      "objective": "Verify the frontend-owned behaviours of the shell in one page-level integration test: switcher reload without full navigation (AC-5/FR-4), back-navigation target (AC-4), error-state rendering for an unknown program instead of a blank shell (AC-7), and baseline keyboard/aria affordances on the switcher and back-link (NFR-008 accessibility, 'where feasible').",
+      "preconditions": [
+        "Fetch mock (e.g. MSW) configured: GET /api/overview/program-detail/prog-042 -> 200 fixture A, GET /api/overview/program-detail/prog-099 -> 200 fixture B, GET /api/overview/program-detail/prog-404 -> 404 error envelope, GET /api/programs -> a persona-scoped list containing prog-042 and prog-099",
+        "next/navigation's router mocked so route changes can be asserted without a real Next.js server",
+        "Initial render at /programs/prog-042"
+      ],
+      "test_data": {
+        "initial_program_id": "prog-042",
+        "switch_target_program_id": "prog-099",
+        "unknown_program_id": "prog-404",
+        "adoption_overview_route": "/",
+        "expected_route_after_switch": "/programs/prog-099",
+        "mocked_404_body": {
+          "error": {
+            "code": "http_404",
+            "message": "program not found",
+            "details": null
+          }
+        }
+      },
+      "steps": [
+        "Render the /programs/[program_id] route for program_id='prog-042'; wait for the initial fetch to resolve",
+        "Open the 'Switch program' selector and select the option for program_id='prog-099'",
+        "Assert a new fetch to /api/overview/program-detail/prog-099 fired and the header/cards re-render with fixture B's values",
+        "Activate the '← Back to program board' link",
+        "Re-render the route for program_id='prog-404' (the unknown-id fixture) and wait for the fetch to resolve",
+        "Query the switcher trigger and back-link for their accessible role and name, and dispatch a keyboard Enter/Space on the switcher trigger"
+      ],
+      "expected_results": [
+        "After the initial render, the header and 7 cards show fixture A's values",
+        "After switching, exactly one new fetch to /api/overview/program-detail/prog-099 occurred, the header/cards now show fixture B's values, and the URL becomes /programs/prog-099 via client-side routing (router.push/replace, not a hard navigation)",
+        "Activating the back-link invokes the router toward the Adoption Overview route ('/') rather than a hard browser navigation",
+        "The prog-404 render shows a distinct error state, not the empty/blank card shell",
+        "The switcher trigger exposes an accessible name and a role/attribute pair consistent with its expanded/collapsed state (e.g. aria-haspopup/aria-expanded), and Enter/Space opens the option list",
+        "The back-link renders as a real anchor/button with an accessible name containing 'Back to program board', not a bare clickable div"
+      ],
+      "tags": [
+        "switcher",
+        "back-nav",
+        "error-state",
+        "keyboard-a11y",
+        "frontend-integration",
+        "pgd-01"
+      ],
+      "last_run": {
+        "started_at": "2026-09-04T10:13:09Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 190, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramDetailView.test.tsx (6 assertions: switch-fetch call, router.replace/no-hard-nav, in-place re-render, back-link nesting AF-05, 404 error state, switcher keyboard/aria)",
+        "runner": "vitest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#200"
+    },
+    {
+      "id": "PGD-01-TC-04",
+      "title": "Program Detail request stays within its single-query performance budget and emits the program_drilldown observability event",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-01-NFR-performance",
+      "given": "a seeded program_summary row for program_id=prog-042 and a query counter/spy attached to the test database session",
+      "when": "GET /api/overview/program-detail/prog-042 is called",
+      "then": "exactly one bounded select() runs against program_summary with no N+1 fan-out, the handler completes well inside its latency budget, and a structured JSON program_drilldown log event fires once with {program_id: 'prog-042'} and no PII",
+      "objective": "Verify the endpoint's performance contract as scoped by NFR-performance (one bounded select, no unbounded fan-out -- the concrete, testable form of the story's 3s page-render budget for the backend leg) and the program_drilldown half of FR-5/NFR-observability, in one request/response cycle. Full end-to-end page-render timing is not exercised here -- no e2e framework is configured (test_e2e is empty) -- this measures the endpoint's own bounded latency and query count as the backend's share of that budget. The program_switch half of FR-5 ({from_program_id, to_program_id} on switcher selection) is not independently exercised: the PRD does not specify how the backend distinguishes a switcher-triggered fetch from an initial page load, and no mechanism is fabricated here to test it.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded for program_id='prog-042'",
+        "A query counter or session-level spy attached for the duration of the call",
+        "Log capture attached over the endpoint's logger, filtering for the program_drilldown event",
+        "A valid bearer token for any persona"
+      ],
+      "test_data": {
+        "program_id": "prog-042",
+        "query_count_budget": 1,
+        "handler_duration_budget_ms": 500,
+        "expected_event_name": "program_drilldown",
+        "expected_event_fields": {
+          "program_id": "prog-042"
+        }
+      },
+      "steps": [
+        "Attach the query counter and log capture",
+        "Call GET /api/overview/program-detail/prog-042 with a valid bearer token, timing the call",
+        "Inspect the query counter and the captured log records"
+      ],
+      "expected_results": [
+        "Exactly one SELECT ran against program_summary for the call -- no N+1 fan-out",
+        "The handler's own duration is under the budget recorded in test_data (proxy for the page's 3s render budget; frontend/network legs are out of this backend test's reach)",
+        "Exactly one program_drilldown log record was emitted, structured JSON, with program_id == 'prog-042' and no other request/user content",
+        "The log record carries no PII (no email, name, or raw request content)"
+      ],
+      "tags": [
+        "performance",
+        "query-budget",
+        "observability",
+        "program_drilldown",
+        "pgd-01"
+      ],
+      "last_run": {
+        "started_at": "2026-09-04T10:09:12Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 300, "reason": null}
+        ],
+        "budget": {
+          "target": "exactly 1 SELECT against program_summary AND handler duration < 500ms (test_data query_count_budget/handler_duration_budget_ms; backend proxy for story NFR-001's 3s page-render budget)",
+          "measured": "1 SELECT; handler duration = 11.98ms",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_overview_perf.py::test_program_detail_single_select_budget_and_program_drilldown_event_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      },
+      "tracker_test": "pratikpawar009/Dashboard#201"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-01-AC-1",
+        "covered_by": [
+          "PGD-01-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-2",
+        "covered_by": [
+          "PGD-01-TC-01",
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-3",
+        "covered_by": [
+          "PGD-01-TC-01",
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-4",
+        "covered_by": [
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-5",
+        "covered_by": [
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-6",
+        "covered_by": [
+          "PGD-01-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-01-AC-7",
+        "covered_by": [
+          "PGD-01-TC-02",
+          "PGD-01-TC-03"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-01-FR-1",
+        "covered_by": [
+          "PGD-01-TC-01",
+          "PGD-01-TC-04"
+        ]
+      },
+      {
+        "id": "PGD-01-FR-2",
+        "covered_by": [
+          "PGD-01-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-01-FR-3",
+        "covered_by": [
+          "PGD-01-TC-02"
+        ]
+      },
+      {
+        "id": "PGD-01-FR-4",
+        "covered_by": [
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-FR-5",
+        "covered_by": [
+          "PGD-01-TC-04"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-01-NFR-performance",
+        "covered_by": [
+          "PGD-01-TC-04"
+        ]
+      },
+      {
+        "id": "PGD-01-NFR-security",
+        "covered_by": [
+          "PGD-01-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-01-NFR-accessibility",
+        "covered_by": [
+          "PGD-01-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-01-NFR-observability",
+        "covered_by": [
+          "PGD-01-TC-04"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "FR-1 splits across two TCs: TC-01 exercises the RBAC-call-with-real-id half, TC-04 exercises the single-bounded-select/no-N+1 half -- together they cover FR-1's full definition.",
+      "NFR-security has no dedicated type:security TC under the 4-case cap; its bearer-JWT-required and program_visibility-gate clauses (including a no-token-401 sub-case) are genuinely exercised inside TC-01 (type: contract) instead.",
+      "FR-5 / NFR-observability are only partially exercised: TC-04 asserts the program_drilldown event shape, which is fully specified in the PRD. The program_switch event's trigger mechanism (how the backend distinguishes a switcher-triggered fetch from an initial page load) is not specified anywhere in the PRD or story, so no test asserts it -- fabricating a mechanism to close this gap was judged worse than disclosing it. This is a specification gap, not a test-authoring omission.",
+      "AC-2 and AC-3 are primarily covered by TC-01 (real backend data, real formatting); TC-03's coverage of them is incidental (a mocked-fixture render used to set up the switcher scenario), listed as a secondary coverer for transparency, not as independent proof of the real backend contract.",
+      "No unit-shaped cases appear here by design (test-case-generation skill, Scope section): ProgramDetailHeader.tsx, ProgramSummaryCards.tsx, ProgramSwitcher.tsx, BackToProgramBoard.tsx component tests belong in docs/features/PGD-01/tasks.json, per the story's own Test mapping section.",
+      "Cross-checked against REQUIREMENTS.md Scope Out: (daily-token chart/PGD-02, releases/PGD-03, commands panel/PGD-04, team table/PGD-05, session chart/PGD-06, the AUTH-04 href bugfix itself, program-membership scoping, mobile/responsive layout) -- no test case references any of these ids."
+    ]
+  }
+}

@@ -1,0 +1,119 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: flex-start;
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #a2abb8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.control {
+  position: relative;
+  min-width: 240px;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f1a2e;
+  cursor: pointer;
+}
+
+/* progBorder (DESIGN.md Region 3) is open-state-derived and has no literal
+   value in the mockup beyond "derived" -- #2a6fdb (tokens.md primary/brand)
+   is the implementation choice for the open affordance, matching the
+   check-mark/menu-accent color already used in this same control. */
+.triggerOpen {
+  border-color: #2a6fdb;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.currentName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.caret {
+  flex: none;
+  transition: transform 0.15s ease;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 26, 46, 0.14);
+  padding: 5px;
+  z-index: 30;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0f1a2e;
+  cursor: pointer;
+  text-align: left;
+}
+
+.row:hover {
+  background: #f5f7fa;
+}
+
+.rowCurrent {
+  font-weight: 700;
+  background: #eef3fb;
+}
+
+.rowLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  flex: none;
+  color: #2a6fdb;
+  font-size: 13px;
+  font-weight: 800;
+}

@@ -25,7 +25,7 @@ Commands: `docs/config/project-commands.yaml`. Stack idioms: `.claude/skills/<fr
 
 ## API
 
-FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table is a quick orientation for the `/auth/*` surface added by AUTH-01, plus `/api/programs` (AUTH-04).
+FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table is a quick orientation for the `/auth/*` surface added by AUTH-01, plus `/api/programs` (AUTH-04) and `/api/overview/program-detail/{program_id}` (PGD-01).
 
 | Method | Path | Request | Response |
 |---|---|---|---|
@@ -34,12 +34,13 @@ FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table
 | POST | `/auth/refresh` | body: `{refresh_token}` | 200 `{access_token, refresh_token, expires_in}`; 401 on any IdP-reported failure; 501 if OIDC config is incomplete |
 | POST | `/auth/dev-bypass` | body: `{role?, email?, programs?}` (all optional) | 200 `{access_token, refresh_token, expires_in}` |
 | GET | `/api/programs` | none (bearer token via the standard auth dependency) | 200 `{programs: [{program_id, label, href, dotStyle}]}` (ADR-0005 shape) — `cio` sees every program, every other persona is scoped to `session.programs`; 403 `Access denied` if persona resolution fails (fail-closed); 401 if the bearer token is missing or invalid. A `200` is not proof of program membership: `program_visibility` is an open-aggregate veto gate that passes for any authenticated session — the `WHERE program_id IN current_user.programs` clause does the actual scoping — so consumers must read `session.programs` directly rather than infer membership from a successful response |
+| GET | `/api/overview/program-detail/{program_id}` | none (bearer token via the standard auth dependency) | 200 `{header, summary}` (ADR-0007 shape) — `header: {icon, name, type, description}`; `summary` is an ordered 7-entry `{glyph, value, label}` array, `glyph`/`label` fixed server-owned presentation constants, only `value` varies per program; the response is byte-identical across every persona — no persona branching, unlike `/api/programs`' `session.programs` scoping above, and `program_visibility` is called with the real `program_id` but still never filters by membership (this endpoint is intentionally unscoped); 404 `program not found` if `program_id` doesn't exist; 401 if the bearer token is missing or invalid |
 
 `/auth/dev-bypass` only exists — is registered at all — when `ENVIRONMENT` resolves to one of `local`, `development`, `dev`, `test`, `ci`; every other value, including `production`, `prod`, `staging`, and any typo, gets a `404` because the route was never registered. This is fail-closed by allow-list, not a "disabled in production" deny-check — nothing named `production` needs to be checked for it to be unreachable. In an allow-listed environment a dev-bypass token is fully usable against protected routes (it's signed by an ephemeral, process-local key that the JWKS cache resolves only there) — that's the point of the feature — but it is never usable outside one, by design.
 
 ## Environment variables
 
-New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02:
+New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02, and `NEXT_PUBLIC_API_URL`, new in PGD-01 (`apps/web/.env.example` — the first `apps/web` env var; every other row below is `services/api/.env.example`):
 
 | Name | Default | Notes |
 |---|---|---|
@@ -52,6 +53,7 @@ New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PER
 | `CORS_ORIGINS` | `[]` (no origins allowed) | A single origin, or a comma-separated list of origins — not a JSON array. |
 | `PERSONA_ROLE_MAP` | `None` (unset) | Optional. Tier-1 override for persona resolution: a JSON object mapping an IdP role claim to one of the five personas (`cio`, `architect`, `developer`, `product-manager`, `engineering-manager`), e.g. `{"cio":"cio","admin":"cio"}`. Resolution order is Tier-1 (this var) → Tier-2 YAML (`services/api/config/persona_role_map.yaml`, requires an app restart to pick up changes — no hot-reload) → Tier-3 Postgres `persona_config` (system of record). Unset means Tier-1 is empty, not an error. Invalid JSON, a non-object value, or an object with non-string values are also treated as empty — a `persona_role_map_parse_error` warning is logged and resolution falls through to Tier-2/3; this fail-open parse behaviour is distinct from an unmapped role, which still raises once all three tiers come up empty. |
 | `PERSONA_CONFIG_FILE` | `None` (unset) | Optional. Tier-2 YAML path override. Unset, the resolver uses its own `__file__`-anchored default (`services/api/config/persona_role_map.yaml`), independent of process cwd. |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | `apps/web/.env.example`, not `services/api/.env.example`. The frontend's FastAPI base URL, used for both the Program Detail page's server-rendered initial fetch and the client-side program-switcher reload. |
 
 ## Keycloak client requirements
 

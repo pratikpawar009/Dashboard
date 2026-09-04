@@ -35,7 +35,7 @@
     "session_ended_at": "2026-08-31T13:45:00Z",
     "rounds": 1,
     "verdict": "READY",
-    "run_by": "orchestrator (main session) \u2014 implementation-agent --evidence worker was terminated by an API rate limit mid-run; every command below was executed for real",
+    "run_by": "orchestrator (main session) — implementation-agent --evidence worker was terminated by an API rate limit mid-run; every command below was executed for real",
     "checks": {
       "typecheck": {
         "status": "PASS",
@@ -55,7 +55,7 @@
         "evidence_path": "docs/features/AUTH-04/evidence/unit-tests.log",
         "flag_id": null,
         "ran_at": "2026-08-31T13:45:00Z",
-        "summary": "web: 1 file / 1 test passed; api: 395 passed, 0 failed in 19.23s \u2014 of which 18 are AUTH-04's (17 unit in tests/unit/test_programs.py + 1 perf, measured p95 19.85ms vs a 300ms budget)"
+        "summary": "web: 1 file / 1 test passed; api: 395 passed, 0 failed in 19.23s — of which 18 are AUTH-04's (17 unit in tests/unit/test_programs.py + 1 perf, measured p95 19.85ms vs a 300ms budget)"
       },
       "lint": {
         "status": "PASS",
@@ -75,7 +75,7 @@
         "evidence_path": "docs/features/AUTH-04/evidence/runtime-api.log",
         "flag_id": null,
         "ran_at": "2026-08-31T13:45:00Z",
-        "summary": "real server, real Postgres, no dependency_overrides. Boot log clean (0 tracebacks). GET /health 200. GET /api/programs: 401 unauthenticated; 403 'Access denied' fail-closed with a programs_persona_resolution_failed WARNING (reason=not_found) when all three resolver tiers are empty, never a 500 (FR-3/C-3 live); 200 with key set exactly {program_id,label,href,dotStyle} once PERSONA_ROLE_MAP supplies Tier-1 (ADR-0005 live). Emitted programs_list_returned payload was exactly {timestamp,level,logger,message,user_id,persona,returned_count} \u2014 no email/groups/path (FR-1/C-1 live). Port ownership verified via lsof before trusting any response."
+        "summary": "real server, real Postgres, no dependency_overrides. Boot log clean (0 tracebacks). GET /health 200. GET /api/programs: 401 unauthenticated; 403 'Access denied' fail-closed with a programs_persona_resolution_failed WARNING (reason=not_found) when all three resolver tiers are empty, never a 500 (FR-3/C-3 live); 200 with key set exactly {program_id,label,href,dotStyle} once PERSONA_ROLE_MAP supplies Tier-1 (ADR-0005 live). Emitted programs_list_returned payload was exactly {timestamp,level,logger,message,user_id,persona,returned_count} — no email/groups/path (FR-1/C-1 live). Port ownership verified via lsof before trusting any response."
       },
       "compile": {
         "status": "PASS",
@@ -85,7 +85,7 @@
         "evidence_path": "docs/features/AUTH-04/evidence/compile.log",
         "flag_id": null,
         "ran_at": "2026-08-31T13:45:00Z",
-        "note": "Compiled successfully in 6.3s, static pages 5/5. Python side is interpreted \u2014 no compile step."
+        "note": "Compiled successfully in 6.3s, static pages 5/5. Python side is interpreted — no compile step."
       },
       "design_check": {
         "status": "N/A",
@@ -132,6 +132,15 @@
       "source": "implementation-agent T-04",
       "severity": "low",
       "note": "No pydantic.mypy plugin configured in services/api/pyproject.toml, so mypy synthesizes __init__ from field aliases; call sites must use the alias keyword (dotStyle=). Enabling the plugin would let either name typecheck."
+    },
+    {
+      "id": "CF-05",
+      "source": "PGD-01 /arh-research clarification C-2 (2026-09-03)",
+      "severity": "high",
+      "note": "services/api/app/api/programs.py:132 emits href=\"/api/overview/program-detail/{program_id}\" — the JSON API path — but the PGD mockup binds href as a page navigation target (<a href=\"{{ o.href }}\">; mockup data 'Program Detail.dc.html?p=' + k), and ADR-0005 §2 derives the switcher's active row by comparing href to the current route. As shipped, a switcher click navigates to raw JSON and the active-row comparison never matches. Pinned by test_programs.py:604 (TC-07), so it does not fail on its own. User decided 2026-09-03 to fix it in AUTH-04: emit href=\"/programs/{program_id}\" and update TC-07. SUPERSEDED 2026-09-03 by the PGD-01 Product Gate decision: the fix is folded into PGD-01's implementation as a discrete task with its own DECISIONS.md entry, NOT a separate bugfix/AUTH-04 PR. An accepted exception to surgical-changes; /arh-review on PGD-01 must expect an AUTH-04 edit in that diff.",
+      "resolved_at": "2026-09-04T04:59:47Z",
+      "resolved_by": "PGD-01 T-04 (/arh-implement)",
+      "evidence": "services/api/app/api/programs.py now emits href=f\"/programs/{row.program_id}\"; services/api/tests/unit/test_programs.py TC-07 asserts \"/programs/prog-1\". Verified by PGD-01 gate round 1 (VALIDATION-20260904-1046.md, REVIEW.md)."
     }
   ],
   "agent_flags": [

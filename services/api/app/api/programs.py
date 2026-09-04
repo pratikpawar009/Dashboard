@@ -129,7 +129,7 @@ async def list_programs(
         ProgramEntry(
             program_id=row.program_id,
             label=row.name,
-            href=f"/api/overview/program-detail/{row.program_id}",
+            href=f"/programs/{row.program_id}",
             dotStyle=dot_style_for_program(row.program_id),
         )
         for row in rows
