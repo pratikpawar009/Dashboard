@@ -28,6 +28,7 @@ see that section for the authoritative commands.
 
 - Deps: (n/a — talks to the backend over REST, no direct backing service)
 - Run: cd apps/web && pnpm dev --port 3000
+- Run: set NEXT_PUBLIC_API_URL=http://localhost:8000 in apps/web/.env.local (copied from apps/web/.env.example) before `pnpm dev`, or the Program Detail page cannot reach the backend locally
 - Docker: docker compose up web
 - Check: http://127.0.0.1:3000/
 
@@ -59,6 +60,7 @@ Migration tool, invoked as a step before the API runs (see `Migrate:` under
 
 - Deps: (n/a — talks to services/api over REST, no direct backing service)
 - Run: cd apps/web && pnpm dev --port 3000
+- Run: set NEXT_PUBLIC_API_URL=http://localhost:8000 in apps/web/.env.local (copied from apps/web/.env.example) before `pnpm dev`, or the Program Detail page cannot reach the backend locally
 - Docker: docker compose up web
 - Check: http://127.0.0.1:3000/
 

@@ -1,0 +1,557 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-01",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-03T00:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/schemas/program_detail.py",
+      "reason": "ProgramDetailHeader/ProgramSummaryCard/ProgramDetailResponse models (D-05/D-06, program-detail-api)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/api/overview.py",
+      "reason": "GET /api/overview/program-detail/{program_id} router (FR-1..FR-5)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "register overview_router (wiring) + add X-Program-Switch-From to CORS allow_headers (D-07)"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/api/programs.py",
+      "reason": "AUTH-04 href fix line 132: /api/overview/program-detail/{id} -> /programs/{id} (D-04, mandatory discrete task)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_programs.py",
+      "reason": "update TC-07 assertion (line 604) to match the D-04 href fix"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_overview.py",
+      "reason": "PGD-01-TC-01 (contract, byte-identical, bearer/RBAC) + TC-02 (404 envelope)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_overview_perf.py",
+      "reason": "PGD-01-TC-04 (single-query budget + program_drilldown event), matches tests/perf/* convention"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "apps/web/src/lib/apiConfig.ts",
+      "reason": "getApiBaseUrl() single source, reads NEXT_PUBLIC_API_URL with a stack-smoke.md-matching default"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/types/programDetail.ts",
+      "reason": "ProgramDetailHeaderData/ProgramSummaryCardData/ProgramDetailData/ProgramSwitcherEntry types"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/lib/programDetailApi.ts",
+      "reason": "fetchProgramDetail()/fetchPrograms() -- fetch client, no Authorization header (D-08)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/lib/routes.ts",
+      "reason": "ADOPTION_OVERVIEW_ROUTE single named constant (D-02)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/components/BackToProgramBoard.tsx",
+      "reason": "back-to-board link (AC-4, DESIGN.md Region 1)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "apps/web/src/components/BackToProgramBoard.module.css",
+      "reason": "Region 1 tokens (inline-flex anchor, hover color)"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/components/BackToProgramBoard.test.tsx",
+      "reason": "unit test: renders, targets ADOPTION_OVERVIEW_ROUTE, keyboard-reachable"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailHeader.tsx",
+      "reason": "sticky header: avatar/name/type-chip/description + populated/loading/error states (AC-2, DESIGN.md Region 2, D-03, D-05)"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailHeader.module.css",
+      "reason": "Region 2 tokens (sticky, translucent, name/chip/description sizes)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailHeader.test.tsx",
+      "reason": "unit test: populated/loading/error render variants"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSwitcher.tsx",
+      "reason": "switch-program disclosure control (AC-5, DESIGN.md Region 3)"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSwitcher.module.css",
+      "reason": "Region 3 tokens (button/menu/rows)"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSwitcher.test.tsx",
+      "reason": "unit test: aria-haspopup/aria-expanded, keyboard Enter/Space, option list render"
+    },
+    "F-21": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSummaryCards.tsx",
+      "reason": "7-card grid, populated/loading placeholder states (AC-3, DESIGN.md Region 4)"
+    },
+    "F-22": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSummaryCards.module.css",
+      "reason": "Region 4 tokens (card recipe, KPI grid, mono glyph tile)"
+    },
+    "F-23": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramSummaryCards.test.tsx",
+      "reason": "unit test: renders 7 cards in mockup order, loading placeholders"
+    },
+    "F-24": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailErrorPanel.tsx",
+      "reason": "404 inline error panel (AC-7, D-03)"
+    },
+    "F-25": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailErrorPanel.module.css",
+      "reason": "card-recipe tokens reused for the error panel (D-03)"
+    },
+    "F-26": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailErrorPanel.test.tsx",
+      "reason": "unit test: renders the D-03 fallback message"
+    },
+    "F-27": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "client orchestrator: switch-reload fetch, router.replace, program_drilldown/program_switch header wiring (FR-4, D-07)"
+    },
+    "F-28": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailView.module.css",
+      "reason": "layout wrapper for header + cards regions"
+    },
+    "F-29": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailView.test.tsx",
+      "reason": "PGD-01-TC-03: switcher reload in place, back-link, 404 error state, keyboard/aria"
+    },
+    "F-30": {
+      "action": "create",
+      "path": "apps/web/src/app/programs/[program_id]/page.tsx",
+      "reason": "Server Component entry: initial server-side fetch, renders <ProgramDetailView> (Screen inventory: server initial load)"
+    },
+    "F-31": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Docs T2/T3: API table row for GET /api/overview/program-detail/{program_id}; env var table row for NEXT_PUBLIC_API_URL"
+    },
+    "F-32": {
+      "action": "create",
+      "path": "apps/web/.env.example",
+      "reason": "Docs T3: document NEXT_PUBLIC_API_URL (first frontend env var; already declared unused in docker-compose.yml)"
+    },
+    "F-33": {
+      "action": "modify",
+      "path": "docs/config/stack-smoke.md",
+      "reason": "Config drift C3: note NEXT_PUBLIC_API_URL under the nextjs/next Run: bullets"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add ProgramDetailResponse schema (header + summary card models)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-2",
+        "PGD-01-AC-3"
+      ],
+      "risk_refs": [],
+      "notes": "Pydantic models per DECISIONS.md D-05/D-06 and the filled docs/requirements/api.md#program-detail-api shape: ProgramDetailHeader{icon,name,type,description}; ProgramSummaryCard{glyph,value,label}; ProgramDetailResponse{header, summary: list[ProgramSummaryCard]}. No aliasing needed (no camelCase fields here, unlike programs.py's dotStyle).",
+      "status": "done",
+      "completed_at": "2026-09-04T03:58:17Z",
+      "files_touched": [
+        "services/api/app/schemas/program_detail.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add GET /api/overview/program-detail/{program_id} router",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-1",
+        "PGD-01-AC-3",
+        "PGD-01-AC-6",
+        "PGD-01-AC-7"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "app/api/overview.py, prefix /api/overview. Handler calls program_visibility(current_user, program_id) once with the REAL id (not the sentinel programs.py uses), then a single select(ProgramSummary).where(ProgramSummary.program_id == program_id); scalar_one_or_none() -> None raises HTTPException(404, 'program not found'). Maps the row to ProgramDetailResponse: header verbatim; summary is the fixed 7-entry, mockup-ordered (glyph, label) list zipped with format_number()-formatted values (card 4 = f'{repos_with_harness_installed} / {repos_total}', exempt from format_number per FR-2). Zero persona branching (FR-PD-17). Reads optional Header(alias='X-Program-Switch-From', default=None) x_program_switch_from: logs program_switch{from_program_id, to_program_id} when present/non-empty, else program_drilldown{program_id} -- exactly one, only on the 200 path, never on 404 (D-07). Module docstring notes the byte-identical invariant and the AUTH-04 href dependency, matching app/api/programs.py's documentation style (Documentation requirements).",
+      "status": "done",
+      "completed_at": "2026-09-04T04:07:27Z",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Wire overview router into app.main + CORS allow_headers",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "app.include_router(overview_router) alongside the existing router includes (D-07 fires this file too, same task since both edits are adjacent lines in create_app()). Add 'X-Program-Switch-From' to CORSMiddleware's allow_headers list (currently ['Authorization','Content-Type']) -- a non-simple header triggers a browser preflight; omitting it blocks T-12's switch-reload fetch cross-origin in local dev (web:3000 -> api:8000).",
+      "status": "done",
+      "completed_at": "2026-09-04T04:13:00Z",
+      "files_touched": [
+        "services/api/app/main.py",
+        "services/api/tests/unit/test_auth_cors.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "AUTH-04 href fix: /api/overview/program-detail/{id} -> /programs/{id}",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04",
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-5"
+      ],
+      "risk_refs": [
+        "R-09"
+      ],
+      "notes": "Mandatory discrete task (DECISIONS.md D-04) -- own commit-sized diff, own review lens, NOT folded into any frontend task. services/api/app/api/programs.py:132 changes href=f'/api/overview/program-detail/{row.program_id}' to href=f'/programs/{row.program_id}'. services/api/tests/unit/test_programs.py:604 (test_href_routes_to_program_detail_api_path_tc07) updates its literal assertion to '/programs/prog-1' to match. Independent of every other task (touches only these two files) -- resolves AUTH-04 state.json pending_carry_forward CF-05; mark that entry resolved via `harness carry-forward resolve --for AUTH-04 CF-05` at commit time, not here.",
+      "status": "done",
+      "completed_at": "2026-09-04T03:58:17Z",
+      "files_touched": [
+        "services/api/app/api/programs.py",
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Backend contract + 404 tests (TC-01, TC-02)",
+      "complexity": "M",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-1",
+        "PGD-01-AC-2",
+        "PGD-01-AC-3",
+        "PGD-01-AC-6",
+        "PGD-01-AC-7"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Mirrors test_programs.py's established scaffold (build_app/async_client_for/keycloak_mock/build_access_token/migrated_db/test_session fixtures from tests/conftest.py; a locally-redefined _StubPersonaResolver per that file's own precedent). TC-01: seed one program_summary row, call with no Authorization (401), with a CIO token and an Engineering Manager token (both 200, program_visibility passes without checking program_id against session.programs), diff the two bodies byte-for-byte, assert per-field formatting (format_number outputs + the unformatted repos ratio), assert response top-level keys are exactly {header, summary}. TC-02: no row for prog-404 -> 404, body exactly app/core/errors.py's envelope. Both directly address research Risk #1 (downstream-consumer schema risk) together with the docs/requirements/api.md#program-detail-api concrete shape fill.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:22:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Backend performance test: single-query budget + program_drilldown event (TC-04)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Matches tests/perf/test_programs_perf.py's established pattern: plain time.perf_counter(), no dedicated benchmark tool, a query-count spy over the test session, and the production_logging fixture so program_drilldown actually formats/writes. No X-Program-Switch-From header is sent (asserts the program_drilldown path per FR-5/D-07); asserts exactly one SELECT and no PII in the captured log record. Covers PGD-01-NFR-performance and the program_drilldown half of FR-5/NFR-observability -- the program_switch half stays an accepted, disclosed test-case gap per docs/test-cases/PGD-01.json's own audit_notes (D-07 designs the mechanism; TC-04 does not exercise it, matching the test-case's own scope).",
+      "status": "done",
+      "completed_at": "2026-09-04T04:22:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_overview_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Frontend API config + types + fetch client",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-08",
+        "F-09",
+        "F-10"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-2",
+        "PGD-01-AC-3",
+        "PGD-01-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "apiConfig.ts: getApiBaseUrl() reads process.env.NEXT_PUBLIC_API_URL, defaults to 'http://localhost:8000' (matches docs/config/stack-smoke.md's fastapi-2 port) when unset -- first consumer of this env var anywhere in apps/web (already declared, unused, in docker-compose.yml). types/programDetail.ts: ProgramDetailHeaderData/ProgramSummaryCardData/ProgramDetailData (mirrors F-01's wire shape) + ProgramSwitcherEntry{program_id,label,href,dotStyle} (mirrors ProgramEntry). programDetailApi.ts: fetchProgramDetail(programId, opts?: {switchedFrom?: string}) -> discriminated union {status:'ok',data} | {status:'not_found'} | {status:'error'}; sets the X-Program-Switch-From header only when opts.switchedFrom is given. fetchPrograms() -> ProgramSwitcherEntry[], returns [] on any fetch failure (degraded switcher, no page-render block). Neither function sets an Authorization header (D-08) -- the opts object shape is deliberately additive so a future access-token param doesn't rename the call signature.",
+      "status": "done",
+      "completed_at": "2026-09-04T03:58:17Z",
+      "files_touched": [
+        "apps/web/src/lib/apiConfig.ts",
+        "apps/web/src/types/programDetail.ts",
+        "apps/web/src/lib/programDetailApi.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Back-to-board route constant + BackToProgramBoard component",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-11",
+        "F-12",
+        "F-13",
+        "F-14"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "routes.ts exports ADOPTION_OVERVIEW_ROUTE = '/overview' (D-02) -- the one place this value lives. BackToProgramBoard.tsx: next/link <Link href={ADOPTION_OVERVIEW_ROUTE}> with the literal label '← Back to program board' (glyph is part of the string, not a separate icon element, per DESIGN.md Region 1); module CSS matches Region 1 tokens exactly (inline-flex, gap 6px, 12.5px/600, #7a828f, hover #2a6fdb, margin-bottom 12px). Test imports ADOPTION_OVERVIEW_ROUTE and asserts the rendered href equals it (not a hardcoded literal) -- keeps the test correct regardless of the constant's value, and satisfies TC-03's back-nav assertion structurally.",
+      "status": "done",
+      "completed_at": "2026-09-04T03:58:17Z",
+      "files_touched": [
+        "apps/web/src/lib/routes.ts",
+        "apps/web/src/components/BackToProgramBoard.tsx",
+        "apps/web/src/components/BackToProgramBoard.module.css",
+        "apps/web/src/components/BackToProgramBoard.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "ProgramDetailHeader component (populated/loading/error)",
+      "complexity": "M",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-15",
+        "F-16",
+        "F-17"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "Props: state: 'populated'|'loading'|'error'; header?: ProgramDetailHeaderData (populated/loading only); switcher: ProgramSwitcher's own prop bundle (rendered as a child, omitted entirely when state==='error', per D-03). Populated: avatar+name+type-chip+description per DESIGN.md Region 2, avatarStyle/typeChip computed via the EXISTING apps/web/src/lib/programStyle.ts::getProgramStyle(type) (D-05) -- do not add a new style utility. Error: renders only the sticky wrapper + fallback text 'Program not found' (D-03 tokens) -- no avatar/chip/description/switcher. No loading skeleton beyond suppressing text at populated geometry (DESIGN.md States table).",
+      "status": "done",
+      "completed_at": "2026-09-04T04:13:00Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailHeader.tsx",
+        "apps/web/src/components/ProgramDetailHeader.module.css",
+        "apps/web/src/components/ProgramDetailHeader.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "ProgramSwitcher component (disclosure control)",
+      "complexity": "M",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-18",
+        "F-19",
+        "F-20"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-5"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "Props: options: ProgramSwitcherEntry[]; currentProgramId: string; isOpen: boolean; onToggle: () => void; onSelect: (programId: string) => void; isLoadingOptions: boolean. Trigger <button aria-haspopup='true' aria-expanded={isOpen}> with the current program's dotStyle swatch + name (ellipsis-truncated) + caret; Enter/Space toggles (native button semantics, no keydown hack needed). Menu: role='menu', absent from the DOM when closed (DESIGN.md 'Switcher closed' state -- not merely hidden); each row a role='menuitem' <button> (not an <a>, so selecting never triggers a native navigation the FR-4 client-side reload would have to fight) showing dotStyle + label + a client-computed 'current' check (row's programId === currentProgramId) and rowStyle (weight/background) -- both computed here, never sourced from the API (ADR-0005 §2). When options is empty (fetchPrograms() degraded to []), the trigger renders disabled rather than an empty menu.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:07:27Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramSwitcher.tsx",
+        "apps/web/src/components/ProgramSwitcher.module.css",
+        "apps/web/src/components/ProgramSwitcher.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "ProgramSummaryCards grid + ProgramDetailErrorPanel",
+      "complexity": "M",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-21",
+        "F-22",
+        "F-23",
+        "F-24",
+        "F-25",
+        "F-26"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-3",
+        "PGD-01-AC-7"
+      ],
+      "risk_refs": [],
+      "notes": "ProgramSummaryCards: state:'populated'|'loading'; cards?: ProgramSummaryCardData[] (populated only). Populated: .map() over the 7-entry `summary` array in the order the backend returns it (D-06 -- order is the contract, component does not re-sort); each card renders glyph/value/label verbatim, grid repeat(auto-fit,minmax(200px,1fr)) gap 16px per DESIGN.md Region 4, glyph tile in 'JetBrains Mono', monospace. Loading: 7 placeholder cards at the same geometry, text suppressed (DESIGN.md States). ProgramDetailErrorPanel: no props, renders the D-03 fallback panel (card-recipe tokens + 'This program could not be found.' text) -- rendered by ProgramDetailView in place of ProgramSummaryCards on a 404, never both.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:07:27Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramSummaryCards.tsx",
+        "apps/web/src/components/ProgramSummaryCards.module.css",
+        "apps/web/src/components/ProgramSummaryCards.test.tsx",
+        "apps/web/src/components/ProgramDetailErrorPanel.tsx",
+        "apps/web/src/components/ProgramDetailErrorPanel.module.css",
+        "apps/web/src/components/ProgramDetailErrorPanel.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "ProgramDetailView orchestrator (switch-reload, TC-03)",
+      "complexity": "L",
+      "predecessors": [
+        "T-08",
+        "T-09",
+        "T-10",
+        "T-11"
+      ],
+      "files": [
+        "F-27",
+        "F-28",
+        "F-29"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-4",
+        "PGD-01-AC-5",
+        "PGD-01-AC-7"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "'use client'. Props: initialProgramId: string; initialResult: ProgramDetailResult (from the server-rendered page.tsx fetch). Owns: current programId/result state, isSwitching, switcher isOpen. On ProgramSwitcher onSelect(newId): sets isSwitching, calls fetchProgramDetail(newId, {switchedFrom: currentProgramId}) (client-side, sends X-Program-Switch-From per D-07), on resolve updates result state and calls next/navigation's useRouter().replace(`/programs/${newId}`) (client-side, no hard nav, FR-4) -- URL and rendered data update together. Fetches GET /api/programs once on mount (fetchPrograms()) for the switcher's option list, skipped entirely when initialResult.status==='not_found' (D-03). Composes BackToProgramBoard + ProgramDetailHeader (state derived from result.status) + ProgramSummaryCards or ProgramDetailErrorPanel. Test file (F-29) covers TC-03 directly against this component (not the thin Server Component page wrapper) -- equivalent behavioral coverage, avoids fighting Next.js server-component-in-vitest limitations: mocks programDetailApi's fetchProgramDetail/fetchPrograms and next/navigation's useRouter (D-09, no MSW), asserts the switch-reload fetch call, the URL update via router.replace, the back-link's target, the 404 fixture's error-state render, and the switcher trigger's aria-haspopup/aria-expanded + Enter/Space keyboard activation.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:22:00Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.tsx",
+        "apps/web/src/components/ProgramDetailView.module.css",
+        "apps/web/src/components/ProgramDetailView.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Program Detail route: apps/web/src/app/programs/[program_id]/page.tsx",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-30"
+      ],
+      "ac_refs": [
+        "PGD-01-AC-2",
+        "PGD-01-AC-3"
+      ],
+      "risk_refs": [],
+      "notes": "Server Component (no 'use client'). export default async function Page({params}: {params: {program_id: string}}): awaits fetchProgramDetail(params.program_id) server-side (Screen inventory: 'server (initial load)'), then renders <ProgramDetailView initialProgramId={params.program_id} initialResult={result} />. No route-level not-found.tsx/error.tsx (D-03 forbids it explicitly -- the 404 is an in-page state, not a Next.js route boundary). Comment documents the switcher's client-side-reload contract (FR-4), per Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:29:47Z",
+      "files_touched": [
+        "apps/web/src/app/programs/[program_id]/page.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "docs(readme): API table row + NEXT_PUBLIC_API_URL env var",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-04",
+        "T-07"
+      ],
+      "files": [
+        "F-31",
+        "F-32"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "README.md API table: add GET /api/overview/program-detail/{program_id} row (request: none besides bearer; response: {header, summary} shape per docs/requirements/api.md#program-detail-api; 404 case) matching the existing /api/programs row's format. README.md Environment variables table: add NEXT_PUBLIC_API_URL row (default http://localhost:8000, what it does -- frontend's FastAPI base URL for both the server-rendered initial fetch and the client-side switcher reload). apps/web/.env.example (new file, first one for apps/web): NEXT_PUBLIC_API_URL=http://localhost:8000 with a comment explaining the default. Docs T2 + T3 triggers.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:22:00Z",
+      "files_touched": [
+        "README.md",
+        "apps/web/.env.example"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "stack-smoke.md: note NEXT_PUBLIC_API_URL under the nextjs/next Run: bullets",
+      "complexity": "S",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-33"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Config drift C3 (new *_URL env var consumed for the first time). Add a line under both '# next' and '# nextjs' sections' Run: bullet noting NEXT_PUBLIC_API_URL=http://localhost:8000 must be set (via apps/web/.env.local, copied from .env.example) before `pnpm dev` for the Program Detail page to reach the backend locally -- no change to the existing fastapi-2/postgres sections.",
+      "status": "done",
+      "completed_at": "2026-09-04T04:07:27Z",
+      "files_touched": [
+        "docs/config/stack-smoke.md"
+      ],
+      "reason": null
+    }
+  ]
+}

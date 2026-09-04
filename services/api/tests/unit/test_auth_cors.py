@@ -71,7 +71,7 @@ def test_cors_middleware_registered_with_exact_configured_kwargs(
     assert kwargs["allow_origins"] == [CONFIGURED_ORIGIN]
     assert kwargs["allow_credentials"] is False
     assert kwargs["allow_methods"] == ["GET", "POST", "OPTIONS"]
-    assert kwargs["allow_headers"] == ["Authorization", "Content-Type"]
+    assert kwargs["allow_headers"] == ["Authorization", "Content-Type", "X-Program-Switch-From"]
 
 
 def test_cors_middleware_default_origins_is_empty_fail_closed(

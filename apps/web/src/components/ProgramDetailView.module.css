@@ -1,0 +1,24 @@
+/* ProgramDetailView.module.css (F-28) — layout wrapper only, composing
+ * BackToProgramBoard + ProgramDetailHeader + ProgramSummaryCards /
+ * ProgramDetailErrorPanel. None of their own tokens (sticky header padding,
+ * card recipe, link colour) are restated here.
+ *
+ * `ProgramDetailHeader` owns its own full-bleed sticky box (its `.header`
+ * already carries `padding:18px 34px 20px`) and is left un-wrapped so its
+ * translucent backdrop stays edge-to-edge. `BackToProgramBoard` and the
+ * cards/error region carry no horizontal inset of their own, so this file
+ * supplies the mockup's `<!-- CONTENT -->` wrapper's side padding for them
+ * (`docs/design/mockups/Program Detail.html`: back-link row shares the
+ * header's `18px 34px` inset; the content wrapper is `padding:24px 34px
+ * 44px`, `max-width:1360px`). */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  padding: 24px 34px 44px;
+  max-width: 1360px;
+  width: 100%;
+}

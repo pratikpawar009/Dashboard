@@ -1,0 +1,223 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#23",
+  "tracker_research": "pratikpawar009/Dashboard#196",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-01/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-04T04:59:20Z",
+  "tracker_prd": "pratikpawar009/Dashboard#197",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tracker_plan": "pratikpawar009/Dashboard#202",
+  "decisions": {
+    "file": "docs/features/PGD-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-01/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/PGD-01/tasks.json"
+  },
+  "impl_evidence": {
+    "session_ended_at": "2026-09-04T04:38:50Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-01/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T04:32:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-01/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T04:33:00Z"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-01/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T04:34:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-07",
+        "ran_at": "2026-09-04T04:38:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8010 (DATABASE_URL -> ephemeral postgres:16 on 5435, alembic upgrade head first)",
+            "exit_code": null,
+            "evidence_path": "docs/features/PGD-01/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "notes": "/health 200; dev-bypass token minted; GET /api/overview/program-detail/{id} 200 for a seeded row, 404 for an unknown id, 401 with no bearer; program_drilldown/program_switch events logged exactly once each on the 200 paths."
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "pnpm dev --turbopack --port 3021 (NEXT_PUBLIC_API_URL=http://localhost:8010)",
+            "exit_code": null,
+            "evidence_path": "docs/features/PGD-01/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "notes": "GET / and GET /programs/prog-smoke-01 both 200. No Playwright/Cypress installed (test_e2e: \"\" in project-commands.yaml) so no automated browser-mount assertion; manual curl of the route's SSR HTML shows real content ('Back to program board', error-panel text), not an empty mount node -- the backend fetch 401'd (D-08 frontend-auth-token-gap, no Authorization header wired yet) and the page rendered its documented error state instead of crashing."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-01/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T04:33:30Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-06",
+        "ran_at": null
+      }
+    }
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "persona-chip-omission",
+      "kind": "task",
+      "reason": "CIO/CXO persona chip (mockup L396) intentionally omitted from PGD-01's header -- no data source, conflicts with AC-6's no-persona-branching rule (DECISIONS.md D-01); whichever future story owns a CIO-specific portfolio shell should decide whether/how to render it.",
+      "owner": "CIO shell (no story scheduled yet)",
+      "added_at": "2026-09-03T23:59:00Z",
+      "added_by": "impl-planning-agent (plan-implementation Phase 1)",
+      "resolved_at": null,
+      "evidence": null,
+      "accepted_at": "2026-09-04T04:59:20Z",
+      "accepted_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC3)"
+    },
+    {
+      "item_id": "back-to-board-route-placeholder",
+      "kind": "task",
+      "reason": "BackToProgramBoard links to the reserved ADOPTION_OVERVIEW_ROUTE constant ('/overview', apps/web/src/lib/routes.ts) which 404s until OVW-01 ships the real Adoption Overview page (DECISIONS.md D-02) -- OVW-01 must update the constant's value in that one file.",
+      "owner": "OVW-01",
+      "added_at": "2026-09-03T23:59:00Z",
+      "added_by": "impl-planning-agent (plan-implementation Phase 1)",
+      "resolved_at": null,
+      "evidence": null,
+      "accepted_at": "2026-09-04T04:59:20Z",
+      "accepted_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC3)"
+    },
+    {
+      "item_id": "frontend-auth-token-gap",
+      "kind": "risk",
+      "reason": "PGD-01's frontend fetch calls (programDetailApi.ts) attach no Authorization header -- no frontend session/token-acquisition mechanism exists anywhere in apps/web yet (DECISIONS.md D-08); every real (non-mocked) deployment will 401 until a frontend auth story wires token acquisition into this fetch layer.",
+      "owner": "frontend auth/session flow (not yet scheduled)",
+      "added_at": "2026-09-03T23:59:00Z",
+      "added_by": "impl-planning-agent (plan-implementation Phase 1)",
+      "resolved_at": null,
+      "evidence": null,
+      "accepted_at": "2026-09-04T04:59:20Z",
+      "accepted_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC3)"
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-09-04 P=4/4 in 1 round(s)",
+  "validation_report": "docs/features/PGD-01/VALIDATION-20260904-1046.md",
+  "review": "PASS",
+  "review_report": "docs/features/PGD-01/REVIEW.md",
+  "gate_rounds": 1,
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "plan-gap",
+      "status": "accept",
+      "source": "docs/features/PGD-01/tasks.json",
+      "summary": "tasks.json DAG missing a predecessors edge T-09 <- T-10 (compile-time import dependency); orchestrator serialized by hand",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "design-gap",
+      "status": "accept",
+      "source": "apps/web/src/components/ProgramSwitcher.module.css",
+      "summary": "switcher open-state border #2a6fdb is an implementation default; DESIGN.md progBorder has no literal value in the mockup",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "plan-gap",
+      "status": "accept",
+      "source": "services/api/tests/unit/test_auth_cors.py",
+      "summary": "file edited (D-07 allow_headers) but absent from the PLAN.md file plan",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "risky-pattern",
+      "status": "accept",
+      "source": "apps/web/.gitignore",
+      "summary": "blanket .env* shadowed the root !.env.example and silently dropped planned F-32; fixed by orchestrator",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "design-fidelity",
+      "status": "accept",
+      "source": "apps/web/src/components/ProgramDetailHeader.tsx",
+      "summary": "back-link was outside the sticky header, contradicting DESIGN.md Region 1 L389; corrective task nested it, regression-guarded",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "evidence-na",
+      "status": "accept",
+      "source": "docs/config/project-commands.yaml",
+      "summary": "design_check dimension N/A - no a11y/console-scan tool wired",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "evidence-na",
+      "status": "accept",
+      "source": "docs/config/project-commands.yaml",
+      "summary": "runtime render_check unavailable - no E2E runner installed (test_e2e empty)",
+      "triaged_at": "2026-09-04T04:59:20Z",
+      "triaged_by": "pratik.pawar@apexon.com (/arh-implement Step 5 RC4)"
+    }
+  ]
+}

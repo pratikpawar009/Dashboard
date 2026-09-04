@@ -128,8 +128,13 @@ produced_by: PGD-01
 consumed_by: [ARC-01, DEV-01, PMD-01, EMD-01]
 shape:
   endpoint: "GET /api/overview/program-detail/{program_id}"
-  fields: "header (icon, name, type, description) + 7 to-date summary cards (tokens, features, releases, repos, commands, LOC, stories)"
-  invariant: "byte-identical response regardless of CIO vs Engineering Manager caller; no persona-branching logic (FR-PD-17)"
+  response_model: "ProgramDetailResponse @ app/schemas/program_detail.py (PGD-01/DECISIONS.md D-06, promoted ADR-0007)"
+  header: "ProgramDetailHeader { icon: str, name: str, type: str, description: str } -- verbatim program_summary columns (BED-01/db-schema); no avatarStyle/typeChip on the wire -- consumers derive those client-side via apps/web/src/lib/programStyle.ts::getProgramStyle(type), matching the persona-shell/program_context convention already established by SHP-01 (D-05)"
+  summary: "list[ProgramSummaryCard { glyph: str, value: str, label: str }], exactly 7 entries, mockup order is part of the contract: (1) tokens, (2) features, (3) releases, (4) repos_with_harness_installed, (5) commands_executed, (6) lines_of_code_generated, (7) user_stories_delivered. glyph/label are fixed presentation constants owned by the producer (mirrors AUTH-04's dot_style_for_program precedent of shipping presentation data server-side) -- consumers render via a plain map/for-each over `summary`, no per-consumer glyph/label duplication. value: cards 1/2/3/5/6/7 pass through format_number() (BED-02/api-conventions); card 4 (repos_with_harness_installed) renders as the literal ratio string \"{repos_with_harness_installed} / {repos_total}\" and is EXEMPT from format_number()"
+  invariant: "byte-identical response regardless of CIO vs Engineering Manager caller; no persona-branching logic (FR-PD-17). The optional X-Program-Switch-From request header (D-07) affects ONLY which structured log event fires server-side (program_switch vs program_drilldown) -- it never changes response content, so it does not violate the byte-identical invariant"
+  rbac: "program_visibility(current_user, program_id) (rbac-checks/AUTH-03) called once with the REAL program_id (unlike programs.py's sentinel usage) -- open-aggregate, never denies; program-membership scoping is explicitly out of scope (Clarification C-3)"
+  errors: "unknown program_id -> HTTPException(404) -> app/core/errors.py's existing envelope {\"error\": {\"code\": \"http_404\", \"message\": ..., \"details\": null}} -- no new envelope shape"
+  observability: "program_drilldown {program_id} logged when X-Program-Switch-From is absent (initial page load); program_switch {from_program_id, to_program_id} logged when present (switcher-triggered reload) -- mutually exclusive, exactly one fires per successful (200) request, neither fires on a 404 (D-07)"
 ```
 
 ### program-token-trend-api
