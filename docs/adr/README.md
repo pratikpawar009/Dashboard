@@ -9,3 +9,4 @@
 | [ADR-0005](0005-programs-api-switcher-shape.md) | `programs-api` returns the switcher list shape | Accepted |
 | [ADR-0006](0006-ingest-token-format-and-scope-semantics.md) | Ingest token format, scope semantics, and lifetime | Accepted |
 | [ADR-0007](0007-program-detail-response-shape.md) | `program-detail-api` returns an ordered `summary` card array with server-owned glyph/label | Accepted |
+| [ADR-0008](0008-client-side-auth-route-handler-proxy.md) | Client-side authenticated FastAPI calls go through a same-origin Route Handler proxy — FastAPI is never reached directly from the browser | Accepted |

@@ -1,0 +1,229 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#204",
+  "tracker_research": "pratikpawar009/Dashboard#205",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-05/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-04T09:47:36Z",
+  "tracker_prd": "pratikpawar009/Dashboard#206",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/AUTH-05/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-05/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/AUTH-05/tasks.json"
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "cors-x-program-switch-from-dead-config",
+      "kind": "task",
+      "reason": "services/api/app/main.py:72-78's CORS allow_headers entry for X-Program-Switch-From (added by PGD-01, because ProgramDetailView called FastAPI directly from the browser) becomes dead configuration once AUTH-05's full-proxy design (ADR-0008, DECISIONS.md D-10) ships: ProgramDetailView's client-side calls now terminate at the frontend's own /api/proxy/* origin (same-origin, no CORS triggered at all), and the proxy routes forward X-Program-Switch-From to FastAPI server-to-server (never subject to CORS). No browser request reaches FastAPI's origin directly anywhere in this story's code after it ships.",
+      "owner": "a future services/api cleanup story (none scheduled yet)",
+      "added_at": "2026-09-04T08:17:52Z",
+      "added_by": "impl-planning-agent (plan-implementation Phase 1, re-plan after ADR-0008 review)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "server-component-refresh-not-persisted",
+      "kind": "finding",
+      "reason": "A refresh triggered from page.tsx's Server Component render cannot persist its new token pair -- Next.js seals the cookie jar there (RequestCookiesAdapter.seal). tokenStore tolerates it, so the render completes with a valid token, but the rotated pair is dropped. Harmless with Keycloak's default Revoke Refresh Token = OFF; with it ON, sessions end early. Durable fix: move refresh off the Server Component path (middleware, or a dedicated refresh Route Handler page.tsx bounces through).",
+      "owner": "a future apps/web auth story (none scheduled yet)",
+      "added_at": "2026-09-04T09:47:36Z",
+      "added_by": "/arh-human-review AUTH-05 (AF-01 deferred)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "tc02-ac3-return-url-prose-drift",
+      "kind": "finding",
+      "reason": "docs/test-cases/AUTH-05.json TC-02 and docs/stories/AUTH-05.md AC-3 both describe /callback redirecting to the originally requested page. DECISIONS.md D-04 and REQUIREMENTS.md Scope drop return-URL preservation, and the shipped route redirects to /. Correct the prose so the artefacts stop describing behaviour that was deliberately excluded.",
+      "owner": "a future docs cleanup pass (none scheduled yet)",
+      "added_at": "2026-09-04T09:47:36Z",
+      "added_by": "/arh-human-review AUTH-05 (AF-02 deferred)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "dev-bypass-refresh-unverifiable-locally",
+      "kind": "finding",
+      "reason": "POST /auth/refresh has no dev-bypass branch -- it calls _require_oidc_configured then posts to the real Keycloak token endpoint (services/api/app/auth/oidc.py:343-358), so a dev-bypass refresh token always yields non-2xx. Research condition 2's manual steps 5-6 can therefore verify refresh timing and no-loop behaviour but never a successful refresh. Close by adding a dev-bypass branch to /auth/refresh, or a local Keycloak to docker-compose.yml.",
+      "owner": "a future services/api or tooling story (none scheduled yet)",
+      "added_at": "2026-09-04T09:47:36Z",
+      "added_by": "/arh-human-review AUTH-05 (AF-03 deferred)",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "tracker_plan": "pratikpawar009/Dashboard#211",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-04T09:27:37Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-05/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T09:05:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-05/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T09:08:00Z"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-05/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T09:10:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-05",
+        "ran_at": "2026-09-04T09:20:00Z",
+        "stacks": [
+          {
+            "stack": "api",
+            "status": "PASS",
+            "command": "cd services/api && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info",
+            "exit_code": null,
+            "evidence_path": "docs/features/AUTH-05/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "Deps (dashboard-postgres container) already running, reused; migrations already at head (001_initial_schema). /health -> 200."
+          },
+          {
+            "stack": "web",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "exit_code": null,
+            "evidence_path": "docs/features/AUTH-05/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "/ -> 200; /login -> 307; /callback -> 307; /api/proxy/programs -> 401 (no session, expected); /api/proxy/program-detail/prog-042 -> 401 (no session, expected). No 5xx, no ERR_PNPM_IGNORED_BUILDS on this boot. No E2E runner installed (test_e2e: empty) so DOM-mount assertion beyond HTTP 200 is unavailable -- see AF-05."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-05/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-04T09:22:00Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "passed",
+  "validation_summary": "4/4 test cases pass, 20/20 tasks complete, stack smoke 2/2 (api, web); live dev-bypass corroboration of AC-1/2/3/5/6/8/10/11",
+  "validation_report": "docs/features/AUTH-05/VALIDATION-20260904-0940.md",
+  "review": "PASS",
+  "review_report": "docs/features/AUTH-05/REVIEW.md",
+  "gate_rounds": 1,
+  "agent_flags": [
+    {
+      "id": "AF-01",
+      "kind": "runtime-constraint",
+      "task_id": "T-02",
+      "source": "apps/web/src/lib/tokenStore.ts",
+      "summary": "Next.js seals the cookie jar during a Server Component render, so page.tsx cannot persist a refreshed token pair; writeSession/clearSession tolerate the sealed jar instead of throwing.",
+      "decision": "defer",
+      "rationale": "Real, but the durable fix (middleware, or a refresh Route Handler page.tsx bounces through) is new architecture beyond this story's plan, and the bounce would need the return-URL preservation REQUIREMENTS.md Scope excludes. Shipped mitigation keeps AC-5/AC-6 correct for the render and leaves AC-8's redirect intact; the residual risk is a Keycloak realm with Revoke Refresh Token ON.",
+      "carry_forward_ref": "server-component-refresh-not-persisted",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-04T09:47:36Z"
+    },
+    {
+      "id": "AF-02",
+      "kind": "artefact-drift",
+      "task_id": "T-18",
+      "source": "docs/test-cases/AUTH-05.json",
+      "summary": "TC-02's prose and AC-3 describe a return-URL redirect (/callback -> originally requested page) that D-04 deliberately does not implement; the shipped route redirects to /.",
+      "decision": "defer",
+      "rationale": "Correct the artefact prose in a follow-up. The test-case file is gate-approved and tracker-pushed (#207-#210), so this story does not edit it; tests assert the shipped D-04 behaviour.",
+      "carry_forward_ref": "tc02-ac3-return-url-prose-drift",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-04T09:47:36Z"
+    },
+    {
+      "id": "AF-03",
+      "kind": "coverage-gap",
+      "task_id": "T-20",
+      "source": "services/api/app/auth/oidc.py:343",
+      "summary": "/auth/refresh always round-trips to the real Keycloak token endpoint, so a dev-bypass-minted refresh token can never complete a successful refresh locally; manual steps 5-6 verify timing and no-loop only.",
+      "decision": "defer",
+      "rationale": "Known gap in the local verification path. Closing it needs either a dev-bypass branch in /auth/refresh or a local Keycloak in docker-compose.yml -- both services/api changes this story's Constraints forbid. Successful-refresh behaviour stays covered by mocked TC-01.",
+      "carry_forward_ref": "dev-bypass-refresh-unverifiable-locally",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-04T09:47:36Z"
+    },
+    {
+      "id": "AF-04",
+      "kind": "evidence-na",
+      "task_id": null,
+      "source": "docs/config/project-commands.yaml",
+      "summary": "design_check dimension marked N/A -- design_check key is empty (no axe/pa11y wired) and the story is design: n/a with no rendered UI.",
+      "decision": "reject",
+      "rationale": "N/A is correct: the dimension genuinely does not apply. No AUTH epic exists in docs/design/schema.json and the story ships no rendered UI. The empty design_check tooling is a known project-level state, not an AUTH-05 finding.",
+      "carry_forward_ref": null,
+      "status": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-04T09:47:36Z"
+    },
+    {
+      "id": "AF-05",
+      "kind": "evidence-na",
+      "task_id": null,
+      "source": "docs/config/project-commands.yaml",
+      "summary": "runtime web stack passed boot but render_check is unavailable -- test_e2e is empty, so no browser tooling can assert a DOM mount beyond HTTP 200.",
+      "decision": "reject",
+      "rationale": "HTTP-level proof suffices here: AUTH-05 ships no new rendered UI, only a retrofit of PGD-01's existing components, whose render behaviour is covered by 96 passing tests including RTL renders. Same caveat as every story shipped without an E2E runner.",
+      "carry_forward_ref": null,
+      "status": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-04T09:47:36Z"
+    }
+  ]
+}

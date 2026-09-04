@@ -38,9 +38,11 @@ FastAPI's generated OpenAPI docs (`/docs`) cover every route in full; this table
 
 `/auth/dev-bypass` only exists — is registered at all — when `ENVIRONMENT` resolves to one of `local`, `development`, `dev`, `test`, `ci`; every other value, including `production`, `prod`, `staging`, and any typo, gets a `404` because the route was never registered. This is fail-closed by allow-list, not a "disabled in production" deny-check — nothing named `production` needs to be checked for it to be unreachable. In an allow-listed environment a dev-bypass token is fully usable against protected routes (it's signed by an ephemeral, process-local key that the JWKS cache resolves only there) — that's the point of the feature — but it is never usable outside one, by design.
 
+`/login`, `/callback`, `/api/proxy/programs`, and `/api/proxy/program-detail/{program_id}` (AUTH-05) are Next.js Route Handlers in `apps/web`, not FastAPI routes — they will not show up in `/docs` above. The two `/api/proxy/*` routes are full server-to-server proxies: the browser never calls FastAPI directly through them, and no route hands an access token to client-side JavaScript (`docs/adr/0008-client-side-auth-route-handler-proxy.md`).
+
 ## Environment variables
 
-New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02, and `NEXT_PUBLIC_API_URL`, new in PGD-01 (`apps/web/.env.example` — the first `apps/web` env var; every other row below is `services/api/.env.example`):
+New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02; `OIDC_REDIRECT_URI`, new in AUTH-05; and `NEXT_PUBLIC_API_URL`, new in PGD-01 (`apps/web/.env.example` — the first `apps/web` env var; every other row below is `services/api/.env.example`):
 
 | Name | Default | Notes |
 |---|---|---|
@@ -48,6 +50,7 @@ New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PER
 | `OIDC_CLIENT_SECRET` | `None` (unset) | Optional. Env/secret store only — never commit a real value. |
 | `OIDC_ISSUER` | `None` (unset) | Optional, e.g. `https://lab.apexonlab.com/apexonlogin/realms/Apexon`. |
 | `OIDC_REALM` | `None` (unset) | Optional. |
+| `OIDC_REDIRECT_URI` | `http://localhost:3000/callback` | The frontend's own `/callback` route (AUTH-05) — Keycloak must send the browser here, not to FastAPI, so the frontend can write the `dashboard_session` cookie. Left empty, `_resolve_redirect_uri` (`services/api/app/auth/oidc.py:84`) falls back to deriving the API's own `/auth/callback` from the incoming request, so Keycloak returns the browser to FastAPI instead of Next.js and the session cookie is never written. |
 | `OIDC_SCOPE` | `openid profile email groups` | Every scope must exist on the realm — Keycloak rejects the whole authorization request with `invalid_scope` otherwise. `groups` is **not** a default Keycloak scope: it needs a client scope with a Group Membership mapper (claim name `groups`, *Full group path* OFF), or `PROGRAM_GROUP_PREFIX` parsing has no claim to read and `programs` is always empty. |
 | `PROGRAM_GROUP_PREFIX` | `program-` | A `groups` claim entry starting with this prefix becomes a program-membership entry (remainder after the prefix); non-matching entries are dropped from the parsed list but stay in the raw `groups` claim. |
 | `CORS_ORIGINS` | `[]` (no origins allowed) | A single origin, or a comma-separated list of origins — not a JSON array. |
@@ -61,6 +64,7 @@ The API is a confidential, PKCE-enforcing client. Its Keycloak client must have:
 
 - **Client authentication** ON (the code exchange sends `client_secret`).
 - **Valid redirect URIs** containing the API's own callback — `http://localhost:8000/auth/callback` locally. A frontend-style URI (`.../api/auth/callback/keycloak`) is not interchangeable: this integration exchanges the code server-side, so the browser must be sent back to the API.
+- An **additional** Valid Redirect URI for the frontend's own callback — `http://localhost:3000/callback` locally (AUTH-05, `OIDC_REDIRECT_URI`). This extends the bullet above, it does not replace it: the browser now lands on the frontend's callback first, but the API still exchanges the code server-side, so both URIs must stay registered.
 - A **`groups` client scope** with a Group Membership mapper (claim name `groups`, *Full group path* OFF) if `OIDC_SCOPE` requests `groups`. It is not a Keycloak default.
 
 PKCE (S256) is sent on every authorization request per OAuth 2.1, so a client with *Proof Key for Code Exchange* required works as-is.

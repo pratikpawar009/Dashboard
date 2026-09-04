@@ -1,20 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { ProgramDetailView } from "./ProgramDetailView";
 import { ADOPTION_OVERVIEW_ROUTE } from "@/lib/routes";
-import type { ProgramDetailResult } from "@/lib/programDetailApi";
-import type { ProgramDetailHeaderData, ProgramSwitcherEntry } from "@/types/programDetail";
+import type {
+  ProgramDetailHeaderData,
+  ProgramDetailResult,
+  ProgramSwitcherEntry,
+} from "@/types/programDetail";
 
 /**
  * PGD-01-TC-03, implemented against `ProgramDetailView` directly rather
  * than T-13's thin Server Component page wrapper (equivalent behavioural
  * coverage without fighting Next.js server-component-in-vitest limits).
  *
- * D-09: native `vitest` mocks only -- no MSW. `../lib/programDetailApi` is
- * mocked via its `@/*` alias (this file's own real import path, per
- * `.claude/skills/typescript-patterns`) and `next/navigation`'s `useRouter`
- * is mocked directly.
+ * D-09: native `vitest` mocks only -- no MSW. `@/lib/programDetailApi.client`
+ * is mocked via its `@/*` alias (this file's own real import path, per
+ * `.claude/skills/typescript-patterns`) -- AUTH-05/D-08 retargeted this mock
+ * from the server module `@/lib/programDetailApi` to the client module,
+ * since `ProgramDetailView` now calls the client-side proxy fetcher, never
+ * FastAPI directly. `next/navigation`'s `useRouter` is mocked directly.
  */
 
 const mockReplace = vi.fn();
@@ -27,7 +38,7 @@ vi.mock("next/navigation", () => ({
 const fetchProgramDetail = vi.fn();
 const fetchPrograms = vi.fn();
 
-vi.mock("@/lib/programDetailApi", () => ({
+vi.mock("@/lib/programDetailApi.client", () => ({
   fetchProgramDetail: (...args: unknown[]) => fetchProgramDetail(...args),
   fetchPrograms: (...args: unknown[]) => fetchPrograms(...args),
 }));
@@ -111,6 +122,15 @@ describe("ProgramDetailView (PGD-01-TC-03)", () => {
         switchedFrom: "prog-042",
       }),
     );
+    // AUTH-05 AC-10/AC-11 (D-08): the client module has no token to attach --
+    // confirm the call carries {switchedFrom} only, with no accessToken key,
+    // rather than relying solely on toHaveBeenCalledWith's shape match.
+    const [, callOpts] = fetchProgramDetail.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(callOpts).not.toHaveProperty("accessToken");
+    expect(Object.keys(callOpts)).toEqual(["switchedFrom"]);
   });
 
   it("updates the URL via router.replace and never hard-navigates", async () => {
@@ -150,9 +170,9 @@ describe("ProgramDetailView (PGD-01-TC-03)", () => {
       />,
     );
     await waitFor(() => expect(fetchPrograms).toHaveBeenCalledTimes(1));
-    expect(
-      screen.getByTestId("program-detail-header-name").textContent,
-    ).toBe(HEADER_A.name);
+    expect(screen.getByTestId("program-detail-header-name").textContent).toBe(
+      HEADER_A.name,
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: /Platform Modernization/ }),
@@ -162,9 +182,9 @@ describe("ProgramDetailView (PGD-01-TC-03)", () => {
     );
 
     await waitFor(() =>
-      expect(
-        screen.getByTestId("program-detail-header-name").textContent,
-      ).toBe(HEADER_B.name),
+      expect(screen.getByTestId("program-detail-header-name").textContent).toBe(
+        HEADER_B.name,
+      ),
     );
     const cards = screen.getAllByTestId("program-summary-card");
     expect(cards[0].textContent).toContain("B-0");
@@ -196,16 +216,17 @@ describe("ProgramDetailView (PGD-01-TC-03)", () => {
     const notFound: ProgramDetailResult = { status: "not_found" };
 
     render(
-      <ProgramDetailView initialProgramId="prog-404" initialResult={notFound} />,
+      <ProgramDetailView
+        initialProgramId="prog-404"
+        initialResult={notFound}
+      />,
     );
 
     expect(
       screen.getByTestId("program-detail-header-error-text").textContent,
     ).toBe("Program not found");
     expect(screen.queryAllByTestId("program-summary-card")).toHaveLength(0);
-    expect(
-      screen.getByText("This program could not be found."),
-    ).not.toBeNull();
+    expect(screen.getByText("This program could not be found.")).not.toBeNull();
     expect(fetchPrograms).not.toHaveBeenCalled();
 
     // D-03: "header chrome + back-link" is retained even when the rest of
@@ -242,5 +263,46 @@ describe("ProgramDetailView (PGD-01-TC-03)", () => {
     fireEvent.keyDown(trigger, { key: " ", code: "Space" });
     fireEvent.click(trigger);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("a mocked {status:'unauthorized'} switch result sets window.location.href to /login (AC-8/FR-5 client-side half) without a client-side route transition", async () => {
+    fetchProgramDetail.mockResolvedValue({ status: "unauthorized" });
+
+    // jsdom's window.location is not reassignable by default -- redefine it
+    // for the duration of this test only, and restore the original
+    // afterwards so the "never hard-navigates" test above (which reads
+    // window.location.href) is unaffected by this stubbing.
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      value: { href: "" },
+      writable: true,
+      configurable: true,
+    });
+
+    try {
+      render(
+        <ProgramDetailView
+          initialProgramId="prog-042"
+          initialResult={okResult(HEADER_A, "A")}
+        />,
+      );
+      await waitFor(() => expect(fetchPrograms).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Platform Modernization/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: /Growth Initiative/ }),
+      );
+
+      await waitFor(() => expect(window.location.href).toBe("/login"));
+      expect(mockReplace).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    }
   });
 });

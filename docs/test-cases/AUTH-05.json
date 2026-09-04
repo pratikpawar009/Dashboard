@@ -1,0 +1,428 @@
+{
+  "story_id": "AUTH-05",
+  "generated_at": "2026-09-04",
+  "generation_note": "Case count capped at 4 by explicit user instruction. 11 of 13 ACs plus all 5 FRs are covered by consolidating along natural seams: TC-01 is tokenStore's refresh-lifecycle integration run covering the single-flight guard on concurrent proactive/reactive refresh triggers (AC-6, AC-7; FR-1 primary), expires_in-derived scheduling (AC-9), and a performance-NFR timeout rider. TC-02 is one integration run covering the OAuth handshake relay (AC-1, AC-2, AC-3; FR-3 rider) and the dual-path bearer-forwarding contract (AC-5, AC-10, AC-11; FR-2 primary), using POST /auth/dev-bypass (per the Testing reality note) to mint a usable token since no local Keycloak exists. TC-03 is the dedicated type:security run for the story's core no-token-leak invariant (NFR-security primary, NFR-observability rider, AC-4 primary). TC-04 is the dedicated negative-path run for the refresh-failure redirect (AC-8; FR-5 primary, FR-3 rider). AC-12/AC-13 (README-only ACs) and a dedicated type:performance case are disclosed gaps in coverage_audit.audit_notes, forced by the cap, not silently dropped. Field/function names for not-yet-shipped code -- tokenStore.ts's ensureTokenValid()/refreshPromise/doRefresh(), the dashboard_session cookie name and its exact attribute set, and FetchProgramDetailOptions.accessToken -- are REQUIREMENTS.md's (FR-1/FR-2/FR-4) own best-available design names for a module that does not exist yet, carried through verbatim for TDD authoring; they are not a confirmed shipped contract, the same disclosure PGD-01's manifest made for its response field names.",
+  "test_cases": [
+    {
+      "id": "AUTH-05-TC-01",
+      "title": "tokenStore refresh lifecycle: single-flight guard on concurrent proactive/reactive refresh triggers, expires_in-derived scheduling, and the 5s relay timeout",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-05-FR-1",
+      "given": "two protected FastAPI calls are in flight when the access token has 60s or less remaining, and separately a single call receives a 401 without having been proactively refreshed",
+      "when": "both concurrent calls invoke tokenStore.ensureTokenValid(), and the 401 case triggers the reactive refresh-and-retry path",
+      "then": "exactly one POST /auth/refresh call is made for the concurrent pair (the second caller awaits the first's in-flight promise), the reactive 401 case issues exactly one refresh and retries the original call once with the new token, and the next proactive check is scheduled from the response's own expires_in rather than a hardcoded constant",
+      "objective": "Verify tokenStore's single-flight refresh guard collapses concurrent refresh triggers (proactive-skew and reactive-401) into exactly one in-flight POST /auth/refresh call, that a 401 triggers exactly one reactive refresh plus one retry (not a loop), and that the next proactive-refresh deadline is derived from the refresh response's own expires_in value, never a hardcoded lifetime.",
+      "preconditions": [
+        "tokenStore.ts's ensureTokenValid()/refreshPromise/doRefresh() implemented per FR-1",
+        "Mocked httpOnly cookie holds an access token with 45s remaining before its expires_in-derived expiry (inside the 60s proactive-skew window)",
+        "global.fetch mocked with vitest vi.fn() to intercept POST /auth/refresh and return a 200 {access_token, refresh_token, expires_in} pair after a controllable delay",
+        "A second mocked FastAPI call configured to return 401 once, then 200 on retry"
+      ],
+      "test_data": {
+        "initial_access_token": "<STORED_TEST_JWT>",
+        "seconds_remaining": 45,
+        "proactive_skew_threshold_s": 60,
+        "refresh_response": {
+          "access_token": "<NEW_TEST_JWT>",
+          "refresh_token": "<NEW_TEST_REFRESH_JWT>",
+          "expires_in": 900
+        },
+        "relay_timeout_ms": 5000,
+        "concurrent_caller_count": 2
+      },
+      "steps": [
+        "Seed the token store with initial_access_token at seconds_remaining=45",
+        "Invoke ensureTokenValid() from two concurrent callers via Promise.all without awaiting between them",
+        "Assert fetch was called exactly once for POST /auth/refresh, and both callers resolve to the same refresh_response",
+        "Reset the fetch mock; seed a fresh token store; simulate a FastAPI call returning 401 once",
+        "Invoke the reactive-401 handler; assert it calls POST /auth/refresh exactly once and retries the original call exactly once with the new access_token",
+        "Inspect the token store's next scheduled proactive-check deadline",
+        "Inspect the fetch call options passed to POST /auth/refresh for its timeout/AbortSignal configuration"
+      ],
+      "expected_results": [
+        "POST /auth/refresh is called exactly once across both concurrent ensureTokenValid() callers -- the second caller awaited the first's in-flight refreshPromise, it did not start its own",
+        "Both concurrent callers resolve to the identical new token pair from refresh_response",
+        "The reactive-401 path issues exactly one POST /auth/refresh call and exactly one retry of the original request -- not a retry loop",
+        "The retried request carries Authorization: Bearer <NEW_TEST_JWT>, the token from refresh_response, not the stale initial_access_token",
+        "The next proactive-refresh deadline is computed from refresh_response.expires_in (900s), not any hardcoded constant",
+        "The POST /auth/refresh fetch call carries an explicit timeout (AbortSignal.timeout(5000)) matching relay_timeout_ms"
+      ],
+      "tags": [
+        "single-flight",
+        "concurrency",
+        "refresh",
+        "boundary",
+        "auth-05"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#207",
+      "last_run": {
+        "started_at": "2026-09-04T09:32:47.209Z",
+        "duration_ms": 55,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 55, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/lib/tokenStore.test.ts",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-05-TC-02",
+      "title": "OAuth handshake relay (/login, /callback) plus dual-path bearer forwarding: Server Component reads the cookie directly, Client Component proxies through the Route Handler, dev-bypass mints a same-shape token",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-05-FR-2",
+      "given": "OIDC_REDIRECT_URI is set to the frontend's own callback route, a dev-bypass token is minted, and both a Server Component (page.tsx) and a Client Component (ProgramDetailView) need to call fetchProgramDetail/fetchPrograms",
+      "when": "/login relays to FastAPI's GET /auth/login, /callback relays code/state to GET /auth/callback and stores the resulting tokens, page.tsx reads the cookie directly via cookies(), and ProgramDetailView's client-side calls resolve opts.accessToken through a Route Handler",
+      "then": "the browser is redirected to Keycloak (never to FastAPI) on /login, /callback 302s onward to the originally requested page after storing tokens, and both the server-rendered and client-proxied fetchProgramDetail/fetchPrograms calls carry Authorization: Bearer <access_token>",
+      "objective": "Verify the full non-token-lifecycle authenticated-request contract in one pass: OIDC_REDIRECT_URI resolves to the frontend's callback (not blank/API-default), /login and /callback relay server-to-server to FastAPI's existing routes without ever exposing FastAPI to the browser, a POST /auth/dev-bypass token is stored and forwarded identically to a Keycloak-issued one, page.tsx's server-side fetchProgramDetail call attaches the cookie's token directly, and ProgramDetailView's client-side fetchPrograms()/fetchProgramDetail() calls resolve their token through the Route Handler proxy rather than reading the httpOnly cookie themselves.",
+      "preconditions": [
+        "OIDC_REDIRECT_URI set to http://localhost:3000/callback in test env config",
+        "FastAPI's GET /auth/login, GET /auth/callback, POST /auth/dev-bypass mocked at the fetch boundary (native vitest vi.fn(), no MSW) to return their documented shapes",
+        "apps/web/src/app/login/route.ts and apps/web/src/app/callback/route.ts implemented per FR-3",
+        "page.tsx (Server Component) and ProgramDetailView.tsx (Client Component) render harnesses available for vitest + RTL"
+      ],
+      "test_data": {
+        "oidc_redirect_uri": "http://localhost:3000/callback",
+        "mocked_keycloak_auth_url": "https://lab.apexonlab.com/apexonlogin/realms/Apexon/protocol/openid-connect/auth?client_id=test&redirect_uri=http://localhost:3000/callback",
+        "callback_code": "test-auth-code",
+        "callback_state": "test-state-opaque",
+        "originally_requested_page": "/programs/prog-042",
+        "dev_bypass_body": {
+          "role": "developer",
+          "email": "test@example.com"
+        },
+        "dev_bypass_response": {
+          "access_token": "<DEV_BYPASS_JWT>",
+          "refresh_token": "<DEV_BYPASS_REFRESH_JWT>",
+          "expires_in": 900
+        }
+      },
+      "steps": [
+        "Call the /login route handler; assert it invokes FastAPI GET /auth/login server-to-server and the browser response redirects to the mocked Keycloak URL, never to a FastAPI-origin URL",
+        "Call the /callback route handler with callback_code/callback_state; assert it invokes FastAPI GET /auth/callback server-to-server, stores {access_token, refresh_token, expires_in} in the httpOnly cookie, and 302s to originally_requested_page",
+        "POST /auth/dev-bypass with dev_bypass_body; store the resulting token via the same code path exercised in the prior step",
+        "Render page.tsx (Server Component) for /programs/prog-042 with the cookie set from the dev-bypass step; assert its server-side fetchProgramDetail call carries Authorization: Bearer <DEV_BYPASS_JWT>",
+        "Render ProgramDetailView (Client Component) and trigger its useEffect fetchPrograms() call and its switcher's fetchProgramDetail(newId, opts) call; assert both resolve opts.accessToken through a mocked Route Handler and attach the same Authorization: Bearer header",
+        "Confirm no client-side code path calls Next.js cookies() directly"
+      ],
+      "expected_results": [
+        "OIDC_REDIRECT_URI equals http://localhost:3000/callback, not blank -- the /login relay does not fall back to FastAPI's own callback default",
+        "/login's response redirects the browser to the Keycloak authorization URL; no response body or redirect ever points at a FastAPI origin",
+        "/callback stores the exact {access_token, refresh_token, expires_in} triple from FastAPI's response and 302s to originally_requested_page -- no client-side page receives or parses the callback JSON",
+        "POST /auth/dev-bypass's token is stored and forwarded through the identical code path as a Keycloak-issued token -- no dev-bypass-specific branch in the storage/forwarding logic",
+        "page.tsx's fetchProgramDetail call carries Authorization: Bearer <DEV_BYPASS_JWT>, sourced from cookies() directly",
+        "ProgramDetailView's fetchPrograms() and fetchProgramDetail() calls carry the identical Authorization: Bearer header, sourced via the Route Handler proxy, not a direct cookies() read",
+        "No client-component code path calls next/headers's cookies()"
+      ],
+      "tags": [
+        "oauth-relay",
+        "dual-path",
+        "dev-bypass",
+        "server-vs-client",
+        "auth-05"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#208",
+      "last_run": {
+        "started_at": "2026-09-04T09:32:47.789Z",
+        "duration_ms": 156,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 156, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramDetailView.authFlow.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-05-TC-03",
+      "title": "No token value ever appears in a log line; the session cookie is httpOnly and unreadable via document.cookie",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-05-NFR-security",
+      "given": "the token store, /login, /callback, and both refresh paths (proactive and reactive) run through their normal logging, and a token has just been stored in the session cookie",
+      "when": "every log call made across those paths is captured, and the cookie's Set-Cookie header is inspected",
+      "then": "no captured log record contains a JWT-shaped substring (the eyJ header prefix) or either raw token, and the Set-Cookie header carries HttpOnly (plus Secure outside local/dev and SameSite=Lax) so document.cookie never exposes the value",
+      "objective": "Verify the story's core security invariant: no log line anywhere in the token store, /login, /callback, or refresh paths ever includes a token value (extends AUTH-01's user_id-only invariant), and the dashboard_session cookie is set httpOnly (plus Secure outside local/dev, SameSite=Lax) so it is never readable via client-side document.cookie -- and never written to localStorage/sessionStorage either.",
+      "preconditions": [
+        "Logger spy/capture attached over console/logger calls made by tokenStore.ts, login/route.ts, callback/route.ts for the duration of the test",
+        "A full login flow (via dev-bypass, per Testing reality) run once, plus one proactive refresh and one reactive-401 refresh triggered",
+        "The Set-Cookie header from the store operation captured for attribute inspection"
+      ],
+      "test_data": {
+        "jwt_marker": "eyJ",
+        "access_token": "<TEST_JWT_WITH_EYJ_PREFIX>",
+        "refresh_token": "<TEST_REFRESH_JWT_WITH_EYJ_PREFIX>",
+        "expected_cookie_name": "dashboard_session",
+        "expected_cookie_attrs": {
+          "httpOnly": true,
+          "sameSite": "lax",
+          "secure_outside_local": true,
+          "path": "/"
+        }
+      },
+      "steps": [
+        "Attach a log-capture spy over every logger/console call reachable from tokenStore.ts, login/route.ts, callback/route.ts",
+        "Run a full dev-bypass login, one proactive refresh (60s-skew), and one reactive 401 refresh",
+        "Grep every captured log record for the jwt_marker substring and for the literal access_token/refresh_token values",
+        "Inspect the Set-Cookie header emitted when tokens are stored",
+        "Attempt to read document.cookie in a simulated browser context after the cookie is set"
+      ],
+      "expected_results": [
+        "Zero captured log records contain the jwt_marker substring or either raw token value",
+        "Every captured log record that references the session includes at most a non-token identifier (e.g. user_id), never token content",
+        "The Set-Cookie header for dashboard_session includes HttpOnly",
+        "The Set-Cookie header includes SameSite=Lax and, outside local/development, Secure",
+        "document.cookie does not include dashboard_session or any token value",
+        "No token value is ever written to localStorage or sessionStorage in any code path exercised"
+      ],
+      "tags": [
+        "security",
+        "log-audit",
+        "no-token-leak",
+        "httponly-cookie",
+        "auth-05"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#209",
+      "last_run": {
+        "started_at": "2026-09-04T09:32:47.230Z",
+        "duration_ms": 118,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 118, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/lib/tokenStore.security.test.ts",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-05-TC-04",
+      "title": "Non-2xx from POST /auth/refresh clears the session cookie and redirects to /login (Keycloak re-auth), not a raw error",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-05-FR-5",
+      "given": "a stored refresh token that FastAPI's POST /auth/refresh will reject with a non-2xx response",
+      "when": "the frontend's refresh handling (proactive or reactive trigger) calls POST /auth/refresh and receives that non-2xx response",
+      "then": "the dashboard_session cookie is cleared and the browser is redirected to the frontend's own /login route (which then relays to Keycloak) -- no raw error is surfaced to the user, and no return-URL parameter is preserved",
+      "objective": "Verify an unrecoverable refresh failure (non-2xx from POST /auth/refresh) clears the stored cookie and redirects through the frontend's own /login Route Handler -- never directly to Keycloak, never a surfaced raw error, and without preserving the originally requested page (per FR-5/Scope Out).",
+      "preconditions": [
+        "A stored dashboard_session cookie holding a token pair whose refresh_token FastAPI will reject",
+        "POST /auth/refresh mocked to return a 401 (or other non-2xx) response",
+        "tokenStore.ts's refresh-failure handling implemented per FR-5"
+      ],
+      "test_data": {
+        "expired_refresh_token": "<TEST_EXPIRED_REFRESH_JWT>",
+        "refresh_failure_status": 401,
+        "expected_redirect_target": "/login",
+        "cookie_name": "dashboard_session"
+      },
+      "steps": [
+        "Seed the token store / cookie with expired_refresh_token",
+        "Trigger a refresh (proactive skew or reactive 401, either path)",
+        "Mock POST /auth/refresh to respond with refresh_failure_status",
+        "Inspect the resulting cookie state and the redirect issued to the browser",
+        "Confirm no raw error body or refresh failure detail is surfaced to the caller"
+      ],
+      "expected_results": [
+        "The dashboard_session cookie is cleared (removed/expired) after the non-2xx refresh response",
+        "The browser is redirected to expected_redirect_target ('/login'), not directly to a Keycloak URL",
+        "No return-URL or originally-requested-page parameter is attached to the redirect (Scope Out: return-URL preservation)",
+        "No raw error (stack trace, FastAPI error body) is surfaced to the caller -- the redirect is the only visible effect"
+      ],
+      "tags": [
+        "refresh-failure",
+        "redirect",
+        "negative",
+        "auth-05"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#210",
+      "last_run": {
+        "started_at": "2026-09-04T09:32:47.209Z",
+        "duration_ms": 3,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 3, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/lib/tokenStore.test.ts",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-05-AC-1",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-2",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-3",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-4",
+        "covered_by": [
+          "AUTH-05-TC-03",
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-5",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-6",
+        "covered_by": [
+          "AUTH-05-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-7",
+        "covered_by": [
+          "AUTH-05-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-8",
+        "covered_by": [
+          "AUTH-05-TC-04"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-9",
+        "covered_by": [
+          "AUTH-05-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-10",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-11",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-AC-12",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-05-AC-13",
+        "covered_by": []
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-05-FR-1",
+        "covered_by": [
+          "AUTH-05-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-05-FR-2",
+        "covered_by": [
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-FR-3",
+        "covered_by": [
+          "AUTH-05-TC-02",
+          "AUTH-05-TC-04"
+        ]
+      },
+      {
+        "id": "AUTH-05-FR-4",
+        "covered_by": [
+          "AUTH-05-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-05-FR-5",
+        "covered_by": [
+          "AUTH-05-TC-04"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-05-NFR-performance",
+        "covered_by": [
+          "AUTH-05-TC-01",
+          "AUTH-05-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-05-NFR-security",
+        "covered_by": [
+          "AUTH-05-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-05-NFR-accessibility",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-05-NFR-observability",
+        "covered_by": [
+          "AUTH-05-TC-03"
+        ]
+      }
+    ],
+    "uncovered": [
+      "AUTH-05-AC-12",
+      "AUTH-05-AC-13"
+    ],
+    "audit_notes": [
+      "AC-12 and AC-13 (README additions: OIDC_REDIRECT_URI env-var row, Keycloak client-requirements bullet) are documentation-only ACs with no runtime behavior to assert; under the 4-case hard cap they receive no dedicated TC. Disclosed gap, not a silent drop -- verify by direct README diff at Product Gate, not by an automated test in this manifest.",
+      "NFR-performance has no dedicated type: performance TC under the 4-case cap. Its 5000ms server-to-server timeout budget is exercised as a rider assertion inside TC-01 (refresh calls) and TC-02 (login/callback relay calls) instead of a standalone performance run.",
+      "NFR-accessibility is explicitly N/A per REQUIREMENTS.md and the story's own NFR section -- this story ships Route Handlers, a token store, and API-client changes with no rendered UI (design: n/a, no AUTH key in docs/design/schema.json). No test case targets it; this is a genuine non-applicability, not a cap-forced gap, and is not listed under uncovered.",
+      "AC-4 is primarily proven by TC-03 (HttpOnly/Secure/SameSite attributes, no client-JS read, no log leak); TC-02 is a secondary coverer because page.tsx's server-side read of the same cookie is incidentally exercised there, not independent proof of the cookie's security attributes.",
+      "FR-3 (route paths pinned to /login and /callback) splits across TC-02 (the OAuth-handshake relay itself) and TC-04 (the refresh-failure redirect target) -- together they cover both directions FR-3 governs.",
+      "TC-02 folds six ACs (AC-1, AC-2, AC-3, AC-5, AC-10, AC-11) into one integration run under the 4-case cap -- the OAuth handshake and the dual-path bearer-forwarding contract share the same login/callback/dev-bypass setup, so consolidating them avoids duplicating that setup across cases rather than diluting any individual assertion.",
+      "No unit-shaped cases appear here by design (test-case-generation skill Scope section): tokenStore.ts, login/route.ts, callback/route.ts unit tests belong in docs/features/AUTH-05/tasks.json, per the story's own Test mapping section.",
+      "No type: e2e case is emitted -- test_e2e is empty in docs/config/project-commands.yaml (no Playwright/Cypress) and no local Keycloak exists (carry-forward R-09-no-local-keycloak-e2e); every case here uses native vitest mocks (not MSW, per PGD-01 decision D-09) or POST /auth/dev-bypass to obtain a usable token.",
+      "Cross-checked against REQUIREMENTS.md Scope Out: (services/api code changes, a sign-out/logout flow, live Keycloak E2E testing, FastAPI CORS allow-list changes, preserving the originally-requested page across the AC-8 redirect, SHP-01/PGD-01 UI changes) -- no test case references any of these; TC-04 explicitly asserts the return-URL is NOT preserved, matching the Out-scope item rather than contradicting it."
+    ]
+  }
+}

@@ -1,0 +1,634 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-05",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-04T09:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "OIDC_REDIRECT_URI local-dev default (DECISIONS.md D-06, AC-1/AC-12, research R-02)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "apps/web/src/lib/tokenStore.ts",
+      "reason": "session cookie read/write/clear, FR-1 single-flight ensureTokenValid/getValidAccessToken, FR-1/AC-7 callWithAuth retry-once, FR-5 SessionExpiredError"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "apps/web/src/lib/tokenStore.test.ts",
+      "reason": "TC-01 (single-flight guard, expires_in scheduling, 5s timeout rider) + TC-04 (non-2xx refresh clears cookie, no raw error)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "apps/web/src/lib/tokenStore.security.test.ts",
+      "reason": "TC-03: no token value in any captured log line across tokenStore/login/callback; cookie httpOnly/secure/sameSite attributes; no client-JS read; no localStorage/sessionStorage write"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "apps/web/src/app/login/route.ts",
+      "reason": "FR-3/AC-2: relays to FastAPI GET /auth/login server-to-server, redirects browser to Keycloak, never to FastAPI"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "apps/web/src/app/login/route.test.ts",
+      "reason": "unit coverage of the /login relay in isolation (not individually TC-mapped)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "apps/web/src/app/callback/route.ts",
+      "reason": "FR-3/AC-3/AC-4: relays code/state to FastAPI GET /auth/callback, writes dashboard_session cookie on success, redirects onward (DECISIONS.md D-04)"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "apps/web/src/app/callback/route.test.ts",
+      "reason": "unit coverage of the /callback relay in isolation, incl. the exchange-failure -> /login redirect (D-04)"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/programs/route.ts",
+      "reason": "ADR-0008/DECISIONS.md D-09/D-10: full request-proxy for the switcher's program list -- GET /api/programs, server-to-server, token never reaches the browser"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/programs/route.test.ts",
+      "reason": "unit coverage of the programs proxy in isolation"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/route.ts",
+      "reason": "ADR-0008/DECISIONS.md D-09/D-10: full request-proxy for GET /api/overview/program-detail/{id}, forwards X-Program-Switch-From server-to-server"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/route.test.ts",
+      "reason": "unit coverage of the program-detail proxy in isolation"
+    },
+    "F-13": {
+      "action": "modify",
+      "path": "apps/web/src/lib/programDetailApi.ts",
+      "reason": "AC-10/research condition 5, server module: add accessToken to FetchProgramDetailOptions + fetchPrograms opts, attach Authorization: Bearer, remove stale D-08 comments. Used by page.tsx AND, internally, by the two proxy routes (F-09/F-11) -- never by ProgramDetailView (DECISIONS.md D-08)."
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/lib/programDetailApi.client.ts",
+      "reason": "DECISIONS.md D-08: client-only module, same function names/result shape as F-13, targets /api/proxy/* instead of FastAPI, attaches no token at all -- the module-split seam ProgramDetailView.tsx imports"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "apps/web/src/app/programs/[program_id]/page.tsx",
+      "reason": "FR-2 server-side path/AC-5: read cookie via tokenStore, attach opts.accessToken via F-13, catch SessionExpiredError -> redirect('/login'). Behavior unaffected by the vending->proxy reversal (page.tsx never used the vending route)."
+    },
+    "F-16": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "FR-2 client-side path/AC-10/AC-11: both call sites (mount fetchPrograms, switcher fetchProgramDetail) switch to programDetailApi.client.ts (F-14) hitting the proxy routes; redirect to /login only when a result comes back 'unauthorized' (the proxy already exhausted its own retry-once). No token/cookie/tokenStore concept anywhere in this file."
+    },
+    "F-17": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.test.tsx",
+      "reason": "existing PGD-01 TC-03 suite updated to mock programDetailApi.client (F-14) instead of programDetailApi -- simpler than the vending design's mocked token fetch"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramDetailView.authFlow.test.tsx",
+      "reason": "TC-02: OAuth handshake relay (/login, /callback) + dual-path bearer forwarding (page.tsx server read via F-13, ProgramDetailView client proxy via F-14/F-09/F-11) + dev-bypass token, one integration run"
+    },
+    "F-19": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "AC-12 (OIDC_REDIRECT_URI env-var row) + AC-13 (Keycloak client-requirements additional-redirect-URI bullet) + light API-table note for the new frontend-owned /login, /callback, /api/proxy/programs, /api/proxy/program-detail/{id} routes (Docs T2/T3)"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "docs/features/AUTH-05/MANUAL-TESTING.md",
+      "reason": "research condition 2: the 7 concrete dev-bypass verification steps (REQUIREMENTS.md Addressing Research Conditions #2), since E2E is unavailable"
+    },
+    "F-21": {
+      "action": "modify",
+      "path": "apps/web/src/types/programDetail.ts",
+      "reason": "DECISIONS.md D-08: add the ProgramDetailResult discriminated union (moved out of programDetailApi.ts, now including an 'unauthorized' variant) so both F-13 and F-14 import one canonical type, no drift between the server and client fetch modules"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Set OIDC_REDIRECT_URI local-dev default in services/api/.env.example",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-1",
+        "AUTH-05-AC-12"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal. DECISIONS.md D-06. Change the commented-blank OIDC_REDIRECT_URI= line to OIDC_REDIRECT_URI=http://localhost:3000/callback and update the surrounding comment block to state plainly that leaving it unset now breaks the frontend-first flow (silently falls back to the API's own /auth/callback, research R-02). No services/api code change (Constraints).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:35:46Z",
+      "files_touched": [
+        "services/api/.env.example"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "tokenStore.ts: cookie read/write/clear, FR-1 single-flight refresh, FR-5 failure signal",
+      "complexity": "L",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-4",
+        "AUTH-05-AC-6",
+        "AUTH-05-AC-7",
+        "AUTH-05-AC-8",
+        "AUTH-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-04",
+        "R-05",
+        "R-07"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal (tokenStore is server-only either way; only WHO imports it changed, not its own contract). Exports: writeSession(tokens): Promise<void> (DECISIONS.md D-01); readSession(): Promise<StoredSession|null>; clearSession(): Promise<void>; ensureTokenValid(): Promise<StoredSession> (FR-1 single-flight, per-process refreshPromise, D-07; throws SessionExpiredError on non-2xx refresh after clearing the cookie); getValidAccessToken(): Promise<string> (60s-skew proactive check, AC-6); callWithAuth<T>(makeRequest: (accessToken: string) => Promise<T>, isUnauthorized: (result: T) => boolean): Promise<T> (D-03/AC-7 reactive-401 retry-once -- now consumed by THREE server-side call sites: page.tsx (T-15) and both proxy routes (T-10, T-12), up from the two the vending design had). Never logs a token value anywhere (NFR-security). Module docstring documents the single-flight guard (FR-1) and the refresh-failure chain (FR-5).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:35:46Z",
+      "files_touched": [
+        "apps/web/src/lib/tokenStore.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "GET /login Route Handler: relay to FastAPI, redirect browser to Keycloak",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-03"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal -- the login handshake has nothing to do with post-login client-side call authorization. No tokenStore import. Calls FastAPI GET /auth/login server-to-server via fetch(`${getApiBaseUrl()}/auth/login`, {redirect:'manual', signal: AbortSignal.timeout(5000)}); reads the Location header and returns NextResponse.redirect(keycloakUrl). A missing Location header or non-3xx/non-501 FastAPI response returns a generic frontend error, no raw FastAPI body surfaced.",
+      "status": "done",
+      "completed_at": "2026-09-04T08:35:46Z",
+      "files_touched": [
+        "apps/web/src/app/login/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "GET /callback Route Handler: relay code/state, write session cookie, redirect onward",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-3",
+        "AUTH-05-AC-4"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-03"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal -- the callback exchange writes the cookie regardless of how later client-side calls attach it. Imports tokenStore.writeSession/clearSession (T-02). Reads code/state/error query params; calls FastAPI GET /auth/callback server-to-server (5s timeout). On 200: writeSession(...), redirect to '/' (D-04). On any non-200: no cookie write, redirect to '/login' -- no raw error surfaced.",
+      "status": "done",
+      "completed_at": "2026-09-04T08:40:00Z",
+      "files_touched": [
+        "apps/web/src/app/callback/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Retrofit programDetailApi.ts (server module) + move ProgramDetailResult into types/programDetail.ts",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-13",
+        "F-21"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-5",
+        "AUTH-05-AC-10"
+      ],
+      "risk_refs": [
+        "R-06",
+        "R-08"
+      ],
+      "notes": "Renumbered from the vending plan's T-11; scope grew to include the type move (DECISIONS.md D-08). FetchProgramDetailOptions gains accessToken?: string alongside switchedFrom?: string. fetchPrograms(opts?: {accessToken?: string}) gains the same parameter (previously took none). Both attach Authorization: Bearer <opts.accessToken> only when present. ProgramDetailResult moves to types/programDetail.ts (F-21) as a shared discriminated union {status:'ok'|'not_found'|'error'|'unauthorized'} -- 'unauthorized' now means 'the caller (a proxy route or page.tsx) already ran callWithAuth's retry-once and still got rejected', not a signal for the CLIENT to retry (D-10). This module is imported by page.tsx (T-15) and, internally, by both proxy routes (T-10, T-12) -- NEVER by ProgramDetailView.tsx or programDetailApi.client.ts (D-08's coupling boundary). Remove both '// D-08: no Authorization header' comments (Documentation requirements).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:35:46Z",
+      "files_touched": [
+        "apps/web/src/lib/programDetailApi.ts",
+        "apps/web/src/types/programDetail.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "tokenStore.ts tests: single-flight guard + refresh-failure redirect signal (TC-01, TC-04)",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-6",
+        "AUTH-05-AC-7",
+        "AUTH-05-AC-8",
+        "AUTH-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal (tests tokenStore in isolation, orthogonal to who calls it). vitest, native mocks only. TC-01: two concurrent ensureTokenValid()/getValidAccessToken() callers collapse into exactly one POST /auth/refresh; callWithAuth's 401-then-200 path issues exactly one refresh and exactly one retry; next proactive deadline derives from the response's own expires_in; refresh fetch carries a 5000ms AbortSignal. TC-04: a mocked 401 from POST /auth/refresh clears the cookie and signals SessionExpiredError, no raw error exposed by the store itself.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:06:40Z",
+      "files_touched": [
+        "apps/web/src/lib/tokenStore.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "tokenStore.security.test.ts: no-token-leak log audit + cookie attribute assertions (TC-03)",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-4"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "Unaffected by the vending->proxy reversal -- same three files under audit (tokenStore.ts, login/route.ts, callback/route.ts) either way; the proxy routes are new call sites of tokenStore but this TC's scope (per its own preconditions) stays pinned to these three. Log-capture spy across all three; asserts no 'eyJ'-prefixed or literal token value in any captured record; Set-Cookie carries HttpOnly/SameSite=Lax/(Secure outside local-dev); no document.cookie/localStorage/sessionStorage exposure.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:06:40Z",
+      "files_touched": [
+        "apps/web/src/lib/tokenStore.security.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "login/route.ts unit test",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "Unaffected by the vending->proxy reversal. Direct GET() invocation with a mocked manual-redirect fetch response; asserts the returned redirect targets the mocked Keycloak URL. Not individually TC-mapped -- feeds TC-02 (F-18).",
+      "status": "done",
+      "completed_at": "2026-09-04T09:11:23Z",
+      "files_touched": [
+        "apps/web/src/app/login/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "callback/route.ts unit test",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-3",
+        "AUTH-05-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "Unaffected by the vending->proxy reversal. Direct GET() invocation; success case asserts writeSession + redirect to '/'; failure case (mocked 400/401 from FastAPI) asserts no cookie write + redirect to '/login'. Not individually TC-mapped -- feeds TC-02 (F-18).",
+      "status": "done",
+      "completed_at": "2026-09-04T09:11:23Z",
+      "files_touched": [
+        "apps/web/src/app/callback/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "GET /api/proxy/programs Route Handler: full server-to-server proxy",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-05"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-5",
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "ADR-0008/DECISIONS.md D-09/D-10 -- replaces the superseded vending design's GET /api/session/token. Imports tokenStore.callWithAuth/getValidAccessToken (T-02) and the server-side fetchPrograms (F-13, T-05). Body: tokenStore.callWithAuth(token => fetchPrograms({accessToken: token}), () => false /* fetchPrograms degrades to [] on any failure incl. 401, never signals unauthorized -- see T-16's notes on why this stays non-blocking */) then returns NextResponse.json(programs) 200. On a SessionExpiredError from callWithAuth (refresh itself failed): returns NextResponse.json({error:'session_expired'}, {status:401}). No token ever crosses into the response body or a header the browser can read besides the final programs list.",
+      "status": "done",
+      "completed_at": "2026-09-04T08:40:00Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/programs/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "api/proxy/programs/route.ts unit test",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-10"
+      ],
+      "risk_refs": [],
+      "notes": "Direct GET() invocation against a mocked fetchPrograms/tokenStore -- success path returns the programs array 200; a mocked SessionExpiredError returns {error:'session_expired'} 401. Not individually TC-mapped -- feeds TC-02 (F-18).",
+      "status": "done",
+      "completed_at": "2026-09-04T09:11:23Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/programs/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "GET /api/proxy/program-detail/[program_id] Route Handler: full server-to-server proxy",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-05"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-5",
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "ADR-0008/DECISIONS.md D-09/D-10. Imports tokenStore.callWithAuth (T-02) and the server-side fetchProgramDetail (F-13, T-05). Reads X-Program-Switch-From off the incoming (same-origin, no-CORS) request and forwards it verbatim into fetchProgramDetail's opts.switchedFrom. Body: tokenStore.callWithAuth(token => fetchProgramDetail(params.program_id, {switchedFrom, accessToken: token}), r => r.status === 'unauthorized') then maps the ProgramDetailResult to a response: 'ok' -> 200 body; 'not_found' -> 404; 'unauthorized' (retry-once already exhausted, or callWithAuth threw SessionExpiredError) -> 401 {error:'session_expired'}; 'error' -> 502. This is the one place X-Program-Switch-From still travels anywhere in this story's code -- server-to-server only, never subject to CORS (DECISIONS.md D-11).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:40:00Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "api/proxy/program-detail/[program_id]/route.ts unit test",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-10"
+      ],
+      "risk_refs": [],
+      "notes": "Direct GET() invocation with a constructed Request carrying X-Program-Switch-From; asserts it's forwarded into fetchProgramDetail's opts; asserts the 200/404/401/502 status mapping. Not individually TC-mapped -- feeds TC-02 (F-18).",
+      "status": "done",
+      "completed_at": "2026-09-04T09:11:23Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "programDetailApi.client.ts: token-free proxy-calling module",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "DECISIONS.md D-08. Imports ProgramDetailResult/ProgramSwitcherEntry from types/programDetail.ts (F-21, moved by T-05) -- the compile-time edge to T-05. fetchProgramDetail(id, opts?: {switchedFrom?: string}): Promise<ProgramDetailResult> -- fetches `/api/proxy/program-detail/${id}` (relative, same-origin), sets X-Program-Switch-From when opts.switchedFrom is given, maps 200/404/401/else to the same ok/not_found/unauthorized/error shape F-13 uses (identical mapping, different origin -- no Authorization header is ever set here, there is no token to set it with). fetchPrograms(): Promise<ProgramSwitcherEntry[]> -- fetches `/api/proxy/programs`, returns [] on ANY non-2xx (incl. 401) matching PGD-01's existing graceful-degradation contract unchanged (a broken switcher list must not force a full-page redirect for a background, non-critical fetch).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:40:00Z",
+      "files_touched": [
+        "apps/web/src/lib/programDetailApi.client.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "page.tsx: server-side cookie read, attach accessToken, redirect to /login on session expiry",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-05"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-5"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-06"
+      ],
+      "notes": "Behavior UNAFFECTED by the vending->proxy reversal -- page.tsx never used the vending route either (it always read the cookie directly). Only the predecessor edge's target renamed (F-13/T-05 instead of the old F-11/T-11). Wraps fetchProgramDetail in tokenStore.callWithAuth(token => fetchProgramDetail(programId, {accessToken: token}), r => r.status === 'unauthorized'); on a caught SessionExpiredError, calls next/navigation's redirect('/login') from inside the catch block itself (redirect() throws its own NEXT_REDIRECT signal that must propagate, not be re-caught by this function's own try/catch -- comment documents this ordering explicitly).",
+      "status": "done",
+      "completed_at": "2026-09-04T08:52:24Z",
+      "files_touched": [
+        "apps/web/src/app/programs/[program_id]/page.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "ProgramDetailView.tsx: call the proxy routes via programDetailApi.client, redirect to /login on 'unauthorized'",
+      "complexity": "L",
+      "predecessors": [
+        "T-14",
+        "T-10",
+        "T-12"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-06"
+      ],
+      "notes": "Simplified relative to the superseded vending design: no /api/session/token call, no client-side retry-once dance (the proxy already ran callWithAuth's retry-once server-side before ever responding -- D-10). Imports programDetailApi.client (T-14, compile edge) instead of programDetailApi -- NOT tokenStore, NOT next/headers (client component boundary). T-10/T-12 edges are functional/testing-order, not compile edges (fetch-by-URL, not import) -- same PGD-01-lesson pattern as the superseded plan's T-13<-T-05 edge, kept here in the new shape. Mount's fetchPrograms() call: on any failure (incl. an implicit 401 handled by the proxy returning []-worthy content -- see T-14, fetchPrograms never signals 'unauthorized') stays exactly PGD-01's existing degraded-switcher behavior, unchanged. Switcher's fetchProgramDetail(newId, {switchedFrom}) call: on a {status:'unauthorized'} result, sets window.location.href = '/login' (the client-side manifestation of AC-8/FR-5's redirect chain -- a full browser navigation, distinct from page.tsx's server HTTP redirect in T-15, same eventual outcome). No raw token, cookie, or session concept is ever referenced in this file.",
+      "status": "done",
+      "completed_at": "2026-09-04T08:53:34Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "Update ProgramDetailView.test.tsx for the retrofitted client module",
+      "complexity": "M",
+      "predecessors": [
+        "T-16"
+      ],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [],
+      "notes": "Simpler than the superseded vending design's version (no /api/session/token fetch mock needed). PGD-01's existing suite mocks fetchProgramDetail/fetchPrograms via vi.mock -- retarget that mock to '@/lib/programDetailApi.client' (F-14) instead of '@/lib/programDetailApi', and extend the switch-reload assertion to confirm the mocked module is called with {switchedFrom} only (no accessToken -- there is none to pass). Add a case asserting a mocked {status:'unauthorized'} result sets window.location.href to '/login'. Does not newly cover TC-02's dual-path proof (F-18) -- keeps PGD-01's original regression coverage green.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:06:40Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "TC-02 integration test: OAuth handshake relay + dual-path bearer forwarding + dev-bypass",
+      "complexity": "L",
+      "predecessors": [
+        "T-03",
+        "T-04",
+        "T-10",
+        "T-12",
+        "T-15",
+        "T-16"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-1",
+        "AUTH-05-AC-2",
+        "AUTH-05-AC-3",
+        "AUTH-05-AC-5",
+        "AUTH-05-AC-10",
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-03",
+        "R-06"
+      ],
+      "notes": "Native vitest mocks only (D-09, no MSW). Retargeted from the superseded vending design. Step 1: invoke login/route.ts's GET() directly, assert redirect to a mocked Keycloak URL. Step 2: invoke callback/route.ts's GET() with test code/state, assert the session cookie is written and the response redirects to '/'. Step 3: mint a token via a mocked POST /auth/dev-bypass, store it through the same writeSession() path T-02/T-04 use. Step 4: directly invoke page.tsx's exported async Page({params}) with the dev-bypass cookie present (mocked next/headers cookies()); assert the resulting fetchProgramDetail call (mocked programDetailApi, F-13) carries Authorization: Bearer <DEV_BYPASS_JWT> sourced from cookies(), not a proxy route. Step 5: directly invoke both proxy routes' GET() (T-10/T-12) with the same cookie present; assert each attaches the identical Authorization: Bearer header on its own server-to-server call to FastAPI. Step 6: render ProgramDetailView (RTL) with programDetailApi.client (F-14) mocked to hit those same proxy behaviors; assert the browser-visible request never carries an Authorization header or a token value anywhere, and that next/headers is not imported by ProgramDetailView.tsx or programDetailApi.client.ts (grep-assert). Confirms 'sourced via the Route Handler proxy, not a direct cookies() read' (TC-02 expected_results) literally.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:06:40Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.authFlow.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-19",
+      "title": "docs(readme): OIDC_REDIRECT_URI env-var row, Keycloak client-requirements bullet, frontend route note",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-03",
+        "T-04",
+        "T-10",
+        "T-12"
+      ],
+      "files": [
+        "F-19"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-12",
+        "AUTH-05-AC-13"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02"
+      ],
+      "notes": "Purpose/target file unaffected by the reversal (still a docs(readme) task); wording and predecessor edges updated to name the two proxy routes instead of the single vending route. README.md Environment variables: OIDC_REDIRECT_URI row (T-01's new default, notes the unset-fallback and why it now matters). README.md Keycloak client requirements: additional-valid-redirect-URI bullet for the frontend's callback (AC-13, research R-01). README.md API table: short note naming /login, /callback, /api/proxy/programs, /api/proxy/program-detail/{id} as the frontend's own auth-relay/proxy routes (Docs T2), pointing at this story for detail.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:21:06Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-20",
+      "title": "docs(manual-test): dev-bypass verification steps (research condition 2)",
+      "complexity": "S",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-04",
+        "T-10",
+        "T-12"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [
+        "AUTH-05-AC-11"
+      ],
+      "risk_refs": [
+        "R-09"
+      ],
+      "notes": "Purpose/target file unaffected by the reversal; step 4's wording ('confirm the same header on the client-proxied request') already matched full-proxy and needs no rewrite, only its predecessor edges move to the new proxy-route tasks. Steps verbatim from REQUIREMENTS.md Addressing Research Conditions #2: (1) POST /auth/dev-bypass to mint a token; (2) confirm the cookie is httpOnly/unreadable via document.cookie; (3) load /programs/{id}, confirm the server-rendered request carries Authorization: Bearer; (4) trigger the switcher, confirm the same header on the client-proxied request (now literally /api/proxy/program-detail/{id}); (5) force the stored expiry inside the 60s skew, confirm a proactive refresh fires; (6) force a 401, confirm one reactive refresh + one retry; (7) mock a non-2xx /auth/refresh, confirm the cookie clears and the browser lands on /login.",
+      "status": "done",
+      "completed_at": "2026-09-04T09:21:06Z",
+      "files_touched": [
+        "docs/features/AUTH-05/MANUAL-TESTING.md"
+      ],
+      "reason": null
+    }
+  ]
+}
