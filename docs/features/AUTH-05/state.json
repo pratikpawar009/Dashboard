@@ -14,7 +14,7 @@
   "design_iteration": 0,
   "phase": "review",
   "needs_clarification_count": 0,
-  "last_updated": "2026-09-04T09:47:36Z",
+  "last_updated": "2026-09-04T09:51:23Z",
   "tracker_prd": "pratikpawar009/Dashboard#206",
   "gate": "APPROVE",
   "plan": "complete",
@@ -225,5 +225,21 @@
       "decided_by": "pawar.pratik0903@gmail.com",
       "decided_at": "2026-09-04T09:47:36Z"
     }
-  ]
+  ],
+  "impl": "complete",
+  "impl_branch": "feature/AUTH-05",
+  "impl_pr": "https://github.com/pratikpawar009/Dashboard/pull/212",
+  "decisions_referenced": [
+    "D-01",
+    "D-03",
+    "D-04",
+    "D-06",
+    "D-07",
+    "D-08",
+    "D-09",
+    "D-10",
+    "D-11",
+    "ADR-0008"
+  ],
+  "tracker_impl_comment": "https://github.com/pratikpawar009/Dashboard/issues/204#issuecomment-5538745047"
 }
