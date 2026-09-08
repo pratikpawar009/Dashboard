@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
 from app.api.health import router as health_router
+from app.api.manifest import router as manifest_router
 from app.api.overview import router as overview_router
 from app.api.personal_usage import router as personal_usage_router
 from app.api.programs import router as programs_router
@@ -88,6 +89,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     # both to ING-02. ING-02 registers this router once the route actually
     # authenticates and persists; until then `/ingest/events` is a 404, which
     # is honest, rather than a 201 that loses data.
+    app.include_router(manifest_router)
     app.include_router(activities_router)
     app.include_router(programs_router)
     app.include_router(overview_router)

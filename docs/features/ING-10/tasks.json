@@ -1,0 +1,566 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-10",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-08T15:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/migrations/versions/003_program_roster.py",
+      "reason": "Additive Alembic revision creating program_roster (table #19, ADR-0010) + index(email), chained after 002_personal_usage_indexes"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/models/roster.py",
+      "reason": "SQLAlchemy ProgramRoster ORM model (D-01/ADR-0010)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/models/__init__.py",
+      "reason": "Export ProgramRoster from the app.models public barrel (entry-registration site for the new model, matches every other rollup/ingestion model's export)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/core/role_map.py",
+      "reason": "Role-slug -> persona mapping table + map_role_slug(), in-process/ING-10-scoped (D-03, FR-3)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/app/schemas/manifest.py",
+      "reason": "Request/response Pydantic models: ProgramIdentityIn, TeamMemberIn, ManifestIn, SectionCounts, RosterEntryResult, ManifestResponse (D-04, D-07, D-08)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/app/services/manifest_ingest.py",
+      "reason": "Core business logic: two-tier validation (D-05, D-08, D-09), alias expansion, batch upsert + soft-delete (D-06), ingest_manifest_write log event (FR-2), response assembly. Module docstring covers the validation split + why program_roster stays separate from program_members (documentation requirement)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/app/api/manifest.py",
+      "reason": "New dedicated router: POST /api/ingest/manifest, Depends(get_ingest_token), FR-5 413 cap check (D-02)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "Register the new manifest_router (entry-registration site, D-02) -- app/api/ingest.py's existing unregistered stub is left untouched, still ING-02's scope"
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/tests/test_migrations.py",
+      "reason": "Add program_roster to EXPECTED_TABLES so BED-01's schema-invariant test (test_upgrade_head_creates_all_18_tables) stays in sync with the new table #19; HEAD_REVISION is computed dynamically and needs no edit"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_ingest.py",
+      "reason": "ING-10-TC-01 (core mechanism: identity upsert, alias expansion, role mapping, response shape) + ING-10-TC-02's validation half (program: enum abort vs team[] row rejection)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_pii_logging.py",
+      "reason": "ING-10-TC-02's PII half: ingest_manifest_write log-event field allowlist, mirrors AUTH-03's test_persona_mapping_loaded_event_contains_no_pii_tc15 pattern"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_roster_removal.py",
+      "reason": "Unbacked by an approved TC -- covers AC-7 (soft-delete on re-push + un-delete when the email reappears)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_payload_cap.py",
+      "reason": "Unbacked by an approved TC -- covers AC-8/FR-5 (413 over 500 raw team[] entries, zero writes)"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_identity_survives_rebuild.py",
+      "reason": "Unbacked by an approved TC -- covers AC-9, the notable residual: manifest-written identity survives a subsequent rebuild_program_rollups() call"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_manifest_auth_scope.py",
+      "reason": "Unbacked by an approved TC -- route-level smoke confirming Depends(get_ingest_token) is wired on POST /api/ingest/manifest (AC-1 401, AC-2 403); does not re-test ingest_auth's own unit suite"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_role_map.py",
+      "reason": "Unit coverage for the 8-slug role_map table + unknown-slug behaviour (FR-3)"
+    },
+    "F-17": {
+      "action": "modify",
+      "path": "apps/web/src/lib/programStyle.ts",
+      "reason": "Add Greenfield/Brownfield short-name keys reusing the existing long-form hex pairs (FR-6); Upgradation deliberately NOT added"
+    },
+    "F-18": {
+      "action": "modify",
+      "path": "apps/web/src/lib/programStyle.test.ts",
+      "reason": "Unbacked by an approved TC -- covers AC-10/FR-6: new short-name key coverage + a regression case proving Upgradation still falls through to the Migration default"
+    },
+    "F-19": {
+      "action": "modify",
+      "path": "docs/design/tokens.md",
+      "reason": "Add Greenfield/Brownfield short-name rows (Documentation requirement, FR-6) and record the Upgradation colour + avatar-abbreviation gap explicitly"
+    },
+    "F-20": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Add POST /api/ingest/manifest to the root API table (Docs T2 trigger) -- auth, request/response shape, 400/401/403/413 codes"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Alembic revision 003_program_roster: create table #19 + index(email)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "ING-10-AC-4",
+        "ING-10-AC-7"
+      ],
+      "risk_refs": [],
+      "notes": "Additive DDL only (D-01/ADR-0010); down_revision=002_personal_usage_indexes",
+      "status": "done",
+      "completed_at": "2026-09-08T14:05:00Z",
+      "files_touched": [
+        "services/api/migrations/versions/003_program_roster.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "ProgramRoster ORM model + export from app.models barrel",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02",
+        "F-03"
+      ],
+      "ac_refs": [
+        "ING-10-AC-4"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "Mirrors rollup.py/ingestion.py field/constraint style",
+      "status": "done",
+      "completed_at": "2026-09-08T14:14:00Z",
+      "files_touched": [
+        "services/api/app/models/roster.py",
+        "services/api/app/models/__init__.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "role_map.py: role-slug -> persona mapping table + map_role_slug()",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3",
+        "ING-10-AC-6"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "In-process only, ING-10-scoped (D-03)",
+      "status": "done",
+      "completed_at": "2026-09-08T14:06:00Z",
+      "files_touched": [
+        "services/api/app/core/role_map.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Unit tests for role_map (6 slugs + unknown slug)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3",
+        "ING-10-AC-6"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": null,
+      "status": "done",
+      "completed_at": "2026-09-08T14:18:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_role_map.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "manifest.py Pydantic schemas (request + response, D-04/D-07/D-08)",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3",
+        "ING-10-AC-5",
+        "ING-10-AC-6",
+        "ING-10-AC-7"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "program.type/team[].role stay plain str (D-08); email regex validator (D-04)",
+      "status": "done",
+      "completed_at": "2026-09-08T14:16:00Z",
+      "files_touched": [
+        "services/api/app/schemas/manifest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "manifest_ingest.py: two-tier validation, alias expansion, upsert/soft-delete, PII-safe log event, response assembly",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3",
+        "ING-10-AC-4",
+        "ING-10-AC-5",
+        "ING-10-AC-6",
+        "ING-10-AC-7",
+        "ING-10-AC-8",
+        "ING-10-AC-9"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02",
+        "R-05",
+        "R-06",
+        "R-08"
+      ],
+      "notes": "Core of the story; D-05/D-06/D-09 govern the implementation. Module docstring covers validation-split + program_roster-vs-program_members rationale (doc requirement)",
+      "status": "done",
+      "completed_at": "2026-09-08T14:56:00Z",
+      "files_touched": [
+        "services/api/app/services/manifest_ingest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "manifest.py router: POST /api/ingest/manifest, auth dependency, FR-5 413 cap",
+      "complexity": "M",
+      "predecessors": [
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "ING-10-AC-1",
+        "ING-10-AC-2",
+        "ING-10-AC-8"
+      ],
+      "risk_refs": [],
+      "notes": "D-02: own router, not app/api/ingest.py's router",
+      "status": "done",
+      "completed_at": "2026-09-08T15:05:00Z",
+      "files_touched": [
+        "services/api/app/api/manifest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Register manifest_router in app/main.py",
+      "complexity": "S",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3"
+      ],
+      "risk_refs": [],
+      "notes": "Wiring only (D-02); ingest_router stays unregistered, comment untouched",
+      "status": "done",
+      "completed_at": "2026-09-08T15:12:00Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "test_manifest_ingest.py: TC-01 happy path + TC-02 validation-split assertions",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "ING-10-AC-3",
+        "ING-10-AC-4",
+        "ING-10-AC-5",
+        "ING-10-AC-6"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "ING-10-TC-01, ING-10-TC-02 (validation half). Uses build_app/async_client_for + migrated_db/test_session per ING-01 precedent",
+      "status": "done",
+      "completed_at": "2026-09-08T15:52:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_ingest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "test_manifest_pii_logging.py: ingest_manifest_write field-allowlist assertion",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "ING-10-TC-02 (PII half); mirrors AUTH-03 TC-15",
+      "status": "done",
+      "completed_at": "2026-09-08T15:24:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_pii_logging.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "test_manifest_auth_scope.py: 401/403 route-level wiring smoke",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "ING-10-AC-1",
+        "ING-10-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "Unbacked by an approved TC -- closes part of the coverage gap deliberately, per REQUIREMENTS.md",
+      "status": "done",
+      "completed_at": "2026-09-08T15:32:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_auth_scope.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "test_manifest_roster_removal.py: soft-delete + un-delete on re-push",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "ING-10-AC-7"
+      ],
+      "risk_refs": [],
+      "notes": "Unbacked by an approved TC",
+      "status": "done",
+      "completed_at": "2026-09-08T16:02:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_roster_removal.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "test_manifest_payload_cap.py: 413 over 500 raw entries, zero writes",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "ING-10-AC-8"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "Unbacked by an approved TC",
+      "status": "done",
+      "completed_at": "2026-09-08T16:10:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_payload_cap.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "test_manifest_identity_survives_rebuild.py: identity survives rebuild_program_rollups()",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "ING-10-AC-9"
+      ],
+      "risk_refs": [],
+      "notes": "Unbacked by an approved TC -- closes the notable AC-9 residual REQUIREMENTS.md flags",
+      "status": "done",
+      "completed_at": "2026-09-08T15:38:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_manifest_identity_survives_rebuild.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Update EXPECTED_TABLES in test_migrations.py for program_roster",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "ING-10-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "Keeps BED-01's schema-invariant test in sync with table #19",
+      "status": "done",
+      "completed_at": "2026-09-08T14:21:00Z",
+      "files_touched": [
+        "services/api/tests/test_migrations.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "programStyle.ts: add Greenfield/Brownfield short-name keys",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "ING-10-AC-10"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "FR-6; Upgradation deliberately not added",
+      "status": "done",
+      "completed_at": "2026-09-08T14:08:00Z",
+      "files_touched": [
+        "apps/web/src/lib/programStyle.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "programStyle.test.ts: cover new keys + Upgradation-still-falls-through regression",
+      "complexity": "S",
+      "predecessors": [
+        "T-16"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [
+        "ING-10-AC-10"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Unbacked by an approved TC",
+      "status": "done",
+      "completed_at": "2026-09-08T14:38:00Z",
+      "files_touched": [
+        "apps/web/src/lib/programStyle.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "docs/design/tokens.md: add short-name rows + record Upgradation gap",
+      "complexity": "S",
+      "predecessors": [
+        "T-16"
+      ],
+      "files": [
+        "F-19"
+      ],
+      "ac_refs": [
+        "ING-10-AC-10"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Documentation requirement (FR-6/C-3)",
+      "status": "done",
+      "completed_at": "2026-09-08T14:34:00Z",
+      "files_touched": [
+        "docs/design/tokens.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-19",
+      "title": "Root README.md: add POST /api/ingest/manifest to the API table",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Docs T2 trigger (new HTTP route)",
+      "status": "done",
+      "completed_at": "2026-09-08T15:41:00Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

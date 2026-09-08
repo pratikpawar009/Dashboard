@@ -61,6 +61,24 @@ the program-context block's `avatarStyle`/`typeChip` color source, keyed by `pro
 | Brownfield feature development | `#7c5cff` | `#efebff` | `B` |
 | Maintenance | `#c08a1e` | `#fdf3e0` | `MT` |
 
+`.harness/program.yaml`'s manifest enum (`Greenfield|Brownfield|Upgradation|Migration|Maintenance`)
+uses short names for two of the above. Added 2026-09-08 (`docs/stories/ING-10.md` AC-10,
+`docs/features/ING-10/REQUIREMENTS.md` FR-6) — same approved pairs as their long-form entries,
+no new colour introduced:
+
+| Program type (short name) | Color | Background | Avatar abbreviation |
+|---|---|---|---|
+| Greenfield | `#1f8a5b` | `#e8f5ee` | `G` |
+| Brownfield | `#7c5cff` | `#efebff` | `B` |
+
+**`Upgradation` — open gap, not an oversight.** The manifest enum's fifth value has no colour and
+no avatar abbreviation anywhere in the design source. A previously-assumed pair was rejected
+(`docs/stories/ING-10.md` 2026-09-08 Decision log entry) in favour of "documented fallback, invent
+nothing" (research condition C-3, `docs/features/ING-10/REQUIREMENTS.md` FR-6) — do not add a
+guessed hex here. It renders with `Migration`'s blue via `programStyle.ts`'s
+`?? PROGRAM_TYPE_COLORS["Migration"]` fallback, deliberately, until a real design token is
+supplied.
+
 ## Radius
 
 `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px` brand mark · `8px`
