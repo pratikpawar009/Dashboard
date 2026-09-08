@@ -1,0 +1,318 @@
+{
+  "story_id": "ING-10",
+  "cap_note": "User-imposed hard cap of 2 test cases for this run (ING-10 has 10 ACs and 7 delta FRs). The 2 cases below were chosen to (a) exercise the core identity+roster upsert mechanism end-to-end and (b) cover the two HIGH-severity risks from docs/research/ING-10.md (PII-logging, R-1; two-tier validation semantics, R-2). Every AC/FR/NFR left without coverage is listed explicitly in coverage_audit.uncovered \u2014 this is a deliberate scope cut, not a derivation gap, and must be escalated before the Product Gate per the run instructions.",
+  "test_cases": [
+    {
+      "id": "ING-10-TC-01",
+      "title": "Valid manifest ingest upserts identity, expands aliases, maps roles, returns per-email response",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-10-AC-3",
+      "given": "a valid ingest token scoped to the program and a well-formed manifest payload with an identity block and a team member carrying 2 aliases",
+      "when": "POST /api/ingest/manifest processes the request",
+      "then": "program_summary is upserted from program:, program_roster gains one row per primary email plus each alias with role mapped through role_map, and the response reports per-section received/valid/rejected counts plus per-email created/updated/skipped detail",
+      "objective": "Verify the endpoint's core mechanism: identity upsert, per-alias roster row expansion, role-slug mapping into user_roles, and the contract response shape, in a single well-formed request.",
+      "preconditions": [
+        "A valid ingest token exists whose allowed_program_ids includes program PROG-100",
+        "program_summary and program_roster have no pre-existing rows for PROG-100",
+        "Alembic migrations applied so program_roster (table #19) exists"
+      ],
+      "test_data": {
+        "bearer_token": "<INGEST_TOKEN_PROG_100>",
+        "payload": {
+          "programId": "PROG-100",
+          "program": {
+            "name": "Order Platform",
+            "type": "Greenfield",
+            "description": "Order management modernization"
+          },
+          "team": [
+            {
+              "email": "alice@example.com",
+              "name": "Alice Rossi",
+              "role": "dev",
+              "aliases": [
+                "alice.rossi@example.com",
+                "a.rossi@example.com"
+              ]
+            },
+            {
+              "email": "priya@example.com",
+              "name": "Priya Nair",
+              "role": "arch",
+              "aliases": []
+            }
+          ]
+        }
+      },
+      "steps": [
+        "Send POST /api/ingest/manifest with the payload above and the valid bearer token scoped to PROG-100",
+        "Query program_summary WHERE program_id = 'PROG-100'",
+        "Query program_roster WHERE program_id = 'PROG-100' AND removed_at IS NULL",
+        "Query user_roles for alice@example.com and priya@example.com",
+        "Inspect the response body's identity and roster count sections and per-email breakdown"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "program_summary.name/type/description for PROG-100 equal 'Order Platform'/'Greenfield'/'Order management modernization'",
+        "program_roster holds exactly 3 rows for Alice (alice@example.com, alice.rossi@example.com, a.rossi@example.com), each sharing name='Alice Rossi' and role='dev', each unique on (program_id, email)",
+        "program_roster holds exactly 1 row for priya@example.com with role='arch'",
+        "user_roles has email='alice@example.com' mapped to role 'developer' (source='file') and email='priya@example.com' mapped to role 'architect' (source='file')",
+        "Response body reports identity.received=1/valid=1/rejected=0 and roster.received=2/valid=2/rejected=0, with per-email created=true for both alice@example.com and priya@example.com"
+      ],
+      "tags": [
+        "happy-path",
+        "roster-ingest",
+        "alias-expansion",
+        "role-mapping"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#241",
+      "last_run": {
+        "started_at": "2026-09-08T14:16:03Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 300, "reason": null}
+        ],
+        "failure_reason": null,
+        "note": "Round 3 re-verification (post doc-drift + docstring + repopulate()-adoption fixes; none of which touch this TC's backing code or test). pytest re-run this round: tests/unit/test_manifest_ingest.py::test_manifest_ingest_valid_payload_upserts_identity_expands_aliases_maps_roles_tc01 -- still asserts role == \"dev\"/\"arch\" (line 236/240), 1 passed. Independently re-verified live against the real running API + dev Postgres (program_id=R3-PROG-100, freshly minted ingest token): response body identity.received=1/valid=1/rejected=0, roster.received=2/valid=2/rejected=0, both per-email created=true; program_roster held exactly 3 rows for Alice (raw role='dev') + 1 for Priya (raw role='arch'); user_roles held 'developer'/'architect' (mapped) for the same two emails -- D-11's raw-vs-mapped split holds. Live E2E test data cleaned up post-verification.",
+        "artefact": "services/api/tests/unit/test_manifest_ingest.py::test_manifest_ingest_valid_payload_upserts_identity_expands_aliases_maps_roles_tc01",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 500,
+          "log_tail": null
+        }
+      }
+    },
+    {
+      "id": "ING-10-TC-02",
+      "title": "Two-tier validation: bad program.type aborts the whole request; a bad team[] role rejects only that row; no PII is ever logged",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-10-FR-1",
+      "given": "one manifest whose program: block has an out-of-enum type, and a second, separate manifest whose program: block is valid but whose team[] has one entry with an unmapped role slug alongside a valid entry",
+      "when": "POST /api/ingest/manifest processes each request in turn",
+      "then": "the first request is rejected wholesale with 400 and zero writes; the second commits identity and the valid team entry while rejecting only the bad-slug entry with a reason; and every ingest_manifest_write log record emitted for either request contains only the allowlisted fields and never email or name",
+      "objective": "Verify the two-tier validation split (request-level abort vs. row-level rejection, PRD Research Condition C-1) and confirm the PII-logging constraint (Research Condition C-2) holds even while processing payloads that carry real email/name values and even on the rejection paths.",
+      "preconditions": [
+        "A valid ingest token exists whose allowed_program_ids includes program PROG-200",
+        "program_summary and program_roster have no pre-existing rows for PROG-200",
+        "A log capture fixture is attached to the test process to record the full emitted structured log record (message text + extra dict) for the ingest_manifest_write event"
+      ],
+      "test_data": {
+        "bearer_token": "<INGEST_TOKEN_PROG_200>",
+        "request_a_payload": {
+          "programId": "PROG-200",
+          "program": {
+            "name": "Billing Revamp",
+            "type": "NotARealType",
+            "description": "Billing overhaul"
+          },
+          "team": [
+            {
+              "email": "sam@example.com",
+              "name": "Sam Lee",
+              "role": "dev",
+              "aliases": []
+            }
+          ]
+        },
+        "request_b_payload": {
+          "programId": "PROG-200",
+          "program": {
+            "name": "Billing Revamp",
+            "type": "Greenfield",
+            "description": "Billing overhaul"
+          },
+          "team": [
+            {
+              "email": "sam@example.com",
+              "name": "Sam Lee",
+              "role": "pm",
+              "aliases": []
+            },
+            {
+              "email": "jo@example.com",
+              "name": "Jo Park",
+              "role": "not_a_real_role",
+              "aliases": []
+            }
+          ]
+        }
+      },
+      "steps": [
+        "Send Request A (program.type = 'NotARealType') to POST /api/ingest/manifest with the valid bearer token",
+        "Assert Request A's response status and query program_summary/program_roster/user_roles for PROG-200 to confirm zero writes",
+        "Send Request B (valid program.type, one team entry with role='not_a_real_role') to POST /api/ingest/manifest with the same bearer token",
+        "Assert Request B's response status, response body counts, and the resulting program_summary/program_roster/user_roles state",
+        "Inspect every captured ingest_manifest_write log record (message + extra dict) emitted during both requests"
+      ],
+      "expected_results": [
+        "Request A returns 400, and program_summary, program_roster, and user_roles remain completely unwritten for PROG-200 (request-level abort, zero writes)",
+        "Request B returns 200; program_summary for PROG-200 is upserted from the valid program: block",
+        "Request B's valid entry (sam@example.com, role='pm') commits to program_roster and user_roles (mapped to 'product-manager')",
+        "Request B's invalid entry (jo@example.com, role='not_a_real_role') is placed in the roster rejected bucket with a reason, and no row for jo@example.com is written to program_roster or user_roles",
+        "Request B's response body reports roster.received=2/valid=1/rejected=1, with the rejection reason attached to jo@example.com",
+        "Every captured ingest_manifest_write log record for both requests contains only the fields {program_id, token_label, identity_written, roster_received, roster_valid, roster_created, roster_updated, roster_removed, roster_rejected, duration_ms} and never contains 'email', 'name', 'sam@example.com', 'jo@example.com', 'Sam Lee', or 'Jo Park' \u2014 in the structured fields or in the message string"
+      ],
+      "tags": [
+        "two-tier-validation",
+        "pii-logging",
+        "trust-boundary",
+        "negative",
+        "security"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#242",
+      "last_run": {
+        "started_at": "2026-09-08T14:16:20Z",
+        "duration_ms": 1060,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 1060, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_manifest_ingest.py::test_manifest_ingest_bad_program_type_aborts_whole_request_zero_writes_tc02, ::test_manifest_ingest_bad_role_slug_rejects_only_that_row_tc02, services/api/tests/unit/test_manifest_pii_logging.py (4 cases)",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Round 3 re-verification. pytest re-run this round: 7 passed (test_manifest_ingest.py's TC-02 pair + test_manifest_pii_logging.py's 4 cases + the 413-cap PII case), 1.36s wall for the combined file. Independently re-verified live against the real running API + dev Postgres (program_id=R3-PROG-200, freshly minted ingest token, plus R3-PROG-CAP for the 413 check with a wildcard-scoped token): Request A (bad program.type) -> 400, zero rows in program_summary/program_roster/user_roles for R3-PROG-200. Request B (valid program, one bad role slug='not_a_real_role' PLUS an 'admin'-slug entry, again independently added to re-confirm D-10/AF-01 this round) -> 200, roster.received=3/valid=1/rejected=2; both entries absent from program_roster AND user_roles with reason='unmapped role slug'; sam.r3@example.com committed as role='pm'(raw)/'product-manager'(mapped). 413 branch (501 raw team[] entries over HTTP) -> emits its own ingest_manifest_write (roster_received=501, identity_written=false, all counters 0), confirming AF-09 still holds after the manifest.py docstring rewrite (docstring-only change, item 4 of the round-3 delta -- zero logic change, confirmed by re-running this exact live check). All 5 ingest_manifest_write log lines emitted this round (2 for TC-01's request + 2 for TC-02's two requests + 1 for the 413 check) inspected byte-for-byte in server stdout -- only the FR-2 allowlisted fields ({program_id, token_label, identity_written, roster_received, roster_valid, roster_created, roster_updated, roster_removed, roster_rejected, duration_ms}), no 'email'/'name' key or literal in any line. Live E2E test data + minted tokens cleaned up post-verification.",
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 500,
+          "log_tail": null
+        }
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-10-AC-1",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-AC-2",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-AC-3",
+        "covered_by": [
+          "ING-10-TC-01"
+        ]
+      },
+      {
+        "id": "ING-10-AC-4",
+        "covered_by": [
+          "ING-10-TC-01"
+        ]
+      },
+      {
+        "id": "ING-10-AC-5",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      },
+      {
+        "id": "ING-10-AC-6",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      },
+      {
+        "id": "ING-10-AC-7",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-AC-8",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-AC-9",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-AC-10",
+        "covered_by": []
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-10-FR-1",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      },
+      {
+        "id": "ING-10-FR-2",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      },
+      {
+        "id": "ING-10-FR-3",
+        "covered_by": [
+          "ING-10-TC-01"
+        ]
+      },
+      {
+        "id": "ING-10-FR-4",
+        "covered_by": [
+          "ING-10-TC-01"
+        ]
+      },
+      {
+        "id": "ING-10-FR-5",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-FR-6",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-FR-7",
+        "covered_by": [
+          "ING-10-TC-01"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-10-NFR-performance",
+        "covered_by": []
+      },
+      {
+        "id": "ING-10-NFR-security",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      },
+      {
+        "id": "ING-10-NFR-observability",
+        "covered_by": [
+          "ING-10-TC-02"
+        ]
+      }
+    ],
+    "uncovered": [
+      "ING-10-AC-1",
+      "ING-10-AC-2",
+      "ING-10-AC-7",
+      "ING-10-AC-8",
+      "ING-10-AC-9",
+      "ING-10-AC-10",
+      "ING-10-FR-5",
+      "ING-10-FR-6",
+      "ING-10-NFR-performance"
+    ],
+    "uncovered_reason": "Deliberate user-imposed 2-test-case cap for this run, not a derivation failure. ING-10-NFR-accessibility is intentionally excluded from this audit (story and PRD both mark it N/A \u2014 backend endpoint, no independent UI surface). All 9 uncovered ids above (auth 401/403, soft-delete/un-delete, 413 payload cap, BED-03 identity carry-forward, programStyle.ts Upgradation fallback + short-name keys, the p95<500ms performance budget) must be escalated for follow-up test-case authoring before the Product Gate."
+  }
+}

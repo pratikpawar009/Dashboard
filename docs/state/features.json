@@ -558,12 +558,23 @@
   "ING-10": {
     "story": "validated",
     "story_priority": "P1",
-    "story_independent_test": true,
-    "needs_clarification_count": 0,
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "story-validated",
-    "last_updated": "2026-09-08T12:26:00Z",
-    "tracker_story": "pratikpawar009/Dashboard#236"
+    "research": "complete",
+    "research_verdict": "GO-WITH-CONDITIONS",
+    "phase": "review",
+    "last_updated": "2026-09-08T18:10:00Z",
+    "tracker_story": "pratikpawar009/Dashboard#236",
+    "tracker_research": "pratikpawar009/Dashboard#239",
+    "tracker_prd": "pratikpawar009/Dashboard#240",
+    "design": "n/a",
+    "gate": "APPROVE",
+    "prd": "complete",
+    "plan": "complete",
+    "tracker_plan": "pratikpawar009/Dashboard#243",
+    "plan_validation": "PASS",
+    "impl": "complete",
+    "validation": "passed",
+    "review": "PASS"
   },
   "AUTH-06": {
     "story": "validated",

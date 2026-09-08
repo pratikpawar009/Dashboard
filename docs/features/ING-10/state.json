@@ -1,0 +1,331 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 74,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#236",
+  "tracker_research": "pratikpawar009/Dashboard#239",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/ING-10/DESIGN.md",
+  "design_provider": "none",
+  "design_iteration": 0,
+  "gate": "APPROVE",
+  "tracker_prd": "pratikpawar009/Dashboard#240",
+  "plan": "complete",
+  "impl": "complete",
+  "validation": "passed",
+  "review": "PASS",
+  "security": null,
+  "phase": "review",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/ING-10/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/ING-10/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/ING-10/tasks.json"
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "R-03-role-map-persistence",
+      "kind": "risk",
+      "reason": "Role-slug -> persona mapping (app/core/role_map.py) is kept in-process and ING-10-scoped only, no DB-backed table -- accepted per RTM Decisions 2026-09-08. Wiring ING-08's Keycloak writer onto a shared table remains an undecided scope change to an already-shipped story.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T15:35:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "R-07-perf-budget-untested",
+      "kind": "risk",
+      "reason": "p95 < 500ms for a 500-entry manifest is an assumed budget (story Decision log 2026-09-08), and no perf test is added this pass -- Product Gate explicitly capped test-case generation at 2 cases and lists NFR-performance as a known-uncovered id. No perf runner is declared for the backend stack (docs/config/project-commands.yaml test_e2e/test_integration are empty) to add a k6/locust harness against in this pass.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T15:35:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "R-09-harness-profile-yaml-nonconforming",
+      "kind": "risk",
+      "reason": "This repo's own .harness/profile.yaml is not in the canonical two-file layout (no program:/team[] block) -- explicitly out of ING-10's scope per REQUIREMENTS.md; touches ING-06's dogfooding path.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T15:35:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "R-10-program-members-enrichment-deferred",
+      "kind": "risk",
+      "reason": "program_members rows (read by PGD-05's team panel) stay unenriched with roster name/role after ING-10 ships -- explicitly out of scope per REQUIREMENTS.md, carried forward for PGD-05.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T15:35:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "id": "CF-05",
+      "kind": "finding",
+      "source_flag": "AF-02",
+      "note": "Standing invariant, not a defect. Risk is permanent and a breaking refactor passes every schema unit test, so it needs a written home.",
+      "resolved_at": null
+    },
+    {
+      "id": "CF-06",
+      "kind": "finding",
+      "source_flag": "AF-06",
+      "note": "Same standing invariant as AF-02, seen from the router side.",
+      "resolved_at": null
+    },
+    {
+      "id": "CF-07",
+      "kind": "finding",
+      "source_flag": "AF-12",
+      "note": "Out of ING-10 scope: its ACs never mention icon, and inventing a producer is the design-what-the-mockups-do-not-show move CLAUDE.md forbids.",
+      "resolved_at": null
+    },
+    {
+      "id": "CF-08",
+      "kind": "finding",
+      "source_flag": "AF-16",
+      "note": "Same infrastructure class as AF-15 but belongs in an ADR (ADR-0001 never picked a browser runner); matters most before the UI-heavy persona-dashboard stories.",
+      "resolved_at": null
+    },
+    {
+      "id": "CF-09",
+      "kind": "finding",
+      "source_flag": null,
+      "note": "ING-10-doc-drift-role-mapping-admin (validation round 2): docs/requirements/api.md role_mapping prose and docs/features/ING-10/REQUIREMENTS.md:73 still list `admin` as a mapped slug after D-10 removed it; PLAN.md:118 still says \"8-slug mapping\". RESOLVED round 3: api.md/REQUIREMENTS.md:73/PLAN.md:118 all corrected to the 6-slug map with admin called out as removed (D-10/AF-01); verified by both gate agents.",
+      "resolved_at": "2026-09-08"
+    },
+    {
+      "id": "CF-10",
+      "kind": "finding",
+      "source_flag": null,
+      "note": "ING-10-conftest-hardening-gaps: _ensure_database_exists (tests/conftest.py) interpolates the database identifier into CREATE DATABASE via f-string and sets no connect timeout; and tasks.json file_plan has no F-21/F-22 entries for the accepted-flag edits to BED-01-owned tests/conftest.py and tests/fixtures/prd_8_4_schema.json. Both raised by review+validation, deliberately not fixed (MEDIUM/LOW never trigger a fix pass).",
+      "resolved_at": null
+    },
+    {
+      "id": "CF-11",
+      "kind": "finding",
+      "source_flag": null,
+      "note": "ING-10-role-map-comment-drift: role_map.py cites D-03 instead of D-10 as the decision guarding against re-adding admin, and map_role_slug()'s docstring still lists admin among \"the mapped roster roles\" \u2014 contradicting the 6-key dict directly above it. Comment/docstring only; the dict and the regression test are correct, so zero behavioural impact. Found in gate round 3, which is the cap \u2014 fixing it would have invalidated the passing verdicts with no round left to re-earn them, so it is carried for a follow-up that gets its own gate.",
+      "resolved_at": null
+    }
+  ],
+  "last_updated": "2026-09-08T18:10:00Z",
+  "tracker_plan": "pratikpawar009/Dashboard#243",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-08T10:58:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-10/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-08T10:41:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit: (fallback test:)",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-10/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-08T10:47:00Z",
+        "note": "vitest 99 passed (99), pytest 500 passed \u2014 matches reported pre-session baseline (96->99 web, 471->500 api). Run serially with dashboard_test confirmed idle (pg_stat_activity count=1) immediately before start, per AF-11."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-10/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-08T10:44:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run: (fastapi-2/api, nextjs/web)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-08T10:58:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "cd services/api && uv run alembic upgrade head && uv run uvicorn app.main:app --port 8000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/ING-10/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "Deps: dashboard-dev5442 postgres container already running, reused. Migrate: alembic upgrade head applied 002->003_program_roster cleanly (log: docs/features/ING-10/evidence/migrate.log). GET /health -> 200. GET /ingest/events -> 404 (deliberately unregistered scaffold stub, confirmed absent). POST /api/ingest/manifest (no auth, empty body) -> 400, present in /openapi.json paths (proves route registered, not a 404)."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/ING-10/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "GET / -> 307 -> /overview -> 404 (documented, accepted: apps/web/src/app/page.tsx forwards to the not-yet-shipped Adoption Overview by design). /login -> 307, /programs/prog-smoke -> 307 (session-cookie auth redirects, matches AUTH-05 precedent). No 5xx, no crash. ING-10 touches apps/web/src/lib/programStyle.ts only; boot smoke included per evidence-pass anti-pattern (runtime checked for every runnable stack regardless of story file scope). No E2E runner installed (test_e2e: \"\") so DOM-mount assertion beyond HTTP status is unavailable -- see AF-16."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-10/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-08T10:52:00Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-15",
+        "ran_at": null
+      }
+    }
+  },
+  "agent_flags": [
+    {
+      "id": "AF-01",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Grants org-wide cio visibility from a program-owned file; contradicts the deliberate omission of admin:cio in PR #235. Remove admin from the map -> None -> row-level rejection."
+    },
+    {
+      "id": "AF-02",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Standing invariant, not a defect. Risk is permanent and a breaking refactor passes every schema unit test, so it needs a written home.",
+      "carry_forward_ref": "CF-05"
+    },
+    {
+      "id": "AF-03",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Fix the miscount; the real count becomes 6 after AF-01 removes admin, so both stale numbers get corrected in one pass."
+    },
+    {
+      "id": "AF-04",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "A test named 18_tables that asserts 19 misleads the next reader; T-15 already touched the file."
+    },
+    {
+      "id": "AF-05",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Restores field/constraint verification parity so ProgramRoster is not the only unverified model. SHP-02 precedent."
+    },
+    {
+      "id": "AF-06",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Same standing invariant as AF-02, seen from the router side.",
+      "carry_forward_ref": "CF-06"
+    },
+    {
+      "id": "AF-07",
+      "status": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "FR-4 reads literally: a rejected entry is still present in team[]. Not revoking membership on a typo is the safer failure mode, and T-12 already tests this reading."
+    },
+    {
+      "id": "AF-08",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Code is right, PLAN is stale; correct the artefact rather than leave a documented contradiction."
+    },
+    {
+      "id": "AF-09",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Emit the event on the router 413 branch so the documented promise is true and operators see rejected oversized pushes."
+    },
+    {
+      "id": "AF-10",
+      "status": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Deviation is forced by programId living in the request body, documented in an 80-line docstring, and covered by T-11 nine route-level tests including no-writes assertions."
+    },
+    {
+      "id": "AF-11",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Actively produces false-green worker reports; fix conftest with a per-worker TEST_DATABASE_URL so future fan-outs are genuinely parallel-safe."
+    },
+    {
+      "id": "AF-12",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Out of ING-10 scope: its ACs never mention icon, and inventing a producer is the design-what-the-mockups-do-not-show move CLAUDE.md forbids.",
+      "carry_forward_ref": "CF-07"
+    },
+    {
+      "id": "AF-13",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Published #241 is the version reviewers read. User chose to change code+contract to match it: program_roster.role stores the raw slug."
+    },
+    {
+      "id": "AF-14",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Silent false-green: a stale cached row can pass an assertion that should fail. Add a shared re-query helper alongside the AF-11 conftest fix."
+    },
+    {
+      "id": "AF-15",
+      "status": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Wire an accessibility/console-scan tool and fill design_check so the dimension stops being N/A on every story.",
+      "outcome": "attempted-and-reverted",
+      "outcome_note": "Accepted, attempted 2026-09-08, REVERTED. `pnpm add -D pa11y-ci` pulled in puppeteer@24.43.1, whose build script pnpm declines to run; pnpm's dep-status check then failed `pnpm install` with exit 1, which broke EVERY pnpm-run command including `pnpm dev`, `tsc`, `eslint` and `pnpm build`. Declaring pnpm.ignoredBuiltDependencies in apps/web/package.json did not clear it; the correct location is `allowBuilds` in apps/web/pnpm-workspace.yaml, which already carries an `unrs-resolver: true` entry and a comment weighing exactly this allow-vs-deny trade-off. The install also left a literal placeholder line (`puppeteer: set this to true or false`) in that file, which was caught and reverted while computing the round-2 gate snapshot -- it would otherwise have reached the commit. So the mechanism is known and small; what remains out of scope is the ~150MB browser download decision and the absence of anything to scan. Install reverted; toolchain verified restored (tsc/eslint clean, 99 vitest, build OK, package.json + lockfile byte-clean). Two further findings that change the calculus: (1) approving the build downloads ~150MB of Chromium, a stack decision belonging in an ADR -- ADR-0001 never chose a browser runner; (2) there is currently NOTHING meaningful to scan -- every apps/web route redirects to Keycloak or /login without a session, and the only page rendering HTML unauthenticated is Next's built-in 404. Wiring design_check today would convert an honest N/A into a misleading PASS over a framework error page, which the evidence-pass anti-suppression rules exist to prevent. Needs its own change: browser-provisioning decision + ADR + project-commands/stack-smoke config-drift updates + an authenticated scan path. Verdict left as `accept` -- verdicts are not editable -- with this outcome recorded instead."
+    },
+    {
+      "id": "AF-16",
+      "status": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T16:45:00Z",
+      "rationale": "Same infrastructure class as AF-15 but belongs in an ADR (ADR-0001 never picked a browser runner); matters most before the UI-heavy persona-dashboard stories.",
+      "carry_forward_ref": "CF-08"
+    }
+  ]
+}

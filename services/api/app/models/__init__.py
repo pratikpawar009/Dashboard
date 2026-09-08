@@ -1,8 +1,9 @@
-"""Public export surface for `app.models` — Base + all 18 domain model classes.
+"""Public export surface for `app.models` — Base + all 19 domain model classes.
 
 Callers (migrations/env.py today; routers in later stories) import from
 `app.models` without knowing the internal file grouping (D-02:
-rollup.py / governance.py / ingestion.py, see docs/features/BED-01/DECISIONS.md).
+rollup.py / governance.py / ingestion.py, see docs/features/BED-01/DECISIONS.md;
+roster.py added by ING-10, see docs/features/ING-10/DECISIONS.md D-01).
 """
 
 from app.models.base import Base
@@ -30,6 +31,7 @@ from app.models.rollup import (
     TokenSeries,
     UserSessions,
 )
+from app.models.roster import ProgramRoster
 
 __all__ = [
     "Base",
@@ -51,4 +53,5 @@ __all__ = [
     "SessionSeries",
     "TokenSeries",
     "UserSessions",
+    "ProgramRoster",
 ]

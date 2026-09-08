@@ -43,4 +43,15 @@ const PROGRAM_TYPE_COLORS: Record<
   "Greenfield feature development": { color: "#1f8a5b", background: "#e8f5ee" },
   "Brownfield feature development": { color: "#7c5cff", background: "#efebff" },
   Maintenance: { color: "#c08a1e", background: "#fdf3e0" },
+  // `.harness/program.yaml`'s enum uses short names (FR-6) — reuse the same
+  // pairs as their long-form entries above, do not invent new hexes.
+  Greenfield: { color: "#1f8a5b", background: "#e8f5ee" },
+  Brownfield: { color: "#7c5cff", background: "#efebff" },
+  // `Upgradation` (also in the manifest enum) is deliberately NOT added here.
+  // No color or avatar abbreviation for it exists anywhere in the design
+  // source (docs/design/tokens.md), and inventing one was rejected (story
+  // Decision log 2026-09-08, "documented fallback, invent nothing"). It
+  // resolves through the `?? PROGRAM_TYPE_COLORS["Migration"]` fallback
+  // above until a real design token is supplied — do not "fix" this by
+  // adding a guessed pair.
 };

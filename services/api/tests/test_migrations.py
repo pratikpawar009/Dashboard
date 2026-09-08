@@ -66,6 +66,7 @@ EXPECTED_TABLES = frozenset(
         "system_metadata",
         "persona_config",
         "user_roles",
+        "program_roster",
     }
 )
 
@@ -142,10 +143,10 @@ def _load_migration_001_module() -> types.ModuleType:
 
 
 class TestFullSchemaCreation:
-    """BED-01-TC-01: `alembic upgrade head` creates all 18 tables."""
+    """BED-01-TC-01: `alembic upgrade head` creates all 19 tables."""
 
     @pytest.mark.asyncio
-    async def test_upgrade_head_creates_all_18_tables(
+    async def test_upgrade_head_creates_all_19_tables(
         self, migrated_db: AlembicRunner, test_engine: AsyncEngine
     ) -> None:
         async with test_engine.connect() as conn:
@@ -445,7 +446,7 @@ class TestObservability:
         back rather than being caught and continued) — so nothing in this
         repo today logs an `alembic upgrade` failure itself; the exception
         just propagates to the caller. This test forces a genuine failure
-        (a real `DuplicateTable` from pre-creating one of the 18 tables via
+        (a real `DuplicateTable` from pre-creating one of the 19 tables via
         raw SQL before any migration has run, standing in for TC-19's own
         example trigger of a duplicate-object collision), catches the
         propagated exception the way an operator's invocation wrapper would,

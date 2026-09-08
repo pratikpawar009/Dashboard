@@ -42,6 +42,7 @@ count.
 """
 
 import os
+import re
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -72,6 +73,40 @@ API_ROOT = Path(__file__).resolve().parent.parent
 ALEMBIC_INI = API_ROOT / "alembic.ini"
 
 
+def _test_db_discriminator() -> str:
+    """Per-runner suffix so concurrent pytest runs do not share one test DB.
+
+    AF-11 (ING-10, triaged 2026-09-08): `migrated_db` below runs a full
+    `alembic upgrade head` / `downgrade base` around EVERY test. When two
+    pytest processes hit the same database, one process's `downgrade base`
+    drops the schema another is mid-test against, producing errors like
+    `UndefinedObject: index ... does not exist` and `UniqueViolation` on
+    `pg_type`. Worse, each run reports its own suite green because it happens
+    to hold the DB at that instant -- a **false green**, which is how a broken
+    test file can look passing. Three separate workers hit this during ING-10.
+
+    Discriminators, in precedence order:
+
+    1. `TEST_DATABASE_URL` -- an explicit full override, handled by the caller.
+    2. `PYTEST_XDIST_WORKER` (`gw0`, `gw1`, ...) -- set automatically by
+       pytest-xdist, so `-n auto` isolates without any further setup.
+    3. `HARNESS_TEST_DB_SUFFIX` -- for concurrent *separate* pytest processes,
+       which is the case that actually bit ING-10 (parallel agent workers, not
+       xdist). A runner that sets this gets its own database.
+
+    Returns `""` when none is set, which reproduces the historical
+    single-`_test`-database behaviour EXACTLY -- so a plain serial `uv run
+    pytest` is unchanged and no existing invocation has to be updated.
+    """
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker:
+        return f"_{worker}"
+    suffix = os.environ.get("HARNESS_TEST_DB_SUFFIX")
+    if suffix:
+        return f"_{re.sub(r'[^A-Za-z0-9_]', '_', suffix)}"
+    return ""
+
+
 def _derive_test_database_url() -> str:
     """Resolve the disposable test-DB URL per the module docstring's convention."""
     override = os.environ.get("TEST_DATABASE_URL")
@@ -83,14 +118,70 @@ def _derive_test_database_url() -> str:
             "settings.database_url has no database name to derive a "
             f"'_test' suffix from: {settings.database_url!r}"
         )
-    test_path = f"{parts.path}_test"
+    test_path = f"{parts.path}_test{_test_db_discriminator()}"
     return urlunsplit((parts.scheme, parts.netloc, test_path, parts.query, parts.fragment))
+
+
+def repopulate(stmt: Any) -> Any:
+    """Force a SELECT to re-read committed rows instead of the identity map.
+
+    AF-14 (ING-10, triaged 2026-09-08): services in this codebase mutate rows
+    with raw Core statements -- e.g. `manifest_ingest.py`'s
+    `pg_insert(...).on_conflict_do_update(...)`. Postgres's `ON CONFLICT DO
+    UPDATE` **preserves the existing row's primary key**, so a session that
+    already loaded that row keeps serving the pre-update object out of its
+    identity map. A test that calls a service twice and re-fetches in between
+    therefore asserts against STALE data -- and, being an assertion that
+    happens to pass, it is another silent false green.
+
+    Wrap any post-service re-fetch in a direct-session test with this:
+
+        row = (await session.execute(repopulate(select(Model).where(...)))).scalar_one()
+
+    `session.expire_all()` is the blunter alternative; this keeps the
+    invalidation scoped to the one query that needs it.
+    """
+    return stmt.execution_options(populate_existing=True)
+
+
+def _ensure_database_exists(url: str) -> None:
+    """`CREATE DATABASE` the derived test DB when it is missing.
+
+    Needed because `_test_db_discriminator()` (AF-11) can point at a database
+    nobody has created yet -- an xdist worker's `..._test_gw3`, or a
+    `HARNESS_TEST_DB_SUFFIX` runner's own. Without this, isolating a run would
+    mean provisioning its database by hand first, which nobody would do, and
+    the isolation would go unused.
+
+    Connects to the server's default `postgres` maintenance database with
+    autocommit (Postgres forbids `CREATE DATABASE` inside a transaction) and is
+    a no-op when the database already exists -- so the historical
+    `<db>_test` path is untouched. The database is deliberately NOT dropped
+    afterwards: a drop would be another cross-process footgun of exactly the
+    kind AF-11 is about, and an empty migrated-then-downgraded DB costs nothing
+    to leave behind.
+    """
+    import psycopg
+
+    parts = urlsplit(url)
+    dbname = parts.path.lstrip("/")
+    admin = urlunsplit((parts.scheme, parts.netloc, "/postgres", "", ""))
+    # psycopg speaks plain libpq URLs, not SQLAlchemy's `+driver` dialect form.
+    admin = admin.replace("postgresql+psycopg://", "postgresql://")
+    with psycopg.connect(admin, autocommit=True) as conn:
+        exists = conn.execute(
+            "select 1 from pg_database where datname = %s", (dbname,)
+        ).fetchone()
+        if not exists:
+            conn.execute(f'CREATE DATABASE "{dbname}"')
 
 
 @pytest.fixture(scope="session")
 def test_database_url() -> str:
     """Disposable test-DB URL — never the dev DB. See module docstring."""
-    return _derive_test_database_url()
+    url = _derive_test_database_url()
+    _ensure_database_exists(url)
+    return url
 
 
 @pytest.fixture(scope="session")
