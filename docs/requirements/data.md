@@ -68,6 +68,20 @@ shape:
         fields: ["email String PK", role String, "source String default 'keycloak'", synced_at "DateTime(timezone=True)"]
 ```
 
+### program-roster-schema
+
+```yaml
+produced_by: ING-10
+consumed_by: [AUTH-06]
+shape:
+  new_table: "program_roster -- additive Alembic revision, table #19. BED-01's 18-table shape (db-schema, produced_by BED-01) is unchanged; this table did not exist at that story's scope and is owned end-to-end by ING-10, not BED-01."
+  fields: [id String PK, program_id String, email String, name String, role String, "source String default 'file'", "removed_at DateTime(timezone=True) nullable", created_at "DateTime(timezone=True)", updated_at "DateTime(timezone=True)"]
+  constraint: "unique(program_id, email) -- upsert key. One row per (program_id, email), INCLUDING every aliases[] entry (same row-per-identity instruction the PRD gives for program_members' usage attribution, applied here to membership matching instead) -- a member with 2 aliases yields 3 rows for that program, all sharing name/role."
+  removal_semantics: "CONFIRMED by user: soft-delete via removed_at, never a hard DELETE (RTM Decisions 2026-09-08). A full manifest re-push sets removed_at=now() on any existing row for that program_id whose email is no longer present in the new team[]/aliases[] payload. INVARIANT: every membership read filters WHERE removed_at IS NULL -- not just AUTH-06's read_pattern below, any future reader of this table must apply the same filter, so a removed member can never be picked up as still-a-member. usage_events rows already attributed to a removed email are untouched either way (BED-01's existing no-retention/no-archival decision)."
+  rationale_kept_separate_from_program_members: "CONFIRMED by user (RTM Decisions 2026-09-08): the source PRD's own wording ('upserts program_members') was wrong, verified against shipped code before asking. services/api/app/services/rollup_rebuild.py:360 unconditionally delete(ProgramMembers), and :370 calls _build_program_members(program_id, events, now) with no prior-state parameter -- unlike the prior_identity seam _build_program_summary has, which is what already lets program: identity survive a rebuild. So program_members (db-schema, BED-01) is owned single-writer by BED-03's rebuild_program_rollups() -- full DELETE+INSERT from usage_events on every activity ingest (rollup-rebuild's own stated invariant) -- and a roster upsert into it would be silently wiped by the next ING-02-triggered rebuild. This new table avoids reopening BED-03 (validated, shipped) and keeps rollup-rebuild's single-writer invariant intact; program_members/program-team-api (PGD-05) are unaffected by this story -- no validated story reopens."
+  read_pattern: "AUTH-06: SELECT DISTINCT program_id FROM program_roster WHERE email = :session_email AND removed_at IS NULL -- becomes session.programs, replacing the groups-claim parse (auth.md#session, program_membership_source). See removal_semantics above: this filter is a general invariant of the table, not special-cased to this one query."
+```
+
 ### rollup-rebuild
 
 ```yaml
