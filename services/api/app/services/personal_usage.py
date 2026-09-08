@@ -179,6 +179,13 @@ async def fetch_commands_breakdown(
         select(UsageEvent.command, func.count(UsageEvent.id))
         .where(UsageEvent.user == user_id, UsageEvent.ts >= range_start)
         .group_by(UsageEvent.command)
+        # The mockup renders these as a descending bar ranking, and `barStyle`
+        # is already computed against the range's max count -- without an
+        # explicit ORDER BY the rows arrive in whatever order the grouping
+        # produces, so the longest bar is not necessarily first. `command`
+        # breaks ties so equal counts stay in a stable, reproducible order
+        # rather than varying between calls.
+        .order_by(func.count(UsageEvent.id).desc(), UsageEvent.command)
     )
     result = await db.execute(stmt)
     rows = [(command, count) for command, count in result.all()]

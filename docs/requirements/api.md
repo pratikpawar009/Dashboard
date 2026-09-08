@@ -252,6 +252,24 @@ shape:
   response: "received/valid/inserted/updated/rejected counts + reasons + rollup summaries"
 ```
 
+### program-manifest-api
+
+```yaml
+produced_by: ING-10
+consumed_by: [AUTH-06]          # one-consumer contract -- see RTM Decisions 2026-09-08 (OPEN): ING-04/ING-06 are the likely missing edges
+shape:
+  endpoint: "POST /api/ingest/manifest  {programId, program:{name,type,description}, team:[{email,name,role,aliases[]}]}"
+  auth: "ingest-token-auth bearer; program_id must be in allowed_program_ids (or wildcard)"
+  source_of_truth: "each program's own committed .harness/program.yaml -- NOT the OIDC groups claim (RTM Decisions 2026-09-08). Onboarding a program requires no Keycloak group or role."
+  identity_write: "program:{name,type,description} upserts program_summary's descriptive columns. BED-03's rebuild_program_rollups() preserves these rather than blanking them, so a rollup rebuild after ingest keeps the header/label intact."
+  roster_write: "team[] upserts program_members (program_id, user_id, name, role) for membership, and user_roles (email PK, role, source='file') for the org-level role. Each alias in aliases[] gets its OWN row -- usage joins on usage_events.user, which carries whatever `git config user.email` was set to on the producing machine."
+  role_mapping: "short roster slugs (dev|arch|pm|em|cxo|board_member|admin) map to long dashboard roles through ONE shared table, so the file writer and ING-08's Keycloak writer cannot drift"
+  precedence: "file is authoritative for program membership/roles. Deliberately the OPPOSITE of the CIO Dashboard Project prior art (src/lib/identity/file-roles.ts), where Keycloak won and the file only filled gaps -- that predates the 2026-09-08 decision."
+  program_type_enum: "Greenfield|Brownfield|Upgradation|Migration|Maintenance -- authoritative; apps/web/src/lib/programStyle.ts widens PROGRAM_TYPE_COLORS to cover it (folded AC, RTM Decisions 2026-09-08)"
+  response: "received/valid/rejected counts per section (identity, roster), plus per-email created/updated/skipped and rejection reasons"
+  ing08_boundary: "user_roles stays reference/audit on the session path (ING-08 AC-4 unchanged); program membership is read from program_members, not user_roles"
+```
+
 ### ingest-artifacts-api
 
 ```yaml

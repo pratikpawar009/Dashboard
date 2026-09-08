@@ -15,4 +15,16 @@
 #   admin: cio
 #   board_member: cio
 #   dev: developer
-{}
+#
+# The five canonical persona names are mapped to themselves below, so a fresh
+# checkout resolves a persona instead of falling through all three tiers and
+# failing closed with a 403 on every persona-scoped route. Deliberately no
+# alias grants privilege here: mapping a broad IdP role such as `admin` to
+# `cio` would hand org-wide visibility to that role, which is a decision for
+# whoever owns the realm. Add your realm's own role names here (or via
+# PERSONA_ROLE_MAP / the Tier-3 persona_config table) as they are agreed.
+cio: cio
+architect: architect
+developer: developer
+product-manager: product-manager
+engineering-manager: engineering-manager

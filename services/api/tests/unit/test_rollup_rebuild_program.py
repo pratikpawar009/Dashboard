@@ -590,3 +590,92 @@ async def test_second_rebuild_deletes_stale_rows_for_removed_events(
     assert user_sessions["sess-r2"].started_at == _ts(2, 2, 10)
     assert user_sessions["sess-r2"].duration_seconds == 85
     assert user_sessions["sess-r2"].tokens == 850
+
+
+@pytest.mark.asyncio
+async def test_rebuild_preserves_existing_program_identity_columns(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> None:
+    """A rebuild carries `name`/`icon`/`type`/`description` forward instead of
+    resetting them to D-03's `""`.
+
+    Those four columns are program identity, not a derived metric, and two
+    shipped consumers read them straight off this row: PGD-01's
+    `GET /api/overview/program-detail/{program_id}` renders them as the page
+    header, and AUTH-04's `GET /api/programs` uses `name` as the switcher
+    `label`. Before this behaviour existed, any rebuild blanked both surfaces.
+
+    The derived columns are asserted alongside to prove the carry-forward
+    does not come at the cost of re-deriving the metrics, and a second
+    rebuild is asserted to prove the value survives repeat runs (it is the
+    previous rebuild's own output, so idempotency holds).
+    """
+    program_id = "prog-identity-1"
+    await _insert_events(
+        test_session,
+        [
+            _usage_event_row(
+                program_id=program_id,
+                session_id="sess-i1",
+                user="erin",
+                command="cmd-i",
+                ts=_ts(3, 1, 9),
+                cmd_ts=_ts(3, 1, 9),
+                duration_seconds=40,
+                total=200,
+                input_tokens=120,
+                output_tokens=80,
+                lines_added=7,
+                intervention_count=1,
+                tool_rejections=0,
+            )
+        ],
+    )
+
+    # A first rebuild with no prior row keeps D-03's honest empty default —
+    # the engine invents no identity it has no source for.
+    await rebuild_program_rollups(test_session, program_id)
+    summary = await test_session.scalar(
+        sa.select(models.ProgramSummary).where(models.ProgramSummary.program_id == program_id)
+    )
+    assert summary is not None
+    assert summary.name == ""
+    assert summary.icon == ""
+
+    # Whoever owns program identity (a registry/config story, or an operator)
+    # populates the four descriptive columns on the existing row.
+    await test_session.execute(
+        sa.update(models.ProgramSummary)
+        .where(models.ProgramSummary.program_id == program_id)
+        .values(
+            name="Program Identity",
+            icon="◆",
+            type="Platform",
+            description="Identity survives a rollup rebuild.",
+        )
+    )
+    await test_session.commit()
+
+    await rebuild_program_rollups(test_session, program_id)
+
+    summary = await test_session.scalar(
+        sa.select(models.ProgramSummary).where(models.ProgramSummary.program_id == program_id)
+    )
+    assert summary is not None
+    assert summary.name == "Program Identity"
+    assert summary.icon == "◆"
+    assert summary.type == "Platform"
+    assert summary.description == "Identity survives a rollup rebuild."
+    # Derived columns are still recomputed from usage_events, not frozen.
+    assert summary.tokens == 200
+    assert summary.commands_executed == 1
+    assert summary.lines_of_code_generated == 7
+
+    # A repeat rebuild keeps it — the carried value is the prior run's output.
+    await rebuild_program_rollups(test_session, program_id)
+    summary = await test_session.scalar(
+        sa.select(models.ProgramSummary).where(models.ProgramSummary.program_id == program_id)
+    )
+    assert summary is not None
+    assert summary.name == "Program Identity"
+    assert summary.description == "Identity survives a rollup rebuild."

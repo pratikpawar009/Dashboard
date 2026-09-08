@@ -93,6 +93,22 @@ class RebuildResult:
     event_count: int
 
 
+@dataclass(frozen=True)
+class _ProgramIdentity:
+    """The four descriptive `program_summary` columns carried across a rebuild.
+
+    Held as a plain frozen value rather than the ORM row itself so the values
+    survive the DELETE that follows: a detached/deleted `ProgramSummary`
+    instance would be expired by the flush, and reading its attributes
+    afterwards would re-query or raise.
+    """
+
+    name: str
+    icon: str
+    type: str
+    description: str
+
+
 @asynccontextmanager
 async def _rebuild_transaction(session: AsyncSession) -> AsyncIterator[None]:
     """Open this rebuild call's own transaction scope (D-01, FR-2).
@@ -127,7 +143,10 @@ def _month(ts: datetime) -> str:
 
 
 def _build_program_summary(
-    program_id: str, events: list[UsageEvent], now: datetime
+    program_id: str,
+    events: list[UsageEvent],
+    now: datetime,
+    prior_identity: _ProgramIdentity | None = None,
 ) -> ProgramSummary:
     """`program_summary` (DATA-DESIGN.md §1): one singleton row per program.
 
@@ -137,13 +156,27 @@ def _build_program_summary(
     `tool_rejections` (SUM). Remaining fields have no `usage_events` analog
     and default per D-03: strings to `""`, numerics to `0`,
     `monthly_token_sparkline` to `[]`.
+
+    The four descriptive identity columns (`name`/`icon`/`type`/`description`)
+    are the one carve-out from that default. They are program identity, not a
+    derived metric, and two shipped consumers read them directly: PGD-01's
+    `GET /api/overview/program-detail/{program_id}` renders them as the page
+    header, and AUTH-04's `GET /api/programs` uses `name` as the switcher
+    `label`. Defaulting them to `""` on every rebuild blanked both surfaces,
+    so `prior_identity` — captured from the existing row before this rebuild's
+    DELETE — is carried forward when one exists. D-03's `""` still applies
+    when no prior row exists, which keeps a first-ever rebuild deterministic
+    and honest (it invents no identity it has no source for). Idempotency is
+    preserved: the same events against the same stored identity produce the
+    same row, because the carried-forward value is itself the previous
+    rebuild's output.
     """
     return ProgramSummary(
         program_id=program_id,
-        name="",
-        icon="",
-        type="",
-        description="",
+        name=prior_identity.name if prior_identity else "",
+        icon=prior_identity.icon if prior_identity else "",
+        type=prior_identity.type if prior_identity else "",
+        description=prior_identity.description if prior_identity else "",
         monthly_token_sparkline=[],
         tokens=sum(e.total for e in events),
         releases=0,
@@ -299,6 +332,24 @@ async def rebuild_program_rollups(session: AsyncSession, program_id: str) -> Reb
         events = list(result.scalars().all())
         now = datetime.now(UTC)
 
+        # Capture the existing row's descriptive identity before the DELETE
+        # below drops it, so the rebuild carries it forward instead of
+        # blanking PGD-01's header and AUTH-04's switcher label (see
+        # `_build_program_summary`). Selects `program_summary`, never
+        # `usage_events`, so the single-usage_events-SELECT proof (D-05,
+        # BED-03-TC-11) is unaffected.
+        identity_row = (
+            await session.execute(
+                select(
+                    ProgramSummary.name,
+                    ProgramSummary.icon,
+                    ProgramSummary.type,
+                    ProgramSummary.description,
+                ).where(ProgramSummary.program_id == program_id)
+            )
+        ).first()
+        prior_identity = _ProgramIdentity(*identity_row) if identity_row else None
+
         await session.execute(delete(ProgramSummary).where(ProgramSummary.program_id == program_id))
         await session.execute(
             delete(ProgramReleases).where(ProgramReleases.program_id == program_id)
@@ -313,7 +364,7 @@ async def rebuild_program_rollups(session: AsyncSession, program_id: str) -> Reb
         )
         await session.execute(delete(UserSessions).where(UserSessions.program_id == program_id))
 
-        session.add(_build_program_summary(program_id, events, now))
+        session.add(_build_program_summary(program_id, events, now, prior_identity))
         # program_releases: D-03 — no derivable columns, delete-only, insert nothing.
         session.add_all(_build_program_commands(program_id, events, now))
         session.add_all(_build_program_members(program_id, events, now))
