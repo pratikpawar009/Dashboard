@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from app.utils.format import format_duration, format_number
+from app.utils.format import bar_style_for_share, format_duration, format_number
 
 # ---------------------------------------------------------------------------
 # BED-02-TC-11 — format_number magnitude boundaries
@@ -94,6 +94,66 @@ def test_format_duration_negative_raises_value_error() -> None:
     one. format_duration rejects negative input instead of coercing it."""
     with pytest.raises(ValueError):
         format_duration(-5)
+
+
+# ---------------------------------------------------------------------------
+# SHP-02-FR-3 — bar_style_for_share max-of-range bar width
+# ---------------------------------------------------------------------------
+
+# Added per SHP-02 FLAGS.md AF-02 (triaged accept): bar_style_for_share shipped
+# with only end-to-end coverage via the personal-usage envelope, while its three
+# siblings in this module each carry direct coverage here.
+
+
+@pytest.mark.parametrize(
+    ("count", "max_count", "expected"),
+    [
+        (4, 4, "width: 100%;"),
+        (1, 4, "width: 25%;"),
+        # SHP-02-TC-01's own command counts (plan/implement/review = 40/10/10).
+        (40, 40, "width: 100%;"),
+        (10, 40, "width: 25%;"),
+        # max_count == 0 (no commands in range) short-circuits instead of
+        # dividing by zero.
+        (0, 0, "width: 0%;"),
+        (0, 4, "width: 0%;"),
+        # round-half-to-even, matching format_number's documented rounding:
+        # 12.5 -> 12, 37.5 -> 38.
+        (1, 8, "width: 12%;"),
+        (3, 8, "width: 38%;"),
+        (1, 3, "width: 33%;"),
+        (2, 3, "width: 67%;"),
+    ],
+)
+def test_bar_style_for_share_boundaries(count: int, max_count: int, expected: str) -> None:
+    assert bar_style_for_share(count, max_count) == expected
+
+
+def test_bar_style_for_share_is_max_of_range_not_share_of_total() -> None:
+    """Per ADR-0009 § Context point 3: the denominator is the largest count in
+    range, NOT the total run count. Story AC3's prose reads "share of the total
+    run count", but the decoded mockup computes `cmax = Math.max(...cmdCounts)`
+    and the mockup wins (CLAUDE.md § Design system). This test exists to make a
+    silent regression to share-of-total impossible to miss: with SHP-02-TC-01's
+    40/10/10 counts the correct widths are 100%/25%/25%, whereas dividing by the
+    total (60) would render 67%/17%/17%.
+
+    Do not "fix" this to match the AC prose — the discrepancy is resolved, and
+    four sibling stories (ARC-01, DEV-01, PMD-01, PGD-05) build against it.
+    """
+    counts = [40, 10, 10]
+    max_count = max(counts)
+
+    assert [bar_style_for_share(c, max_count) for c in counts] == [
+        "width: 100%;",
+        "width: 25%;",
+        "width: 25%;",
+    ]
+
+    total = sum(counts)
+    assert [bar_style_for_share(c, total) for c in counts] != [
+        bar_style_for_share(c, max_count) for c in counts
+    ], "share-of-total and max-of-range must be distinguishable for this fixture"
 
 
 # ---------------------------------------------------------------------------

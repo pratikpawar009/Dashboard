@@ -33,6 +33,7 @@ class UsageEvent(Base):
         Index("ix_usage_events_program_id_user", "program_id", "user"),
         Index("ix_usage_events_program_id_command", "program_id", "command"),
         Index("ix_usage_events_program_id_session_id", "program_id", "session_id"),
+        Index("ix_usage_events_user_ts", "user", "ts"),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

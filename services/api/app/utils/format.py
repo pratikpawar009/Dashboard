@@ -151,3 +151,32 @@ def dot_style_for_program(program_id: str) -> str:
     digest = hashlib.sha256(program_id.encode("utf-8")).digest()
     color = _DOT_PALETTE[digest[0] % len(_DOT_PALETTE)]
     return f"background-color: {color};"
+
+
+def bar_style_for_share(count: int, max_count: int) -> str:
+    """Ready-to-bind CSS bar width for `personal-usage-api`'s `commands[].barStyle` (SHP-02-FR-3).
+
+    >>> bar_style_for_share(4, 4)
+    'width: 100%;'
+    >>> bar_style_for_share(1, 4)
+    'width: 25%;'
+    >>> bar_style_for_share(0, 0)
+    'width: 0%;'
+
+    Max-of-range, not share-of-total: `count / max_count * 100`, where
+    `max_count` is the largest count among the same in-range commands
+    `count` is drawn from — not the total run count. The story AC3 prose
+    literally reads "share of the total run count", but the decoded mockup
+    computes `cmax = Math.max(...cmdCounts)` (`docs/adr/0009-personal-usage-
+    api-response-shape.md` § Context point 3); that discrepancy is resolved
+    in the mockup's favour, per `CLAUDE.md` § Design system, not a defect to
+    fix here. `max_count == 0` (no commands in range) returns `'width: 0%;'`
+    rather than dividing by zero.
+
+    Pure function: no I/O. Returns a ready-to-bind CSS declaration, not a
+    bare percentage, mirroring `dot_style_for_program()`'s "producer
+    computes CSS" precedent.
+    """
+    if max_count > 0:
+        return f"width: {round(count / max_count * 100)}%;"
+    return "width: 0%;"

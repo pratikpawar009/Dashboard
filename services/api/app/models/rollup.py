@@ -167,6 +167,7 @@ class ProgramTokenSeries(Base):
 
 class UserSessions(Base):
     __tablename__ = "user_sessions"
+    __table_args__ = (Index("ix_user_sessions_user_id_started_at", "user_id", "started_at"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String)

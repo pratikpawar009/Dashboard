@@ -1,0 +1,305 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "rtm_source_sha": "b3cd0523ae59",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "tracker_story": "pratikpawar009/Dashboard#30",
+  "tracker_research": "pratikpawar009/Dashboard#213",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/SHP-02/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-08T03:24:27Z",
+  "tracker_prd": "pratikpawar009/Dashboard#214",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/SHP-02/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/SHP-02/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/SHP-02/tasks.json"
+  },
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05"
+  ],
+  "pending_carry_forward": [
+    {
+      "item_id": "AF-03-carry",
+      "kind": "finding",
+      "reason": "Real, but fixing it means per-worker databases (pytest-xdist + TEST_DATABASE_URL templating) -- test-infrastructure work well outside SHP-02. Consolidates the same condition AUTH-01 already accepted.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-08T01:15:12Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-06-carry",
+      "kind": "finding",
+      "reason": "A user_id/sub field on the dev-bypass body would remove the mint-then-decode workaround for every future self-view test, but /auth/dev-bypass is AUTH-01-owned and changing an auth surface from inside a usage-panel story is the wrong blast radius.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-08T01:15:12Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-08-carry",
+      "kind": "finding",
+      "reason": "Proven code-independent via stash-out A/B; needs a real test-infrastructure policy (load guard, excluded marker, or quiesce/retry) rather than a per-story fix. Deferring clears the flag gate but NOT the evidence gate -- impl_evidence stays FAIL.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-08T01:15:12Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "tracker_plan": "pratikpawar009/Dashboard#233",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-07T15:18:43Z",
+    "rounds": 3,
+    "verdict": "BLOCKED",
+    "note": "5/6 dimensions PASS or accepted-N/A. unit_tests FAILs after 3 rounds \u2014 see EVIDENCE-ESCALATION.md. Round 1 fixed a real regression (stale BED-01 fixture tests/fixtures/prd_8_4_schema.json missing T-02's authorized new indexes); SHP-02's own 20 tests (test_personal_usage.py x5, test_personal_usage_perf.py x3, test_migrations.py x12) and test_models.py (46) are green in every run. The residual FAIL is 6 pre-existing, non-SHP-02 perf-budget test files, proven via controlled git-stash A/B (SHP-02 code fully removed, same failures reproduce) to be a machine-load artifact (uptime load averages 113-147 from ~10 concurrent agent sessions on this shared machine), not a code regression. See EVIDENCE-ROUNDS.md for the full round table and cross-run causality matrix.",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-02/evidence/typecheck-web.log, docs/features/SHP-02/evidence/typecheck-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-07T15:18:43Z",
+        "note": "tsc --noEmit: 0 errors. mypy: Success, no issues found in 101 source files."
+      },
+      "unit_tests": {
+        "status": "FAIL",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 1,
+        "evidence_path": "docs/features/SHP-02/evidence/unit-tests-web.log, docs/features/SHP-02/evidence/unit-tests-api.log (initial), unit-tests-api-round2.log (fix-loop round 1), unit-tests-api-round3.log (round 2), unit-tests-api-round4.log (round 3, final), unit-tests-api-baseline-fullsuite.log (no-SHP-02 causality control)",
+        "flag_id": null,
+        "ran_at": "2026-09-07T15:18:43Z",
+        "note": "apps/web: 20 files / 96 tests, all green, every run. services/api final round: 6 failed, 436 passed, 825.75s. SHP-02's own tests (test_personal_usage.py, test_personal_usage_perf.py, test_migrations.py = 20 tests) and test_models.py (46 tests, fixed round 1) are 100% green in all 5 API pytest runs this session. Remaining failures are 6 pre-existing perf-budget test files (test_auth_jwks_perf, test_ingest_token_auth_perf, test_overview_perf, test_persona_resolver_perf, test_programs_perf, test_rollup_rebuild_perf) proven code-independent \u2014 see EVIDENCE-ESCALATION.md."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-02/evidence/lint-web.log, docs/features/SHP-02/evidence/lint-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-07T15:18:43Z",
+        "note": "eslint: 0 errors. ruff check: All checks passed!"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run: (fastapi-2/api, nextjs/web)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-07T15:18:43Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "cd services/api && uv run uvicorn app.main:app --port 8000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/SHP-02/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "GET /health -> 200 {status:ok}. GET /api/personal-usage/usr-smoke-test (no token) -> 401 {error:{code:http_401,message:invalid_token}} -- proves the route is registered (a 404 would not)."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/SHP-02/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "note": "GET / -> 200. SHP-02 touches no apps/web file; boot smoke included per evidence-pass anti-pattern (runtime is checked for every runnable stack, not scoped to story file changes)."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-02/evidence/compile-web.log",
+        "flag_id": null,
+        "ran_at": "2026-09-07T15:18:43Z",
+        "note": "SHP-02 changes no apps/web file, but build: is present+non-empty in project-commands.yaml so it was run per evidence-pass applicability rule (command present -> applicable), not treated as N/A. Compiled successfully."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": null,
+        "note": "design_check: is empty in project-commands.yaml (no a11y/console-scan tool wired yet) and SHP-02 is design: n/a (backend-only). Flag queued for orchestrator to append to FLAGS.md with the next AF-NN id."
+      }
+    },
+    "override": {
+      "decision": "proceed-to-step-2-and-step-5",
+      "authorized_by": "pawar.pratik0903@gmail.com",
+      "authorized_at": "2026-09-08T02:18:06Z",
+      "recorded_by": "/arh-implement orchestrator (user instruction: \"override\", reaffirmed after the tradeoff was stated twice)",
+      "scope": "Waives the Step 2 entry-gate requirement that every impl_evidence check be PASS-or-N/A, for the unit_tests dimension ONLY. Every other dimension genuinely passed. The verdict field is intentionally left BLOCKED -- this is a documented waiver, not a re-judgement.",
+      "justification": [
+        "The 6 failing files are perf-budget tests in services/api/tests/perf/, none owned by SHP-02 and none in its file_plan.",
+        "Proven code-independent by controlled A/B: the evidence pass stashed SHP-02 out entirely (git stash push -u) and reproduced the same failure pool with the story absent, then restored.",
+        "Failure signature is scheduler starvation, not slow code: ING-01-TC-22 measured p95=19.6613ms against a 10ms budget with min=0.8593ms and max=177.6791ms -- the fast path is 12x under budget and only tail outliers breach it. A real regression would lift the minimum.",
+        "Machine load at override time: 87.68 on 8 cores (~11x oversubscribed), from 32 concurrent claude processes plus VS Code -- none of them SHP-02's.",
+        "Everything SHP-02 owns is green under that same load: test_personal_usage.py 5/5, test_personal_usage_perf.py 3/3 (3 SELECTs flat, 104-325ms vs a 2000ms budget), test_migrations.py 12/12, test_models.py 46/46, test_format.py 31/31."
+      ],
+      "packet_staleness": "The packet predates F-15 (tests/unit/test_format.py, the AF-02 accepted fix applied after the pass ran), so it does not describe the current tree. That delta was verified independently: ruff clean, mypy clean, pytest 31 passed. No other source file changed after the pass.",
+      "residual_risk": "A genuine regression hiding inside one of the 6 quarantined perf files would not be caught by this run. Mitigated but not eliminated by the A/B; the honest re-test is a full suite run on an unloaded machine.",
+      "tracked_by": "AF-08-carry (pending_carry_forward) -- perf-suite load policy"
+    }
+  },
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "summary": "HEAD_REVISION was a hardcoded literal that any new migration breaks",
+      "source": "services/api/tests/test_migrations.py:69",
+      "task_id": "T-01",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Derive HEAD_REVISION via ScriptDirectory.get_current_head() instead of a literal.",
+      "rationale": "Decided during /arh-implement (user chose the durable fix over bumping the literal); already implemented and verified, tests/test_migrations.py 12/12 green.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "coverage-gap",
+      "summary": "bar_style_for_share has no direct unit test in test_format.py",
+      "source": "services/api/tests/unit/test_format.py",
+      "task_id": "T-03",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Add a direct unit test for bar_style_for_share (max_count==0, rounding boundary, max-of-range vs share-of-total) to test_format.py.",
+      "rationale": "Matches the convention its three sibling helpers already follow and pins a formula four sibling stories will consume; the helper is SHP-02's own addition so testing it is in scope.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "risky-pattern",
+      "summary": "Shared test-DB contention: migrated_db upgrades/downgrades one shared Postgres around every test",
+      "source": "services/api/tests/conftest.py:162",
+      "task_id": "T-03, T-04",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "Flag deferred to carry-forward.",
+      "rationale": "Real, but fixing it means per-worker databases (pytest-xdist + TEST_DATABASE_URL templating) -- test-infrastructure work well outside SHP-02. Consolidates the same condition AUTH-01 already accepted.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": "AF-03-carry"
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "inconsistency",
+      "summary": "Card label 'Avg tokens / session' carries mockup spacing, not prose spacing",
+      "source": "services/api/app/services/personal_usage.py:46",
+      "task_id": "T-05",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "Flag rejected as noise -- see rationale.",
+      "rationale": "The code is correct by CLAUDE.md's mockup-is-authoritative rule; the label is a server-owned presentation constant consumers render rather than string-match, and SHP-02's tests read the literal from the constant instead of retyping it.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "inconsistency",
+      "summary": "SHP-02-TC-01 asserted a to-date token total its own seed data contradicts",
+      "source": "docs/test-cases/SHP-02.json",
+      "task_id": "T-05",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "Correct the two derived assertions to 18.0K / 2.6K; leave every seeded row untouched.",
+      "rationale": "Decided during /arh-implement (user chose correcting the assertions over re-seeding the fixture); already applied and verified by SHP-02-TC-01 passing.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "risky-pattern",
+      "summary": "/auth/dev-bypass cannot mint a token for a caller-chosen user_id",
+      "source": "services/api/app/auth/dev_bypass.py:102",
+      "task_id": "T-08",
+      "raised_at": "2026-09-07",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "Flag deferred to carry-forward.",
+      "rationale": "A user_id/sub field on the dev-bypass body would remove the mint-then-decode workaround for every future self-view test, but /auth/dev-bypass is AUTH-01-owned and changing an auth surface from inside a usage-panel story is the wrong blast radius.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": "AF-06-carry"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "evidence-na",
+      "summary": "design_check dimension recorded N/A -- no a11y/console-scan tool wired",
+      "source": "docs/config/project-commands.yaml",
+      "task_id": "-",
+      "raised_at": "2026-09-07",
+      "raised_by": "evidence-pass",
+      "status": "reject",
+      "decision": "Flag rejected as noise -- see rationale.",
+      "rationale": "N/A confirmed correct for this story: SHP-02 is backend-only (design: n/a) and renders nothing, so design_check has no surface to run against regardless of tooling.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": null
+    },
+    {
+      "flag_id": "AF-08",
+      "kind": "risky-pattern",
+      "summary": "Perf-budget tests fail non-deterministically under shared-machine load",
+      "source": "services/api/tests/perf/ (6 files, none SHP-02-owned)",
+      "task_id": "-",
+      "raised_at": "2026-09-07",
+      "raised_by": "evidence-pass",
+      "status": "defer",
+      "decision": "Flag deferred to carry-forward.",
+      "rationale": "Proven code-independent via stash-out A/B; needs a real test-infrastructure policy (load guard, excluded marker, or quiesce/retry) rather than a per-story fix. Deferring clears the flag gate but NOT the evidence gate -- impl_evidence stays FAIL.",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-08T01:15:12Z",
+      "carry_forward_ref": "AF-08-carry"
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-09-08 P=2/2 in 1 round(s)",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/SHP-02/REVIEW.md",
+  "validation_report": "docs/features/SHP-02/VALIDATION-20260908-0317.md",
+  "validation_rounds": 1,
+  "review_blocked_rounds": 0
+}

@@ -161,7 +161,7 @@
         {"name": "duration_seconds", "type": "Integer", "nullable": false, "default": null, "unique": false},
         {"name": "tokens", "type": "BigInteger", "nullable": false, "default": null, "unique": false}
       ],
-      "constraints": ["unique(session_identifier)"]
+      "constraints": ["unique(session_identifier)", "index(user_id, started_at)"]
     },
     "program_artifacts": {
       "primary_key": "id",
@@ -230,7 +230,8 @@
         "index(program_id, ts)",
         "index(program_id, user)",
         "index(program_id, command)",
-        "index(program_id, session_id)"
+        "index(program_id, session_id)",
+        "index(user, ts)"
       ]
     },
     "ingest_tokens": {

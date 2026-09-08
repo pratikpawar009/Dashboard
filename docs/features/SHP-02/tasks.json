@@ -1,0 +1,378 @@
+{
+  "schema_version": 1,
+  "story_id": "SHP-02",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-07T16:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/schemas/personal_usage.py",
+      "reason": "PersonalUsageCard/DailyTokenPoint/DailyTokenSeries/CommandEntry/CommandsPanel/PersonalUsageResponse models (DECISIONS.md D-04, promoted ADR-0009)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/services/personal_usage.py",
+      "reason": "query/aggregation layer: card totals + daily token series over user_sessions, commands breakdown over usage_events (D-01)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/api/personal_usage.py",
+      "reason": "GET /api/personal-usage/{user_id} router (AC1..AC5); defines the story-local _range_with_default wrapper (D-02)"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "register personal_usage_router (wiring) after overview_router"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/migrations/versions/002_personal_usage_indexes.py",
+      "reason": "additive migration: ix_user_sessions_user_id_started_at + ix_usage_events_user_ts (Condition C-1, D-01)"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/models/rollup.py",
+      "reason": "add Index(\"ix_user_sessions_user_id_started_at\", \"user_id\", \"started_at\") to UserSessions.__table_args__ (D-05, mirrors F-05's migration)"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/app/models/ingestion.py",
+      "reason": "add Index(\"ix_usage_events_user_ts\", \"user\", \"ts\") to UsageEvent.__table_args__'s existing tuple (D-05, mirrors F-05's migration)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/app/utils/format.py",
+      "reason": "add bar_style_for_share(count, max_count) -> str, additive (D-03) -- commands[].barStyle max-of-range formula"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_personal_usage.py",
+      "reason": "SHP-02-TC-01 (contract envelope), SHP-02-TC-02 (RBAC 403), plus the disclosed coverage-gap unit tests for SHP-02-AC-5/FR-5/FR-6"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_personal_usage_perf.py",
+      "reason": "SHP-02-NFR-performance: query-count spy (budget 3 SELECTs) + duration budget, all 3 ranges (Condition C-1)"
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "API table row for GET /api/personal-usage/{user_id} (Documentation requirements, Docs T2 trigger)"
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "services/api/tests/test_migrations.py",
+      "reason": "PLAN DRIFT (added 2026-09-07, user-authorised): F-05's new revision breaks the hardcoded HEAD_REVISION literal at line 69; derive the head via ScriptDirectory instead. See FLAGS.md AF-01."
+    },
+    "F-13": {
+      "action": "modify",
+      "path": "docs/test-cases/SHP-02.json",
+      "reason": "PLAN DRIFT (added 2026-09-07, user-authorised): SHP-02-TC-01 asserted a to-date token total (20000) its own seeded rows (18000) contradict; corrected the two derived assertions only. See FLAGS.md AF-05."
+    },
+    "F-14": {
+      "action": "modify",
+      "path": "services/api/tests/fixtures/prd_8_4_schema.json",
+      "reason": "PLAN DRIFT (added 2026-09-07, evidence pass round 1): T-02's authorized ORM indexes (D-05) made this BED-01-owned schema fixture stale, failing test_models.py::TestFixtureDrivenTableConstraints. Declares index(user_id, started_at) on user_sessions and index(user, ts) on usage_events -- nothing else. Root-cause fix made by the evidence pass, not a triaged flag -- see EVIDENCE-ROUNDS.md Round 1 (test_models.py 46/46 green afterwards). (Corrected 2026-09-08: this reason previously cited 'FLAGS.md AF-07', which is the unrelated design_check N/A flag -- REVIEW.md LOW finding.)"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_format.py",
+      "reason": "PLAN DRIFT (added 2026-09-08, /arh-human-review AF-02 triaged accept): direct unit coverage for bar_style_for_share -- 10 parametrized boundary cases plus a max-of-range-vs-share-of-total regression test. The helper is SHP-02's own addition (D-03), so its test belongs to this story."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add personal_usage_indexes Alembic migration",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "New revision 002_personal_usage_indexes, down_revision=001_initial_schema. upgrade(): op.create_index(\"ix_user_sessions_user_id_started_at\", \"user_sessions\", [\"user_id\", \"started_at\"]); op.create_index(\"ix_usage_events_user_ts\", \"usage_events\", [\"user\", \"ts\"]) -- plain, not postgresql_concurrently (DECISIONS.md D-01, disclosed tradeoff). downgrade(): op.drop_index both, same order reversed. Never hand-edit 001_initial_schema.py (surgical-changes; research Pattern map 'Shared code at risk').",
+      "status": "done",
+      "completed_at": "2026-09-07T12:11:01Z",
+      "files_touched": [
+        "services/api/migrations/versions/002_personal_usage_indexes.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Mirror the new indexes into the ORM models",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-06",
+        "F-07"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "rollup.py: add __table_args__ = (Index(\"ix_user_sessions_user_id_started_at\", \"user_id\", \"started_at\"),) to UserSessions (currently has none). ingestion.py: append Index(\"ix_usage_events_user_ts\", \"user\", \"ts\") as a 5th entry to UsageEvent.__table_args__'s existing tuple, alongside its 4 program_id-prefixed indexes -- do not remove or reorder those. Matches D-05 and the existing ProgramReleases/ProgramCommands/ProgramMembers convention of declaring an index in both the migration and the model.",
+      "status": "done",
+      "completed_at": "2026-09-07T12:36:21Z",
+      "files_touched": [
+        "services/api/app/models/rollup.py",
+        "services/api/app/models/ingestion.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Add bar_style_for_share() to app/utils/format.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-3"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "def bar_style_for_share(count: int, max_count: int) -> str: return f'width: {round(count / max_count * 100)}%;' if max_count > 0 else 'width: 0%;'. Additive only -- do not modify format_number/format_duration/dot_style_for_program signatures or bodies (D-03). Docstring cites SHP-02-FR-3 and the AC3-prose-vs-mockup discrepancy, mirroring dot_style_for_program's doctest style.",
+      "status": "done",
+      "completed_at": "2026-09-07T12:11:01Z",
+      "files_touched": [
+        "services/api/app/utils/format.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Add personal_usage response schemas",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-1",
+        "SHP-02-AC-2",
+        "SHP-02-AC-3"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "PersonalUsageCard{glyph,value,label,iconBg,iconColor} (Field alias iconBg/iconColor, ConfigDict(populate_by_name=True) matching app/schemas/programs.py's dotStyle precedent) -- exactly 5 keys, no delta field, ever. DailyTokenPoint{date,value}. DailyTokenSeries{points: list[DailyTokenPoint], period_total, avg_per_day}. CommandEntry{command, count: int, barStyle} (Field alias barStyle). CommandsPanel{total_runs, items: list[CommandEntry]}. PersonalUsageResponse{cards: list[PersonalUsageCard] (len 4), daily_tokens: DailyTokenSeries, commands: CommandsPanel}. Per ADR-0009/DECISIONS.md D-04.",
+      "status": "done",
+      "completed_at": "2026-09-07T12:11:01Z",
+      "files_touched": [
+        "services/api/app/schemas/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Add personal_usage service layer (queries + aggregation)",
+      "complexity": "L",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-1",
+        "SHP-02-AC-2",
+        "SHP-02-AC-3"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-03",
+        "R-04",
+        "R-07"
+      ],
+      "notes": "Exactly 3 async functions, each one bounded SELECT (DATA-DESIGN.md \u00a78): (1) fetch_card_totals(db, user_id) -> to-date SELECT count(*), sum(duration_seconds), sum(tokens) FROM user_sessions WHERE user_id=:id -- coerce SUM's NULL (zero rows) to 0 before building cards; build_cards(...) zips the fixed 4-tuple (glyph,label,iconBg,iconColor order: Sessions, Total time, Total tokens, Avg tokens/session; literal values sourced from the decoded ARC/DEV/PMD mockups at implementation time, mirroring overview.py's _SUMMARY_CARD_GLYPHS_LABELS) against format_number(sessions)/format_duration(total_duration_seconds // 60)/format_number(total_tokens)/format_number(compute_average(total_tokens, sessions)) -- compute_average (app/services/rollup_compute.py) gives 0.0 when sessions==0 (SHP-02-FR-5), never None. (2) fetch_daily_token_series(db, user_id, range_value) -> grouped SELECT date_trunc('day', started_at), sum(tokens) FROM user_sessions WHERE user_id=:id AND started_at >= range_to_start(range_value) GROUP BY 1; a pure zero-padding helper walks every day in [range_to_start(range_value), now] producing one DailyTokenPoint per day (missing days -> value=format_number(0)='0'), then period_total=format_number(sum) and avg_per_day=format_number(sum/num_days). (3) fetch_commands_breakdown(db, user_id, range_value) -> grouped SELECT command, count(*) FROM usage_events WHERE \\\"user\\\"=:id AND ts >= range_to_start(range_value) GROUP BY command; build_commands_panel(...) computes max_count = max(counts, default=0), total_runs=format_number(sum(counts)), items=[CommandEntry(command=c, count=n, barStyle=bar_style_for_share(n, max_count)) for c,n in rows] (empty items when no in-range events). Module docstring documents the user_sessions-vs-usage_events table split (C-2/D-01) and the bar-formula AC3-vs-mockup discrepancy (SHP-02-FR-3), per REQUIREMENTS.md Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-09-07T12:36:21Z",
+      "files_touched": [
+        "services/api/app/services/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Add GET /api/personal-usage/{user_id} router",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-1",
+        "SHP-02-AC-2",
+        "SHP-02-AC-3",
+        "SHP-02-AC-4",
+        "SHP-02-AC-5"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-06"
+      ],
+      "notes": "app/api/personal_usage.py, prefix /api/personal-usage. Private _range_with_default(request: Request, range: str = Query(\"30d\")) -> str: return validate_range(request, range) (D-02) wired via Depends(_range_with_default) in place of Depends(validate_range). Handler signature: get_personal_usage(user_id: str, range: str = Depends(_range_with_default), current_user: CurrentUser = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> PersonalUsageResponse. Body: await individual_usage_visibility(current_user, user_id) first (bare call, no try/except -- the check itself raises HTTPException(403) and logs individual_view_denied per rbac-checks contract, mirroring overview.py's single rbac.* gate-call pattern); then call the 3 service functions and assemble PersonalUsageResponse. Module docstring names every FR/AC/Condition satisfied (mirrors overview.py's convention) and the real file paths (research Risk #6 -- never backend/app/...).",
+      "status": "done",
+      "completed_at": "2026-09-07T12:48:02Z",
+      "files_touched": [
+        "services/api/app/api/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Wire personal_usage_router into app.main",
+      "complexity": "S",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "from app.api.personal_usage import router as personal_usage_router; app.include_router(personal_usage_router) placed immediately after app.include_router(overview_router) (research Pattern map). No other create_app() line changes -- no new CORS header needed (no custom request header on this route, unlike PGD-01's X-Program-Switch-From).",
+      "status": "done",
+      "completed_at": "2026-09-07T13:10:33Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Unit tests: full envelope contract (TC-01) + zero-session average (FR-5)",
+      "complexity": "L",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-1",
+        "SHP-02-AC-2",
+        "SHP-02-AC-3"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-04"
+      ],
+      "notes": "SHP-02-TC-01 verbatim: seed the 7 user_sessions + usage_events rows from docs/test-cases/SHP-02.json test_data, mint a dev-bypass self-view token, GET .../usr-shp02-tc01?range=30d, assert every expected_results line (4 order-locked cards with exactly the 5 keys and no delta anywhere in the body -- recursive scan; to-date card values; 30-point zero-padded daily series excluding the 40-day-old session; commands total_runs=60, 3 items excluding 'deploy', max-of-range barStyle widths 100%/25%/25%; no program_id anywhere). Plus a second test (not in the TC manifest, closes the disclosed SHP-02-FR-5 coverage gap, PRD \u00a7 Approvals): a user with 0 user_sessions rows returns HTTP 200 with Avg tokens/session card value '0' (format_number(0.0)) -- asserting the response is NOT null/error/missing, proving the compute_average 0.0-not-None branch end-to-end.",
+      "status": "done",
+      "completed_at": "2026-09-07T13:10:09Z",
+      "files_touched": [
+        "services/api/tests/unit/test_personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Unit tests: RBAC 403 (TC-02) + range default/invalid (AC-5/FR-6)",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "SHP-02-AC-4",
+        "SHP-02-AC-5"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "Same file as T-08 (predecessors edge serializes the shared F-09 write -- parallel-safety). SHP-02-TC-02 verbatim: cross-user request from a non-cio developer persona -> HTTP 403, body exactly {\"error\":{\"code\":\"http_403\",\"message\":\"Forbidden\",\"details\":null}}, exactly one individual_view_denied log record, no PII/no usage-data fields in that record. Plus the disclosed SHP-02-AC-5/FR-6 coverage gap (PRD \u00a7 Approvals): (a) GET .../{user_id} with NO range query param -> 200, response computed as if range=30d (30-point daily series); (b) GET .../{user_id}?range=1d (outside {7d,30d,90d}) -> HTTP 400, body {\"error\":{\"code\":\"http_400\",\"message\":\"invalid_range\",\"details\":null}}, matching every other validate_range() consumer's envelope byte-for-byte.",
+      "status": "done",
+      "completed_at": "2026-09-07T13:26:42Z",
+      "files_touched": [
+        "services/api/tests/unit/test_personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Perf test: bounded SELECT count + duration budget, all 3 ranges",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-07"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Mirrors tests/perf/test_overview_perf.py's structure exactly (real create_app(), dev-bypass self-view bearer token, before_cursor_execute query-count spy on test_engine.sync_engine scoped to SELECTs referencing user_sessions OR usage_events, production_logging fixture, time.perf_counter()). QUERY_COUNT_BUDGET = 3 (fixed -- 2 against user_sessions, 1 against usage_events, per D-01), HANDLER_DURATION_BUDGET_MS = 2000.0 (NFR-002's literal \u2264 2s budget, not an arbitrarily stricter number). Parametrized over range in {'7d','30d','90d'} -- one test function, 3 seeded scenarios. Self-view path resolves no persona (mirrors test_overview_perf.py's note that program_visibility needs no persona-resolver stub); assert zero individual_view_denied log records emitted (this is a self-view, never a denial) and no PII in any record captured. Honest measurement: report the actual duration, never loosen the budget to pass (test_overview_perf.py's own convention).",
+      "status": "done",
+      "completed_at": "2026-09-07T13:37:20Z",
+      "files_touched": [
+        "services/api/tests/perf/test_personal_usage_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "docs(readme): API table row for GET /api/personal-usage/{user_id}",
+      "complexity": "S",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "root README.md \u00a7 API table: add a row for GET /api/personal-usage/{user_id} following the AUTH-04/PGD-01 row format -- Request: none besides bearer + optional ?range=7d|30d|90d (default 30d); Response: 200 {cards, daily_tokens, commands} per docs/requirements/api.md#personal-usage-api; 403 no-body on RBAC denial; 400 invalid_range. Docs T2 trigger (new HTTP route) -- no T1/T3/T4 trigger fires (no new runnable surface, no new env var, no new service/port).",
+      "status": "done",
+      "completed_at": "2026-09-07T13:10:09Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Plan drift: derive HEAD_REVISION dynamically + correct TC-01 totals",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-05"
+      ],
+      "files": [
+        "F-12",
+        "F-13",
+        "F-14",
+        "F-15"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Not in the original plan. Both edits authorised by the user after T-01/T-05 surfaced them as flags (AF-01, AF-05); executed by the orchestrator, not a worker, because both files are outside every worker's assigned scope. Verified: tests/test_migrations.py 12/12 green. F-14 appended during the evidence pass: the same D-05 index addition also made tests/fixtures/prd_8_4_schema.json stale; fixed at root cause (declare the two indexes), verified test_models.py 46/46 green. F-15 appended after /arh-human-review: AF-02 was triaged accept, so bar_style_for_share got the direct unit test its three sibling helpers already had (tests/unit/test_format.py 31 passed, up from 20).",
+      "status": "done",
+      "completed_at": "2026-09-07T12:48:02Z",
+      "files_touched": [
+        "services/api/tests/test_migrations.py",
+        "docs/test-cases/SHP-02.json",
+        "services/api/tests/fixtures/prd_8_4_schema.json",
+        "services/api/tests/unit/test_format.py"
+      ],
+      "reason": null
+    }
+  ]
+}

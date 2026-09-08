@@ -189,8 +189,14 @@ shape:
 produced_by: SHP-02
 consumed_by: [ARC-01, DEV-01, PMD-01, PGD-05]
 shape:
-  endpoint: "GET /api/personal-usage/{user_id}"
-  fields: "cards (sessions, total_time, total_tokens, avg_tokens_per_session) + daily token chart + daily session-time chart + commands, ranged 7d/30d/90d default 30d"
+  endpoint: "GET /api/personal-usage/{user_id}?range=7d|30d|90d (default 30d, via a story-local _range_with_default wrapper around the shared validate_range())"
+  response_model: "PersonalUsageResponse @ app/schemas/personal_usage.py (SHP-02/DECISIONS.md D-04, promoted ADR-0009)"
+  cards: "list[PersonalUsageCard { glyph: str, value: str, label: str, iconBg: str, iconColor: str }], exactly 4 entries, order-locked: Sessions, Total time, Total tokens, Avg tokens/session — a TO-DATE aggregate over ALL of the user's sessions, NOT scoped to range. glyph/label/iconBg/iconColor are fixed presentation constants owned by the producer (mirrors program-detail-api's _SUMMARY_CARD_GLYPHS_LABELS precedent, extended to a 4-tuple). value: format_number() for Sessions/Total tokens/Avg tokens per session (api-conventions); format_duration() for Total time. No delta field ships — present in the mockup's mock-data generator, bound in zero templates."
+  daily_tokens: "DailyTokenSeries { points: list[{date: str, value: str}], period_total: str, avg_per_day: str } — RANGE-scoped (7/30/90 points, zero-padded for a day with no sessions, oldest-to-newest). point.value/period_total/avg_per_day all pre-formatted via format_number() (FR-2's literal field names). Raw numeric series per overview-token-series-api's (OVW-02) precedent — no rendered chart markup; frontend chart-rendering approach is a separate, still-open decision (docs/requirements/RTM.md § Decisions 2026-09-07), not settled here."
+  commands: "CommandsPanel { total_runs: str, items: list[{command: str, count: int, barStyle: str}] } — RANGE-scoped, computed from usage_events only (cards/daily_tokens come from user_sessions). total_runs pre-formatted via format_number(); count is a RAW int (the bar-formula input, deliberately not pre-formatted); barStyle is round(count / max(all in-range counts) * 100)% width, i.e. max-of-range — NOT count / total_run_count * 100 as the story AC3 prose literally reads (SHP-02-FR-3, resolved in the mockup's favour per CLAUDE.md § Design system)."
+  scope: "no program_id anywhere in the request or response — cross-program aggregate by contract."
+  rbac: "self-view gated by rbac-checks' individual_usage_visibility (self always; else cio only, FR-AUTH-07); a denial is a bare HTTPException(403) (no data body), logged individual_view_denied."
+  errors: "range outside {7d,30d,90d} -> HTTPException(400, 'invalid_range') via the shared api-conventions envelope, identical to every other validate_range() consumer."
   authz_note: "SHP-02's own self-view calls this gated by rbac-checks' individual_usage_visibility (self always; else cio only, FR-AUTH-07). PGD-05 reuses this same endpoint/shape as the Project Team per-member drill-down popup — same contract, no new interface — gated instead by rbac-checks' member_in_program_visibility (program check AND (self OR cio), FR-AUTH-08); denials logged as member_view_denied, not individual_view_denied."
 ```
 
