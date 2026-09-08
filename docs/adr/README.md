@@ -10,3 +10,4 @@
 | [ADR-0006](0006-ingest-token-format-and-scope-semantics.md) | Ingest token format, scope semantics, and lifetime | Accepted |
 | [ADR-0007](0007-program-detail-response-shape.md) | `program-detail-api` returns an ordered `summary` card array with server-owned glyph/label | Accepted |
 | [ADR-0008](0008-client-side-auth-route-handler-proxy.md) | Client-side authenticated FastAPI calls go through a same-origin Route Handler proxy — FastAPI is never reached directly from the browser | Accepted |
+| [ADR-0009](0009-personal-usage-api-response-shape.md) | `personal-usage-api` returns 5-field cards + a raw daily token series + a commands panel, server-owned presentation fields | Accepted |

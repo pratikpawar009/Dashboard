@@ -1,0 +1,282 @@
+{
+  "story_id": "SHP-02",
+  "test_cases": [
+    {
+      "id": "SHP-02-TC-01",
+      "title": "Full personal-usage envelope: to-date cards + ranged daily token series + ranged commands panel",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-02-AC-1",
+      "given": "a signed-in developer persona (usr-shp02-tc01) has 7 user_sessions rows to date (6 within the last 30 days, 1 that is 40 days old) and usage_events seeded {plan: 40, implement: 10, review: 10} inside the 30d window plus 5 out-of-range 'deploy' events 40 days old",
+      "when": "GET /api/personal-usage/usr-shp02-tc01?range=30d is called by that same user",
+      "then": "the response returns exactly 4 order-locked cards (all 5 fields each, no delta key anywhere) computed to-date across all 7 sessions, a 30-point zero-padded daily token series whose period_total/avg_per_day are computed only from the 6 in-range sessions, and a commands panel (total_runs=60) whose barStyle width is proportional to the max count in range and excludes the out-of-range 'deploy' events",
+      "objective": "Verify AC-1 (cards), AC-2 (daily token chart) and AC-3 (commands panel) together in one call: card field/order/shape lock and the absent `delta` key (FR-1); the daily series' raw {date,value} shape, zero-padding, period_total/avg_per_day (FR-2); the commands max-of-range (not share-of-total) barStyle formula (FR-3); and that cards are a to-date aggregate while the chart/commands are strictly range-scoped (Outcome: 'four summary cards, a ranged daily token series, and a ranged command breakdown') and that no program_id appears anywhere (cross-program aggregate).",
+      "preconditions": [
+        "Test user usr-shp02-tc01 exists, resolvable via a POST /auth/dev-bypass token with persona=developer",
+        "7 user_sessions rows seeded for usr-shp02-tc01: {days_ago: 40, tokens: 6000, duration_seconds: 7200}, {days_ago: 29, tokens: 3000, duration_seconds: 3000}, {days_ago: 20, tokens: 3000, duration_seconds: 3600}, {days_ago: 10, tokens: 2000, duration_seconds: 1200}, {days_ago: 5, tokens: 2000, duration_seconds: 2400}, {days_ago: 1, tokens: 1500, duration_seconds: 1800}, {days_ago: 0, tokens: 500, duration_seconds: 600} (days_ago is relative to the request's execution date)",
+        "usage_events rows seeded for usr-shp02-tc01: 40 'plan', 10 'implement', 10 'review' events with ts within the last 30 days, plus 5 'deploy' events with ts 40 days ago",
+        "No other user's rows exist in the seeded window that could leak into this user's aggregate"
+      ],
+      "test_data": {
+        "user_id": "usr-shp02-tc01",
+        "signed_in_as": "usr-shp02-tc01",
+        "persona": "developer",
+        "range": "30d",
+        "seeded_user_sessions": [
+          {
+            "days_ago": 40,
+            "tokens": 6000,
+            "duration_seconds": 7200
+          },
+          {
+            "days_ago": 29,
+            "tokens": 3000,
+            "duration_seconds": 3000
+          },
+          {
+            "days_ago": 20,
+            "tokens": 3000,
+            "duration_seconds": 3600
+          },
+          {
+            "days_ago": 10,
+            "tokens": 2000,
+            "duration_seconds": 1200
+          },
+          {
+            "days_ago": 5,
+            "tokens": 2000,
+            "duration_seconds": 2400
+          },
+          {
+            "days_ago": 1,
+            "tokens": 1500,
+            "duration_seconds": 1800
+          },
+          {
+            "days_ago": 0,
+            "tokens": 500,
+            "duration_seconds": 600
+          }
+        ],
+        "seeded_usage_events": {
+          "in_range_30d": {
+            "plan": 40,
+            "implement": 10,
+            "review": 10
+          },
+          "out_of_range_40d_ago": {
+            "deploy": 5
+          }
+        },
+        "note_schema_assumption": "Envelope wrapper key names (cards / daily_tokens / commands) below are this TC's provisional naming, not yet locked by PLAN.md's schema design; period_total, avg_per_day, and barStyle are the PRD's own literal field names (FR-2, FR-3) and are load-bearing."
+      },
+      "steps": [
+        "Seed the 7 user_sessions rows and the usage_events rows above for usr-shp02-tc01",
+        "POST /auth/dev-bypass with persona=developer to mint a bearer token for usr-shp02-tc01",
+        "GET /api/personal-usage/usr-shp02-tc01?range=30d with that bearer token",
+        "Parse the JSON response envelope"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "`cards` has exactly 4 entries in this order: Sessions, Total time, Total tokens, Avg tokens/session",
+        "Each card object has exactly the 5 keys {glyph, value, label, iconBg, iconColor}; `glyph`/`iconBg`/`iconColor` are non-empty strings (exact literal values are sourced from the decoded mockup at implementation time, not asserted here)",
+        "No `delta` key appears anywhere in the response body (recursive check across cards, daily series, and commands)",
+        "Cards are a to-date aggregate over all 7 sessions (including the 40-day-old one), not scoped to range=30d: Sessions.value = \"7\", Total time.value = \"5h 30m\" (330 total minutes = 19800s/60), Total tokens.value = \"18.0K\" (18000 tokens = 6000+3000+3000+2000+2000+1500+500, the sum of the 7 seeded rows), Avg tokens/session.value = \"2.6K\" (18000/7 = 2571.43... via compute_average, then format_number)",
+        "`daily_tokens.points` (or equivalent) has exactly 30 entries, one per day in the 30d window, ordered oldest-to-newest",
+        "point at days_ago=0 has value \"500\"; days_ago=1 -> \"1.5K\"; days_ago=5 -> \"2.0K\"; days_ago=10 -> \"2.0K\"; days_ago=20 -> \"3.0K\"; days_ago=29 -> \"3.0K\"; the remaining 24 days in the window carry value \"0\" (zero-padded, no session that day)",
+        "The 40-day-old session's 6000 tokens do NOT appear in any daily point and are excluded from period_total/avg_per_day -- proving cards (to-date) and the daily chart (ranged) are independently scoped",
+        "`daily_tokens.period_total` = \"12.0K\" (500+1500+2000+2000+3000+3000 = 12000, the 6 in-range sessions only)",
+        "`daily_tokens.avg_per_day` = \"400\" (12000 / 30 days)",
+        "`commands.total_runs` = \"60\" (40+10+10, the in-range events only)",
+        "`commands` items contain exactly 3 entries -- plan, implement, review -- and no 'deploy' entry (proves the commands panel is range-scoped and excludes the 40-day-old events)",
+        "plan: count=40, barStyle width = round(40/40*100) = 100%; implement: count=10, barStyle width = round(10/40*100) = 25%; review: count=10, barStyle width = 25% (max-of-range formula, not share-of-total -- a share-of-total bug would instead render 67%/17%/17%)",
+        "No `program_id` key appears in the request path/query or anywhere in the response body"
+      ],
+      "tags": [
+        "happy-path",
+        "contract",
+        "cards",
+        "daily-token-chart",
+        "commands-panel",
+        "cross-program-aggregate",
+        "to-date-vs-ranged"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#231",
+      "last_run": {
+        "started_at": "2026-09-08T03:00:00Z",
+        "duration_ms": 10570,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 10570, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_usage.py::test_personal_usage_full_envelope_contract_tc01",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Verbatim TC-01 seed/assertions run in-process against the real migrated Postgres (no mocks). Independently re-confirmed live against the running server (GET /api/personal-usage/{self} on port 8000): 200, 4 order-locked 5-key cards, no `delta`/`program_id` anywhere, 30-point zero-padded daily series, empty commands panel for the zero-session case (exact seeded-data totals not re-derivable live -- no HTTP-reachable seeding path exists; app/api/ingest.py is a skeleton that does not persist to user_sessions/usage_events, and direct DB seeding was not attempted because services/api/.env credentials are outside the read-file governance deny-set)."
+      }
+    },
+    {
+      "id": "SHP-02-TC-02",
+      "title": "Cross-user request denied with bare 403 and PII-free individual_view_denied log",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-02-AC-4",
+      "given": "a signed-in developer persona (usr-shp02-tc02-requester) is not usr-shp02-tc02-target and is not cio",
+      "when": "GET /api/personal-usage/usr-shp02-tc02-target?range=30d is called by that requester",
+      "then": "individual_usage_visibility denies the request with HTTP 403 and no data body, and exactly one individual_view_denied log event is emitted carrying no PII",
+      "objective": "Verify AC-4 / FR-4 (bare 403 envelope, no partial data, on any cross-user request from a non-cio persona) together with the security NFR (server-side-only RBAC enforcement) and the observability NFR (individual_view_denied logged, PII-free).",
+      "preconditions": [
+        "Two distinct user ids resolvable via POST /auth/dev-bypass: usr-shp02-tc02-requester (persona=developer) and usr-shp02-tc02-target (any persona, no cio grant for the requester)",
+        "Production-equivalent JSON logging configured so an INFO-level structured log call actually formats and emits (not short-circuited by an unattached handler)",
+        "A log-capturing handler attached to the personal_usage router's logger to inspect the emitted record's content"
+      ],
+      "test_data": {
+        "requester_user_id": "usr-shp02-tc02-requester",
+        "requester_persona": "developer",
+        "target_user_id": "usr-shp02-tc02-target",
+        "bearer_token": "<DEV_BYPASS_ACCESS_TOKEN>",
+        "range": "30d"
+      },
+      "steps": [
+        "POST /auth/dev-bypass with persona=developer to mint a bearer token for usr-shp02-tc02-requester",
+        "GET /api/personal-usage/usr-shp02-tc02-target?range=30d using that bearer token",
+        "Capture the HTTP response status and full JSON body",
+        "Capture the individual_view_denied structured log record emitted during that request"
+      ],
+      "expected_results": [
+        "HTTP 403",
+        "Response body is exactly {\"error\": {\"code\": \"http_403\", \"message\": \"Forbidden\", \"details\": null}} -- no other top-level keys, no `cards`/`daily_tokens`/`commands` fields, no partial usage data",
+        "Exactly one `individual_view_denied` log record is emitted for this request",
+        "The log record's JSON payload carries only opaque identifiers (e.g. requester/target `user_id`); it contains no `email`, no `name`, no `token`/`access_token`/`refresh_token`, and no raw Authorization header value",
+        "No usage-data fields (sessions, tokens, duration, commands) appear anywhere in the log payload"
+      ],
+      "tags": [
+        "rbac",
+        "negative",
+        "security",
+        "observability",
+        "pii-safe-logging"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#232",
+      "last_run": {
+        "started_at": "2026-09-08T03:00:15Z",
+        "duration_ms": 11180,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 11180, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_usage.py::test_personal_usage_cross_user_denied_bare_403_tc02",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Verbatim TC-02 run in-process (log-capturing handler confirms exactly one PII-free individual_view_denied record). Independently re-confirmed live against the running server: two dev-bypass tokens minted, cross-user GET returned exactly {\"error\":{\"code\":\"http_403\",\"message\":\"Forbidden\",\"details\":null}} with HTTP 403 -- byte-identical to the expected envelope. Live log-stream inspection was not available (no tail access to the already-running server's stdout), so the PII-free-logging assertion rests on the pytest-level confirmation, not a second live observation."
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "SHP-02-AC-1",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-AC-2",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-AC-3",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-AC-4",
+        "covered_by": [
+          "SHP-02-TC-02"
+        ]
+      },
+      {
+        "id": "SHP-02-AC-5",
+        "covered_by": []
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "SHP-02-FR-1",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-FR-2",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-FR-3",
+        "covered_by": [
+          "SHP-02-TC-01"
+        ]
+      },
+      {
+        "id": "SHP-02-FR-4",
+        "covered_by": [
+          "SHP-02-TC-02"
+        ]
+      },
+      {
+        "id": "SHP-02-FR-5",
+        "covered_by": []
+      },
+      {
+        "id": "SHP-02-FR-6",
+        "covered_by": []
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "SHP-02-NFR-performance",
+        "covered_by": []
+      },
+      {
+        "id": "SHP-02-NFR-security",
+        "covered_by": [
+          "SHP-02-TC-02"
+        ]
+      },
+      {
+        "id": "SHP-02-NFR-observability",
+        "covered_by": [
+          "SHP-02-TC-02"
+        ]
+      }
+    ],
+    "uncovered": [
+      "SHP-02-AC-5",
+      "SHP-02-FR-5",
+      "SHP-02-FR-6",
+      "SHP-02-NFR-performance"
+    ],
+    "audit_notes": [
+      "Hard cap of 2 TCs was an explicit user instruction overriding the skill's coverage minimum (5 ACs + a numeric performance NFR normally require >=6 TCs). The 2 slots were spent on the highest-value composite assertions: TC-01 folds AC-1+AC-2+AC-3 (and FR-1+FR-2+FR-3) into one full-envelope contract call; TC-02 covers AC-4/FR-4 plus both the security and observability NFRs in one RBAC-denial call.",
+      "SHP-02-AC-5 (range default/400 on invalid range) and SHP-02-FR-6 (the _range_with_default wrapper mechanism) are genuinely uncovered -- no slot remained for a third call exercising an omitted or invalid `range` value.",
+      "SHP-02-FR-5 (avg_tokens_per_session = 0.0 for a zero-session user) is genuinely uncovered -- TC-01's seeded user has 7 sessions, so the zero-denominator branch of compute_average is never exercised.",
+      "SHP-02-NFR-performance is genuinely uncovered -- the skill requires a dedicated `type: performance` TC (query-count spy + p95<2s budget, mirroring test_overview_perf.py per the PRD's own Condition C-1), and no slot remained for it.",
+      "SHP-02-NFR-accessibility is N/A -- backend-only story, no rendered surface (per story NFRs and PRD Non-functional requirements); not counted as uncovered.",
+      "This gap is intentional and disclosed per explicit instruction, not a self-correction failure: no additional TC was generated to close it, and coverage_audit.uncovered above is reported honestly rather than emptied."
+    ]
+  }
+}

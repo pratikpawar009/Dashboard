@@ -28,14 +28,16 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config as AlembicConfig
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 import app.models as models
 from app.core.logging import configure_logging
-from tests.conftest import AlembicRunner
+from tests.conftest import ALEMBIC_INI, AlembicRunner
 
 TESTS_DIR = Path(__file__).resolve().parent
 API_ROOT = TESTS_DIR.parent
@@ -66,7 +68,23 @@ EXPECTED_TABLES = frozenset(
         "user_roles",
     }
 )
-HEAD_REVISION = "001_initial_schema"
+
+
+def _current_head_revision() -> str:
+    """The head revision Alembic itself reports for `migrations/versions/`.
+
+    Derived rather than hardcoded: a literal breaks the moment any story adds
+    a revision (SHP-02's `002_personal_usage_indexes` did exactly that to the
+    former `"001_initial_schema"` constant). `ALEMBIC_INI` is the same config
+    `conftest.alembic_config` builds, so this resolves `script_location` the
+    one way this suite already does.
+    """
+    head = ScriptDirectory.from_config(AlembicConfig(str(ALEMBIC_INI))).get_current_head()
+    assert head is not None, "migrations/versions/ contains no revisions"
+    return head
+
+
+HEAD_REVISION = _current_head_revision()
 
 
 def _snapshot_schema(sync_conn: Any) -> dict[str, dict[str, Any]]:
