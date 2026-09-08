@@ -55,6 +55,7 @@ import logging
 import math
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -179,6 +180,7 @@ async def test_cold_tier3_hit_latency_baseline_p95_under_100ms(
     test_session: AsyncSession,
     test_engine: AsyncEngine,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """AUTH-02-TC-13: `COLD_ITERATIONS` cold Tier-3 lookups for `COLD_ROLE`,
     cache cleared before every call (TC-13 step "with cache cleared between
@@ -189,12 +191,24 @@ async def test_cold_tier3_hit_latency_baseline_p95_under_100ms(
     `_resolve_tier3` is wrapped (not replaced) to count calls, proving
     exactly one Tier-3 query ran per cleared-cache call (TC-13
     expected_results).
+
+    `persona_config_file` points at an empty Tier-2 YAML rather than letting
+    `Settings()` fall back to `_DEFAULT_TIER2_PATH`. This test measures the
+    *Tier-3* path, so it must not depend on the shipped
+    `config/persona_role_map.yaml` happening to be empty: the moment that file
+    maps `COLD_ROLE`, Tier-2 answers first, Tier-3 is never queried, and the
+    call-count assertion below fails for a reason that has nothing to do with
+    latency. Isolating the tier under test keeps the measurement honest
+    whatever the deployed config contains.
     """
     test_session.add(PersonaConfig(role=COLD_ROLE, persona=COLD_ROLE))
     await test_session.commit()
 
+    empty_tier2 = tmp_path / "persona_role_map.yaml"
+    empty_tier2.write_text("{}\n", encoding="utf-8")
+
     resolver = PersonaResolver(
-        Settings(),
+        Settings(persona_config_file=empty_tier2),
         session_factory=async_sessionmaker(bind=test_engine, expire_on_commit=False),
     )
 

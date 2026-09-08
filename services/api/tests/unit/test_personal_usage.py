@@ -541,3 +541,62 @@ async def test_personal_usage_invalid_range_returns_400_fr6(
     assert resp.json() == {
         "error": {"code": "http_400", "message": "invalid_range", "details": None}
     }
+
+
+# -----------------------------------------------------------------------------
+# SHP-02-FR-3 -- the commands panel is a descending ranking, not grouping order.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_commands_panel_is_ordered_by_count_descending_fr3(
+    migrated_db: AlembicRunner,
+    test_session: AsyncSession,
+    build_app: Callable[..., FastAPI],
+    async_client_for: AsyncClientFactory,
+) -> None:
+    """`commands.items` comes back ranked highest-count-first.
+
+    The mockup renders this panel as a descending bar ranking and `barStyle`
+    is already computed against the range's max count, so an unordered list
+    puts the longest bar somewhere in the middle. The grouped query carries no
+    inherent order, so without an explicit `ORDER BY` the rows arrive in
+    whatever order grouping happens to produce.
+
+    Commands are seeded deliberately out of rank order (`alpha` lowest first,
+    `delta` highest last) so a response that merely echoed insertion or
+    grouping order would fail this assertion.
+    """
+    app = _build_personal_usage_app(build_app, test_session)
+
+    async with async_client_for(app) as client:
+        token, user_id = await _mint_dev_bypass_token(client, role="developer")
+
+        now = datetime.now(UTC)
+        in_range_ts = now - timedelta(days=2)
+        event_rows: list[dict[str, Any]] = []
+        idx = 0
+        for command, count in (("alpha", 3), ("bravo", 11), ("charlie", 7), ("delta", 19)):
+            for _ in range(count):
+                event_rows.append(
+                    _usage_event_row(user_id=user_id, command=command, ts=in_range_ts, idx=idx)
+                )
+                idx += 1
+        await test_session.execute(sa.insert(UsageEvent), event_rows)
+        await test_session.commit()
+
+        resp = await client.get(
+            f"/api/personal-usage/{user_id}?range=30d",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    items = resp.json()["commands"]["items"]
+
+    assert [i["command"] for i in items] == ["delta", "bravo", "charlie", "alpha"]
+    assert [i["count"] for i in items] == [19, 11, 7, 3]
+
+    counts = [i["count"] for i in items]
+    assert counts == sorted(counts, reverse=True)
+    # The widest bar is therefore the first row, which is the whole point.
+    assert items[0]["barStyle"] == "width: 100%;"

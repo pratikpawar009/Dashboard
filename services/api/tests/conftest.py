@@ -560,6 +560,15 @@ _HERMETIC_SETTINGS_DEFAULTS: dict[str, Any] = {
     "oidc_client_secret": None,
     "oidc_issuer": None,
     "oidc_realm": None,
+    # Omitted from this dict until 2026-09-08, which broke the moment a real
+    # `OIDC_REDIRECT_URI` was set in `services/api/.env` (AUTH-05's deployment
+    # step): `test_login_redirects_to_keycloak_with_valid_authorization_request`
+    # asserts the DERIVED fallback (`http://test/auth/callback`) and had only
+    # ever passed because the var happened to be unset everywhere. Pinning it
+    # to None here is what the comment above already promises — the derived
+    # branch is now exercised deterministically, and the two tests that assert
+    # a configured value still override it per-call.
+    "oidc_redirect_uri": None,
     "oidc_scope": "openid profile email groups",
     "program_group_prefix": "program-",
     "cors_origins": [],
