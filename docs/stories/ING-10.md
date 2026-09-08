@@ -1,0 +1,59 @@
+# Story: ING-10 — POST /api/ingest/manifest — program identity + team roster ingest
+
+**Epic**: ING
+**Status**: Validated
+**Priority**: P1
+**Owner**: —
+**Updated**: 2026-09-08
+**Tracker**: pratikpawar009/Dashboard#236 (https://github.com/pratikpawar009/Dashboard/issues/236)
+
+## User story
+
+As the operator of a monitored program's `.harness/program.yaml` (pushed via CI/local tooling), I want to POST my program's identity and team roster in one request, so that the dashboard's program header/switcher label and per-program membership scoping (`AUTH-06`) come from a reviewed, committed file instead of Keycloak group administration.
+
+## Acceptance criteria
+
+1. Given a request with no bearer token, or a token whose hash has no match, is revoked, or is expired, when `POST /api/ingest/manifest` is called, then the response is `401` and nothing is written to `program_summary`, `program_roster`, or `user_roles` (per `ingest-token-auth` contract).
+2. Given a valid token whose `allowed_program_ids` does not include the request's `programId` and contains no `"*"` wildcard, when `POST /api/ingest/manifest` is called, then the response is `403` and nothing is written (per `ingest-token-auth` contract).
+3. Given a valid token scoped to the target program and a well-formed `{programId, program:{name,type,description}, team:[{email,name,role,aliases[]}]}` payload, when the endpoint processes it, then `program_summary`'s `name`/`type`/`description` columns are upserted from `program:`, each `team[]` entry's role slug is mapped through the shared role table and upserted into `user_roles` (`email` PK, `source="file"`), and the response reports received/valid/rejected counts for each of the `identity` and `roster` sections plus per-email created/updated/skipped detail (per `program-manifest-api`).
+4. Given a `team[]` entry with 2 `aliases[]`, when the manifest is ingested, then `program_roster` gains 3 rows for that person (primary email + 2 aliases), each satisfying the `(program_id, email)` unique constraint and sharing the same `name`/`role` (per `program-roster-schema`, FR-3).
+5. Given a `program:` block whose `type` is not one of `Greenfield|Brownfield|Upgradation|Migration|Maintenance`, when the manifest is validated, then the response is `400`, and neither the identity write nor any `team[]` row from the same request is written — the request is one transaction (FR-1).
+6. Given a `team[]` entry whose `role` is not one of the mapped slugs (`dev|arch|pm|em|cxo|board_member|admin`), when the manifest is processed, then that entry's row(s) (primary + aliases) are placed in the roster `rejected` bucket with a reason, while the identity write and every other valid `team[]` entry in the same request still commit.
+7. Given a program's existing `program_roster` rows and a re-pushed manifest whose `team[]`/`aliases[]` no longer lists a previously-rostered email, when the re-push completes, then that email's row has `removed_at` set to the current time (soft delete, never a hard `DELETE`); given a later re-push whose `team[]`/`aliases[]` lists that email again, then its `removed_at` is reset to `null` (per `program-roster-schema` removal_semantics).
+8. Given a `team[]` array whose entry count exceeds 500, when `POST /api/ingest/manifest` is called, then the response is `413` before any row is processed.
+9. Given a program's identity has already been written by this endpoint, when a subsequent activity ingest (`ING-02`) triggers `rebuild_program_rollups(program_id)`, then `program_summary`'s `name`/`type`/`description`/`icon` are unchanged by the rebuild (already guaranteed by `BED-03`'s prior-identity carry-forward, per `db-schema` and RTM Decisions 2026-08-26).
+10. Given `apps/web/src/lib/programStyle.ts`'s `PROGRAM_TYPE_COLORS`, when `getProgramStyle()` is called with `"Greenfield"`, `"Brownfield"`, or `"Upgradation"`, then each returns its own `{color, background}` pair rather than falling through to the `Migration` default (folded AC per RTM Decisions 2026-09-08).
+
+## Non-functional requirements
+
+- Performance: p95 < 500ms for a manifest with up to 500 `team[]` entries (pre-alias-expansion cap, AC-8) — assumption, no PRD/contract latency budget given; positioned between `ING-03`'s <300ms (~5-row upsert, no rebuild) and `ING-02`'s <3s (5000-row batch + synchronous rollup rebuild), since this endpoint does a bounded identity+roster upsert with no rollup rebuild of its own.
+- Security: Per `.claude/rules/security-baseline.md` — bearer-token auth only (`ingest-token-auth`), authorization scoped by `allowed_program_ids`; the manifest is untrusted input at a trust boundary, validated (schema types, `program.type` enum, role-slug allowlist) before any write; `email`/`name` are PII and must never appear in logs — only opaque identifiers (`program_id`, row counts) are logged.
+- Accessibility: N/A — backend endpoint; the folded `programStyle.ts` AC (AC-10) is a color-token lookup change with no independent UI surface in this story.
+- Observability: structured JSON log event `ingest_manifest_write` (fields: `program_id`, `token_label`, `identity_written`, `roster_received`, `roster_valid`, `roster_created`, `roster_updated`, `roster_removed`, `roster_rejected`, `duration_ms`; never `email`/`name`) — assumption, extends the `ingest_write_completed`/`ingest_artifacts_write` naming precedent (`ING-02`/`ING-03`); NFR-011's event set names no manifest-specific event.
+
+## Dependencies
+
+- Upstream: `ING-01` via `ingest-token-auth` (`docs/requirements/auth.md#ingest-token-auth`) — bearer hash lookup (401 on missing/unknown/revoked/expired) and `allowed_program_ids` scope check (403). `BED-01` via `db-schema` (`docs/requirements/data.md#db-schema`) — `program_summary`'s identity columns and the existing `user_roles` table (`email` PK, `role`, `source`, `synced_at`). This story additionally produces `program-roster-schema` (`docs/requirements/data.md#program-roster-schema`) — the new `program_roster` table (table #19 via its own additive Alembic revision; `BED-01`'s 18-table shape is unchanged) — and `program-manifest-api` (`docs/requirements/api.md#program-manifest-api`).
+- Downstream: `AUTH-06` depends on the `program_roster` **table** this story writes (`program-roster-schema`), not on this story's HTTP endpoint — `program-manifest-api`'s `consumed_by` is empty by design (RTM Decisions 2026-09-08, "Contract correction"). No MCP/CLI story currently calls this endpoint: `push_manifest` for `ING-04`/`ING-06` is confirmed **deferred** (RTM Decisions 2026-09-08) — a knowingly under-declared edge, not an oversight.
+
+## Test mapping
+
+- E2E: NA — no UI flow in this story; `AUTH-06`'s `session.programs` derivation and the Program Detail header/switcher label exercise this data downstream.
+- Unit: `services/api/app/api/ingest.py` (router), `services/api/app/services/ingest.py` (identity/roster upsert logic), `services/api/app/core/role_map.py` (role-slug → dashboard-role mapping table), `services/api/migrations/versions/` (new additive revision creating `program_roster`) — auth/authz (401/403), identity upsert + `type` enum validation (400, whole-request abort), roster upsert incl. alias expansion, unknown-role-slug per-row rejection, soft-delete removal + un-remove-on-reappearance, oversized-payload (413), idempotent re-push (no duplicate rows). `apps/web/src/lib/programStyle.ts` — `PROGRAM_TYPE_COLORS` widened-key coverage (AC-10).
+- Manual: NA.
+
+## Clarifications
+
+## Decision log
+
+- 2026-09-08 `program_roster` table shape (id, program_id, email, name, role, source='file', removed_at, created_at, updated_at; unique on `(program_id, email)`), kept separate from `program_members` — per `program-roster-schema` contract (`data.md`) and RTM Decisions 2026-09-08 (`BED-03`'s `rebuild_program_rollups()` unconditionally deletes+rebuilds `program_members` from `usage_events`, which would silently wipe a roster upsert there).
+- 2026-09-08 `push_manifest` (`ING-04`/`ING-06`) transport deferred; `program-manifest-api`'s `consumed_by` stays `[]` — per RTM Decisions 2026-09-08 (deliberately accepted under-declared edge, not this story's scope to add).
+- 2026-09-08 Canonical two-file `.harness` layout (committed `program.yaml` + local/gitignored `profile.yaml`, never trusted) — per RTM Decisions 2026-09-08; this endpoint accepts only that shape on the wire.
+- 2026-09-08 Role-mapping table values: `dev`→`developer`, `arch`→`architect`, `pm`→`product-manager`, `em`→`engineering-manager`, `cxo`→`cio`, `board_member`→`cio`, `admin`→`cio` — assumption. RTM Decisions 2026-09-08 already accepts this table's existence/scope (ING-10-internal, single consumer) as an author assumption, but gives no literal target strings; chosen to match `persona-resolver`'s existing 5-value persona vocabulary (`auth.md#persona-resolver`), folding the 3 executive-adjacent slugs into `cio` per `FR-SH-20`'s precedent of resolving extra executive-role slugs to `cio`.
+- 2026-09-08 Program-type color hexes (AC-10): reuse `Greenfield feature development`'s (`#1f8a5b`/`#e8f5ee`) and `Brownfield feature development`'s (`#7c5cff`/`#efebff`) existing hexes for the manifest's literal `Greenfield`/`Brownfield` keys; `Upgradation` gets a new pair (`#0f9b8e`/`#e6f3f2`) — assumption, `docs/design/tokens.md`'s Program type colors table has no `Upgradation` entry and RTM Decisions 2026-09-08 confirms only which enum needs coverage, not which hex. Existing 4 keys are kept, not replaced — nothing asks for their removal.
+- 2026-09-08 `team[]` request-size cap: 500 raw entries before alias expansion, `413` over (AC-8) — assumption, no PRD/contract cap given; sized well below `ING-02`'s 5000-row activity-batch cap since a program roster is an org-membership list, not an event stream, while still bounding an untrusted trust-boundary payload per `.claude/rules/performance-baseline.md`/`.claude/rules/security-baseline.md`.
+- 2026-09-08 Performance budget p95 < 500ms up to the AC-8 cap — assumption, no PRD/contract budget given; positioned between `ING-03`'s <300ms and `ING-02`'s <3s per the reasoning in Non-functional requirements above.
+- 2026-09-08 Observability event name/fields `ingest_manifest_write` — assumption, extends the `ingest_write_completed`/`ingest_artifacts_write` naming precedent; NFR-011's event set names no manifest-specific event.
+- 2026-09-08 Validation atomicity (AC-5, AC-6): `program:` section schema/enum failures abort the whole request (400, nothing written); `team[]` per-member failures (unknown role slug, malformed email) reject only that member's row(s), the rest of the transaction still commits — assumption. The PRD's Functional Expectation §1 states one payload/one transaction but is silent on partial-failure semantics; modeled on `ING-02`'s per-row rejection-bucket precedent for a batch with a mix of valid and invalid entries.
+- 2026-09-08 Re-added member un-removes (AC-7): a manifest re-push whose `team[]`/`aliases[]` again includes a previously soft-deleted `(program_id, email)` resets `removed_at` to `null` — assumption. `program-roster-schema`'s `removal_semantics` states repush-triggered removal but is silent on reappearance; treating the manifest as authoritative on every push (not only for removals) is the only reading consistent with "file is authoritative" (RTM Decisions 2026-09-08).
+- 2026-09-08 Success response code `200` (AC-3) — assumption, per `ING-02`/`ING-03` sibling precedent; no explicit code given for a successful manifest upsert.
