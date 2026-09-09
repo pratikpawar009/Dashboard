@@ -1,0 +1,224 @@
+{
+  "story_id": "BED-05",
+  "test_cases": [
+    {
+      "id": "BED-05-TC-01",
+      "title": "Four concurrent ingest-triggered rebuilds on distinct programs succeed with zero IntegrityError and match serial output",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-05-AC-1",
+      "given": "Four ingest-triggered rebuilds for four distinct programs are queued, each running rebuild_program_rollups(program_id) then rebuild_org_rollups() on its own AsyncSession against a shared migrated test-Postgres",
+      "when": "all four call-pairs execute concurrently via asyncio.gather",
+      "then": "all four complete successfully with zero IntegrityError on org_summary_rollup_org_id_key, and the resulting org_summary_rollup/token_series/mau_series rows equal a serial rebuild over the same usage_events content",
+      "objective": "Verify the org-singleton concurrency fix lets four concurrent ingest-triggered rebuilds on distinct programs all succeed with zero IntegrityError, and that the concurrently-produced rollup rows are identical to a serial rebuild's output.",
+      "preconditions": [
+        "services/api/tests/conftest.py migrated_db fixture applied (upgrade head) against the real test-Postgres instance",
+        "usage_events seeded with events for exactly four distinct program_ids (program-1..program-4), each with a non-trivial row count",
+        "org_summary_rollup pre-populated with an existing singleton row for org_id='org-1' (reproduces the DELETE+INSERT collision window from docs/research/ING-02.md)",
+        "New four-session concurrency fixture (FR-4) available in or alongside conftest.py, each program pinned to its own AsyncSession"
+      ],
+      "test_data": {
+        "program_ids": [
+          "program-1",
+          "program-2",
+          "program-3",
+          "program-4"
+        ],
+        "org_id": "org-1",
+        "events_per_program": 500,
+        "concurrency_mechanism_under_test": "ON CONFLICT DO UPDATE (decision of record) or pg_advisory_xact_lock (fallback), whichever /arh-plan-implementation confirms"
+      },
+      "steps": [
+        "Seed usage_events for program-1..program-4 (500 rows each) plus a pre-existing org_summary_rollup singleton row for org_id=org-1",
+        "Capture a serial-rebuild baseline: run rebuild_program_rollups + rebuild_org_rollups sequentially for each program on one session, snapshot org_summary_rollup/token_series/mau_series",
+        "Reset rollup tables to their pre-rebuild state",
+        "Launch four concurrent tasks via asyncio.gather, each on its own AsyncSession, each calling rebuild_program_rollups(program_id) then rebuild_org_rollups() for one of the four programs",
+        "Await all four tasks and collect results/exceptions",
+        "Query org_summary_rollup, token_series, mau_series after all four tasks complete",
+        "Diff the concurrently-produced rows against the serial-rebuild baseline snapshot from step 2",
+        "Inspect the rollup_rebuild_completed log emitted for each call pair for the contention_wait_ms field"
+      ],
+      "expected_results": [
+        "All four tasks complete with a RebuildResult returned; none raises IntegrityError on org_summary_rollup_org_id_key",
+        "org_summary_rollup contains exactly one row for org_id=org-1, matching the serial-rebuild baseline on every column except id/as_of_timestamp/created_at/updated_at",
+        "token_series and mau_series rows after concurrent execution match the serial-rebuild baseline row-for-row on every column except the excluded id/clock columns",
+        "Each call pair's rollup_rebuild_completed log entry includes a non-negative integer contention_wait_ms, present even when 0"
+      ],
+      "tags": [
+        "concurrency",
+        "postgres",
+        "org-singleton",
+        "regression-risk"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#259"
+    },
+    {
+      "id": "BED-05-TC-02",
+      "title": "Rebuild duration holds flat against table size across >=2 populated usage_events sizes (growth-curve regression guard)",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "BED-05-AC-8",
+      "given": "test_rollup_rebuild_perf.py seeds a populated, growing usage_events table at >=2 of {20k, 40k, 160k} total rows, replacing the empty-table EVENT_COUNT=5000/BUDGET_SECONDS=2.0 constants",
+      "when": "rebuild_org_rollups() and rebuild_program_rollups(program_id) each run once per seeded table size",
+      "then": "each function's duration is asserted against a pinned per-table-size budget constant and the curve stays flat rather than tracking table growth, per docs/research/ING-02.md's measured baseline (rebuild_org 417ms->3,864ms, rebuild_program 588ms->4,805ms across 20k->160k, unchanged)",
+      "objective": "Verify the rewritten SQL-aggregation rebuild functions hold a flat, table-size-indexed duration budget across >=2 measured table sizes, so the perf test catches a growth-curve regression instead of measuring an empty table.",
+      "preconditions": [
+        "Real test-Postgres migrated to head (migrated_db fixture)",
+        "usage_events seeded to at least two of the three measured sizes (20k, 40k, 160k total rows) with realistic program/user distribution matching docs/research/ING-02.md's seed shape",
+        "Named per-size budget constants set per /arh-plan-implementation's measurement-derived value (Decision log 'Budget deferral'); EVENT_COUNT=5000 / BUDGET_SECONDS=2.0 removed from the test file",
+        "perf_counter + _percentile helper reused per the existing tests/perf/test_range_pagination_perf.py convention"
+      ],
+      "test_data": {
+        "table_sizes_rows": [
+          20000,
+          160000
+        ],
+        "measured_baseline_ms": {
+          "rebuild_org_rollups": {
+            "20000": 417,
+            "160000": 3864
+          },
+          "rebuild_program_rollups": {
+            "20000": 588,
+            "160000": 4805
+          }
+        },
+        "budget_ceiling_note": "rebuild's share of ING-02 p95 <= 3s @ 5000-row batch (sourced); per-size budget constant value itself is set at /arh-plan-implementation, not pinned here"
+      },
+      "steps": [
+        "Seed usage_events to the first measured size (e.g. 20,000 total rows) across multiple programs",
+        "Run rebuild_org_rollups() and rebuild_program_rollups(program_id), recording duration_ms via perf_counter for each",
+        "Assert each duration is within its pinned per-size budget constant",
+        "Grow usage_events to the second measured size (e.g. 160,000 total rows) without truncating the first size's rows",
+        "Re-run rebuild_org_rollups() and rebuild_program_rollups(program_id), recording duration_ms again",
+        "Assert each duration is within its pinned per-size budget constant for the larger size",
+        "Compute the growth ratio between the two measured sizes' durations and assert it stays flat (bounded, not linear/super-linear with table size) rather than tracking the pre-rewrite baseline growth"
+      ],
+      "expected_results": [
+        "Both rebuild_org_rollups and rebuild_program_rollups complete within their per-size budget constant at every measured size",
+        "Duration growth between the smallest and largest measured size does not scale with total table size the way the pre-rewrite baseline did (417ms->3,864ms / 588ms->4,805ms)",
+        "The test fails (not skips) if a future change reintroduces per-event materialisation and duration tracks table growth again",
+        "EVENT_COUNT=5000 / BUDGET_SECONDS=2.0 constants are absent from the test file; assertions are indexed to table size only"
+      ],
+      "tags": [
+        "performance",
+        "growth-curve",
+        "table-size-indexed",
+        "regression-risk"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#260"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "BED-05-AC-1",
+        "covered_by": [
+          "BED-05-TC-01"
+        ]
+      },
+      {
+        "id": "BED-05-AC-2",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-AC-3",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-AC-4",
+        "covered_by": [
+          "BED-05-TC-02"
+        ]
+      },
+      {
+        "id": "BED-05-AC-5",
+        "covered_by": [
+          "BED-05-TC-02"
+        ]
+      },
+      {
+        "id": "BED-05-AC-6",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-AC-7",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-AC-8",
+        "covered_by": [
+          "BED-05-TC-02"
+        ]
+      },
+      {
+        "id": "BED-05-AC-9",
+        "covered_by": []
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "BED-05-FR-1",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-FR-2",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-FR-3",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-FR-4",
+        "covered_by": [
+          "BED-05-TC-01"
+        ]
+      },
+      {
+        "id": "BED-05-FR-5",
+        "covered_by": [
+          "BED-05-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "BED-05-NFR-performance",
+        "covered_by": [
+          "BED-05-TC-02"
+        ]
+      },
+      {
+        "id": "BED-05-NFR-security",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-NFR-accessibility",
+        "covered_by": []
+      },
+      {
+        "id": "BED-05-NFR-observability",
+        "covered_by": [
+          "BED-05-TC-01"
+        ]
+      }
+    ],
+    "uncovered": [
+      "BED-05-AC-2",
+      "BED-05-AC-3",
+      "BED-05-AC-6",
+      "BED-05-AC-7",
+      "BED-05-AC-9",
+      "BED-05-FR-1",
+      "BED-05-FR-2",
+      "BED-05-FR-3",
+      "BED-05-NFR-security",
+      "BED-05-NFR-accessibility"
+    ]
+  }
+}
