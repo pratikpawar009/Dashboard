@@ -1,0 +1,382 @@
+{
+  "schema_version": 1,
+  "story_id": "BED-05",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-09T15:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/scripts/generate_rollup_golden_snapshots.py",
+      "reason": "C-3/FR-1/AC-6: one-off operational script (mint_ingest_token.py precedent) that seeds usage_events to 20k/40k/160k rows and runs the SHIPPED (pre-rewrite) rebuild_program_rollups/rebuild_org_rollups to produce the AC-6 truth model — must run before F-06 is edited"
+    },
+    "F-02": {
+      "action": "generate",
+      "path": "services/api/tests/fixtures/rollup_golden_20k.json",
+      "reason": "C-3/AC-6: golden snapshot of every rollup table's rows at 20k total usage_events rows, produced by F-01 against the shipped implementation"
+    },
+    "F-03": {
+      "action": "generate",
+      "path": "services/api/tests/fixtures/rollup_golden_40k.json",
+      "reason": "C-3/AC-6: golden snapshot at 40k total rows, produced by F-01"
+    },
+    "F-04": {
+      "action": "generate",
+      "path": "services/api/tests/fixtures/rollup_golden_160k.json",
+      "reason": "C-3/AC-6: golden snapshot at 160k total rows, produced by F-01"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/tests/conftest.py",
+      "reason": "C-4/FR-4: new fixture running four rebuild_program_rollups+rebuild_org_rollups call pairs concurrently on four distinct programs, each on its own AsyncSession, against the real test-Postgres"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/services/rollup_rebuild.py",
+      "reason": "AC-1/AC-4/AC-5/AC-7-adjacent/FR-2: SQL GROUP BY rewrite of all 9 _build_* functions, ON CONFLICT DO UPDATE + delete-outside-set org-scope write path (D-01), func.min(user) translation for user_sessions, contention_wait_ms observability field, inline audit-finding documentation"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/app/core/db.py",
+      "reason": "AC-7/D-02/D-03: explicit statement_timeout/connection-timeout module constants applied to create_async_engine, value pinned from T-06's measurement"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/tests/perf/test_rollup_rebuild_perf.py",
+      "reason": "AC-8/FR-5/C-5/BED-05-TC-02: replace EVENT_COUNT=5000/BUDGET_SECONDS=2.0 with table-size-indexed budget constants + growth-curve assertion at 20k/160k rows"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_rollup_rebuild_golden_snapshot.py",
+      "reason": "AC-6/FR-1: unit comparison of rewritten rebuild output against F-02/F-03/F-04 golden snapshots at every size, excluding id/as_of_timestamp/created_at/updated_at — the load-bearing coverage for research risk #1 (HIGH), which has no behavioural TC"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_rollup_rebuild_concurrency.py",
+      "reason": "AC-1/BED-05-TC-01: four-distinct-program concurrency test using F-05's fixture — zero IntegrityError, output matches serial baseline, contention_wait_ms present. Lives under tests/unit/ matching this codebase's existing convention for real-Postgres rollup_rebuild tests (no tests/integration/ dir exists; test_integration is empty in project-commands.yaml)"
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_rollup_rebuild_transaction.py",
+      "reason": "AC-2 (explicitly assigned uncovered id): retarget the injected-failure monkeypatch from _build_program_token_series to its rewritten SQL-based equivalent, re-verify full-scope rollback"
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_rollup_rebuild_contract.py",
+      "reason": "AC-3 (explicitly assigned uncovered id): add a regression assertion that manifest_ingest.py/ingest.py remain byte-unchanged and still call rebuild_program_rollups then rebuild_org_rollups in that order, plus assert DECISIONS.md D-05 documents the caller-ordering write-up"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/migrations/versions/004_rollup_query_indexes.py",
+      "reason": "AC-9/D-04: single additive, index-only revision (ix_usage_events_ts) revising 003_program_roster, following the 002_personal_usage_indexes.py precedent"
+    },
+    "F-14": {
+      "action": "modify",
+      "path": "services/api/tests/test_migrations.py",
+      "reason": "AC-9 (explicitly assigned uncovered id): targeted assertion that ix_usage_events_ts exists after upgrade to 004 and is absent after downgrade to 003, in addition to the existing generic full-chain round-trip tests"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_rollup_rebuild_query_plan.py",
+      "reason": "AC-4/AC-5: BED-03 D-05's 'exactly 1 SELECT against usage_events' invariant is superseded by this story's SQL-aggregation rewrite — replace with an assertion that no query materialises full UsageEvent rows and the per-call query count stays a small bounded constant (no fan-out reintroduced)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Generate golden snapshots from the shipped (pre-rewrite) implementation at 20k/40k/160k rows",
+      "complexity": "L",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02",
+        "F-03",
+        "F-04"
+      ],
+      "ac_refs": [
+        "BED-05-AC-6",
+        "BED-05-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "MUST complete and be committed before T-03 touches rollup_rebuild.py's aggregation logic — the shipped implementation is the AC-6 truth model and disappears the moment the rewrite lands. Reuse test_rollup_rebuild_perf.py's row-generation shape (multi-program, multi-user/command cycling) across all three sizes against a real Postgres instance; export every rollup table's rows (all columns, including id/timestamps — the comparison test excludes those columns, not the snapshot itself) to the three JSON fixtures.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add four-distinct-program concurrent-session fixture to conftest.py",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "BED-05-AC-1",
+        "BED-05-FR-4"
+      ],
+      "risk_refs": [
+        "R-10"
+      ],
+      "notes": "New fixture pins four distinct programs, each to its own AsyncSession bound to the shared test_engine, and exposes a helper to run rebuild_program_rollups+rebuild_org_rollups concurrently via asyncio.gather. No existing fixture provides multi-session concurrency (migrated_db/test_session are single-session).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "SQL GROUP BY rewrite of rollup_rebuild.py: program+org aggregation, ON CONFLICT DO UPDATE org-singleton fix, contention_wait_ms",
+      "complexity": "L",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "BED-05-AC-1",
+        "BED-05-AC-4",
+        "BED-05-AC-5",
+        "BED-05-FR-2"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-04",
+        "R-05"
+      ],
+      "notes": "Implements D-01 in full: all 9 _build_* functions converted to SQLAlchemy .group_by()/func.* (matching personal_usage.py's existing pattern); user_sessions uses func.min(UsageEvent.user) grouped by session_id (not group[0]); program-scope write path (DELETE WHERE program_id=:pid + INSERT) unchanged; org-scope write path changed to INSERT...ON CONFLICT(org_id) DO UPDATE for org_summary_rollup, and DELETE WHERE org_id=:oid AND month NOT IN (:computed_months) + INSERT...ON CONFLICT(org_id,month) DO UPDATE for token_series/mau_series; event_count now sourced from a SELECT COUNT(*) instead of len(events); contention_wait_ms timed around each org-scope ON CONFLICT statement and added to the rollup_rebuild_completed extra={} dict; RebuildResult/_rebuild_transaction/public signatures untouched (frozen contract); mau_series all-to-developer bucketing (BED-03 D-07) preserved unchanged; inline docstring documents the audit finding (D-01) and contention_wait_ms semantics per PRD Documentation requirements.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Additive index-only Alembic revision 004_rollup_query_indexes.py",
+      "complexity": "M",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "BED-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "Adds ix_usage_events_ts (D-04). Run EXPLAIN ANALYZE against T-03's rewritten queries at 160k rows first to confirm this index (plus the existing program_id-prefixed ones) keeps every query index-backed; if EXPLAIN ANALYZE surfaces an additional index need, add it to this same revision. revises=003_program_roster; downgrade drops exactly ix_usage_events_ts; no column/constraint/data change.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Targeted index round-trip assertion for revision 004 in test_migrations.py",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "BED-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "Adds one targeted test asserting ix_usage_events_ts exists after upgrading to 004 and is absent after downgrading one step to 003 — narrower than (and in addition to) the existing generic full-chain upgrade-head/downgrade-base tests already in this file, which exercise 004 as part of the whole chain but don't isolate it.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Measure rewritten rebuild latency + contention_wait_ms under AC-1 four-program concurrency at 20k/160k rows",
+      "complexity": "S",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-04"
+      ],
+      "files": [],
+      "ac_refs": [
+        "BED-05-AC-7",
+        "BED-05-FR-3"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-04"
+      ],
+      "notes": "Measurement-only task, no source file changes. Runs T-02's four-program concurrent fixture against T-03's rewritten, T-04-indexed implementation at 20k and 160k total rows; records p50/p95 duration per function and contention_wait_ms per call pair. Record the measured figures in this task's completion `reason` field — T-07 consumes them directly; no separate scratch file.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Pin replacement rebuild budget + engine timeout from T-06's measurement; preflight-validate",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "BED-05-AC-7",
+        "BED-05-FR-3"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-08"
+      ],
+      "notes": "Implements D-02/D-03. Sets _STATEMENT_TIMEOUT_MS/_CONNECTION_TIMEOUT_S in app/core/db.py above T-06's measured worst case with headroom, bounded by the ceiling (rebuild's share of ING-02 p95 <=3s for a 5000-row batch); also fixes the per-size perf-test budget constants T-08 will use (named here, applied there). Preflight: re-run the existing migrations/auth/ingest DB-touching test suites under the new timeout and confirm zero new failures (Risk #3 mitigation (b); also closes the app/services/freshness.py:32 gap by giving its unbounded engine an explicit bound at last).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Rewrite test_rollup_rebuild_perf.py to table-size-indexed budgets + growth-curve assertion",
+      "complexity": "M",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "BED-05-AC-8",
+        "BED-05-FR-5"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "BED-05-TC-02. Seeds populated usage_events at 20k and 160k total rows (reused from docs/research/ING-02.md's seed shape); asserts each function's duration against T-07's pinned per-size budget constant; asserts growth ratio between sizes stays flat rather than tracking the pre-rewrite 417ms->3864ms/588ms->4805ms baseline; removes EVENT_COUNT=5000/BUDGET_SECONDS=2.0. Reuses perf_counter/_percentile convention from test_range_pagination_perf.py.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Golden-snapshot output-equivalence unit test (AC-6)",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "BED-05-AC-6",
+        "BED-05-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Loads F-02/F-03/F-04, re-seeds usage_events to each size, runs the rewritten rebuild_program_rollups/rebuild_org_rollups, and diffs every rollup table row-by-row/column-by-column against the snapshot, excluding id/as_of_timestamp/created_at/updated_at (Decision log, BED-03 D-04 precedent). On mismatch, surface the row-by-row diff. This is the load-bearing coverage for research risk #1 (HIGH) since no behavioural TC exists for AC-6 (test-case manifest capped at 2 by explicit instruction) — treat as non-optional.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "AC-1 four-program concurrency integration test (BED-05-TC-01)",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "BED-05-AC-1"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-04",
+        "R-10"
+      ],
+      "notes": "Implements BED-05-TC-01 exactly: seed 4 programs x 500 events + a pre-existing org_summary_rollup singleton row, capture a serial-rebuild baseline, reset, run 4 concurrent call pairs via T-02's fixture, assert zero IntegrityError, assert org_summary_rollup/token_series/mau_series match the serial baseline (excluding id/clock columns), assert each call's rollup_rebuild_completed log carries a non-negative integer contention_wait_ms.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Retarget test_rollup_rebuild_transaction.py's injected-failure monkeypatch (AC-2)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "BED-05-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "BED-05-AC-2 (explicitly assigned uncovered id). The existing TC-10 mechanism monkeypatches rollup_rebuild._build_program_token_series to force a mid-rebuild failure and asserts full-scope rollback; retarget to whichever rewritten per-table builder T-03 keeps as an injectable seam (one callable per table is preserved specifically so this monkeypatch mechanism keeps working, per T-03's design) and re-verify the same full-rollback guarantee, unchanged.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "AC-3 call-site/contract regression test + DECISIONS.md write-up verification",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "BED-05-AC-3"
+      ],
+      "risk_refs": [],
+      "notes": "BED-05-AC-3 (explicitly assigned uncovered id). Independent of the rewrite (file-disjoint from F-06) so it can run any time. Asserts (a) app/api/ingest.py and app/services/manifest_ingest.py are byte-identical to their pre-story content (or, at minimum, that manifest_ingest.py still calls rebuild_program_rollups then rebuild_org_rollups, in that order, after a commit, via AST inspection matching test_rollup_rebuild_contract.py's existing TC-16 idiom); (b) docs/features/BED-05/DECISIONS.md contains D-05's caller-ordering write-up.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Update test_rollup_rebuild_query_plan.py's query-plan invariant for the SQL-aggregation rewrite",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "BED-05-AC-4",
+        "BED-05-AC-5"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "BED-03 D-05/FR-3 pinned 'exactly 1 SELECT against usage_events' as the query-plan invariant (TC-11/TC-12) — this story deliberately supersedes it (AC-4/AC-5 require the bare select(UsageEvent) gone). Replace with: no query selects/materialises full UsageEvent rows; the per-call query count is a small named bounded constant (COUNT(*) + one GROUP BY per table, no per-row fan-out); still zero N+1 per .claude/rules/performance-baseline.md.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    }
+  ]
+}

@@ -648,15 +648,19 @@
   "BED-05": {
     "story": "validated",
     "story_priority": "P1",
-    "story_independent_test": true,
-    "needs_clarification_count": 0,
     "design": "n/a",
-    "phase": "research",
+    "phase": "plan-implementation",
     "rtm_source_sha": "2789c554371a",
-    "last_updated": "2026-09-09T08:19:16Z",
+    "last_updated": "2026-09-09T09:48:23Z",
     "tracker_story": "pratikpawar009/Dashboard#255",
     "research": "complete",
     "research_verdict": "GO-WITH-CONDITIONS",
-    "tracker_research": "pratikpawar009/Dashboard#256"
+    "tracker_research": "pratikpawar009/Dashboard#256",
+    "tracker_prd": "pratikpawar009/Dashboard#258",
+    "prd": "complete",
+    "gate": "APPROVE",
+    "plan": "complete",
+    "plan_validation": "PASS",
+    "tracker_plan": "pratikpawar009/Dashboard#261"
   }
 }
