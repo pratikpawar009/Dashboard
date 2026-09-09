@@ -205,7 +205,14 @@ def _assert_safe_to_truncate(assume_yes: bool) -> str | None:
     no confirmation, no flag, and no environment check, so pointing it at a
     production URL would irreversibly destroy the ingest history and every rollup.
 
-    Two independent layers, because the operation cannot be undone:
+    Two layers, because the operation cannot be undone. They are **not** equally
+    load-bearing, and this docstring previously overstated them as independently
+    sufficient (corrected per security-review F-SEC-5): `Settings.environment`
+    defaults to `"development"`, which is itself allow-listed, so layer 1 is a
+    silent no-op whenever `ENVIRONMENT` is simply never set -- which is the common
+    case on a fresh checkout. In that situation layer 2 is the only thing standing
+    between an operator and the truncate. Treat `--yes` as the primary control and
+    the allow-list as the thing that stops a *deliberately* production-pointed run.
 
     1. **Environment allow-list** — membership in `NON_PRODUCTION_ENVIRONMENTS`,
        reusing `app.core.config`'s own frozenset rather than restating the values
