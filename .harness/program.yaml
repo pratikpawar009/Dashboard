@@ -1,0 +1,134 @@
+# .harness/program.yaml
+# COMMITTED — shared by everyone on this program, reviewed via PR.
+#
+# Holds everything about the PROGRAM: which program this repo is, who is on it,
+# and what gets shipped to the dashboard. Pushed on every run.
+#
+# Roles live here rather than in the per-developer `profile.yaml` so nobody can
+# promote themselves — changing a role means a reviewed commit. The dashboard
+# trusts this file and ignores `profile.yaml` entirely.
+#
+# Everything below is keyed by `programId`: identity, roster, activity rows and
+# artifact counts all land against that one id on the dashboard side.
+
+programId: dashboard
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Program identity — POST /api/ingest/manifest (ING-10, shipped).
+# Feeds the ProgramSummary row behind the program board card.
+#
+# type must be one of: Greenfield | Brownfield | Upgradation | Migration |
+# Maintenance. A value outside that set aborts the ENTIRE request with 400 and
+# writes nothing — unlike a bad team[] entry, which only rejects itself.
+# ─────────────────────────────────────────────────────────────────────────────
+program:
+  name: AgentRise Dashboard
+  type: Greenfield
+  description: >-
+    Internal AI-adoption dashboard measuring AI usage and token consumption
+    across the org.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Team roster — POST /api/ingest/manifest (ING-10, shipped).
+# The authority on who is on this program and what role they hold, so usage is
+# attributed without an Azure AD / directory lookup. Lands in `program_roster`.
+#
+# role: one of the SIX slugs `services/api/app/core/role_map.py` accepts —
+#   cxo | board_member | em | arch | pm | dev
+#
+#   `admin` is NOT accepted, deliberately (ING-10 D-10). It used to fold onto
+#   `cio`, which bypasses program scoping entirely, so a program could grant
+#   itself org-wide dashboard visibility from inside its own repo. An entry
+#   using it is rejected row-by-row with a reason, while the identity write and
+#   every other valid entry still commit — so a stray `admin` fails quietly.
+#
+# aliases: other git identities the same human commits under. Each alias gets
+# its own roster row, because usage joins on `usage_events.user`, which carries
+# whatever `git config user.email` was set to on the producing machine.
+#
+# Cap: 500 raw team[] entries, counted BEFORE alias expansion.
+# ─────────────────────────────────────────────────────────────────────────────
+team:
+  - email: pratik.pawar@apexon.com
+    name: Pratik Pawar
+    role: dev
+    aliases:
+      - pawar.pratik0903@gmail.com    # this machine's current git user.email
+      - pratik.paw@apexon.com
+
+  - email: krunal.dave@apexon.com
+    name: Krunal Dave
+    role: arch
+
+  - email: vinit.bhamare@apexon.com
+    name: Vinit Bhamare
+    role: dev
+
+# Unclaimed identities seen in docs/activity/activity.jsonl — add above once
+# someone confirms who they belong to:
+#   pratik.pawar@example.com, morgan.lee@example.com, riya.kapoor@example.com
+#     -> look like seeded fixture rows, not real people
+#   gode.pratik0903@gmail.com, gode.lp@gmail.com
+#     -> unknown; do not assume they are Pratik without confirming
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Activity rows — shipped via the MCP `push_activity` tool (ING-04) to
+# POST /api/ingest/files (ING-02).
+#
+# NOT YET BUILT. Both stories are `story-validated` only: no PRD, no plan, no
+# code. `app/api/ingest.py` carries an unregistered scaffold stub, so the route
+# is a deliberate 404 today (see the comment in `app/main.py`). This section is
+# declared now so the manifest is complete when that endpoint lands; nothing
+# reads it yet.
+# ─────────────────────────────────────────────────────────────────────────────
+files:
+  - path: docs/activity/activity.jsonl
+    kind: activity
+    mode: append
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Governance counts — shipped via the MCP `push_artifacts` tool (ING-04) to
+# POST /api/ingest/artifacts (ING-03).
+#
+# NOT YET BUILT — same status as files[] above. The `program_artifacts` table
+# exists (001_initial_schema) but nothing writes to it yet.
+#
+# Keys match ProgramArtifact.type values (snake_case). Each source describes how
+# to compute one integer count from the local workspace, resolved relative to
+# the repo root:
+#
+#   glob-count       — count files matching `glob` under `path` (dir), skipping
+#                      any relative-path matching an entry in `exclude`
+#                      (fnmatch, "**" honoured).
+#   json-key-count   — read `path` (json file), count top-level object keys,
+#                      skipping any listed in `exclude`.
+#   json-field-sum   — for every json file matching `glob` under `path`, add the
+#                      length of the array at `field` (missing = 0).
+#   constant         — fixed integer at `value` (use for "we don't have this
+#                      data, keep zero").
+# ─────────────────────────────────────────────────────────────────────────────
+artifacts:
+  prd:
+    kind: glob-count
+    path: docs/prd
+    glob: "*.md"
+    exclude: [".wip/**"]
+
+  user_story:
+    kind: json-key-count
+    path: docs/state/features.json
+    exclude: ["last_updated"]
+
+  test_case:
+    kind: json-field-sum
+    path: docs/test-cases
+    glob: "*.json"
+    field: test_cases
+
+  arch_diagram:
+    kind: constant
+    value: 0
+
+  api_spec:
+    kind: constant
+    value: 0
