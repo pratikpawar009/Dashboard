@@ -83,12 +83,36 @@ AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 _DUAL_ROUTE_PATH = "/test-only/dual-auth"
 
 
+class _StubProgramRosterResolver:
+    """Minimal local stub -- returns no memberships immediately, no I/O.
+
+    Mirrors `tests/perf/test_programs_perf.py::_StubPersonaResolver`. Exists
+    only to satisfy `get_program_roster_resolver`'s `app.state` read
+    (AUTH-06 D-04): FastAPI resolves every declared dependency parameter
+    eagerly, regardless of which branch inside `get_current_user`'s body
+    actually uses it, so the attribute must be present or EVERY request to
+    the dual-dependency route below raises `AttributeError`.
+
+    Neither request this test makes reaches the roster query at all (see
+    module docstring): the ingest-token call 401s inside `get_current_user`
+    before claims processing, and the dev-bypass call takes the
+    `kid == DEV_BYPASS_KID` branch, which reads the `programs` claim
+    directly (AUTH-06-FR-3). The return value is therefore never observed --
+    only the attribute's existence matters.
+    """
+
+    async def resolve(self, email: str, db: AsyncSession) -> list[str]:
+        return []
+
+
 def _build_dual_dependency_app(test_session: AsyncSession) -> FastAPI:
     """Throwaway app: one route wired with BOTH real auth dependencies.
 
     Mirrors `test_auth_jwt_validation.py::_build_app` -- sets
-    `app.state.settings`/`app.state.jwks_cache` directly, never
-    `app.main.create_app` (D-03). `environment="test"` keeps
+    `app.state.settings`/`app.state.jwks_cache`/
+    `app.state.program_roster_resolver` directly, never
+    `app.main.create_app` (D-03). The roster resolver is the stub above,
+    never a real one (AUTH-06 D-04). `environment="test"` keeps
     `settings.dev_bypass_enabled` True so a dev-bypass JWT can verify here
     (see module docstring, second bullet).
 
@@ -101,6 +125,7 @@ def _build_dual_dependency_app(test_session: AsyncSession) -> FastAPI:
     register_exception_handlers(app)
     app.state.settings = settings
     app.state.jwks_cache = JwksCache(settings)
+    app.state.program_roster_resolver = _StubProgramRosterResolver()
 
     async def _override_get_db() -> AsyncIterator[AsyncSession]:
         yield test_session

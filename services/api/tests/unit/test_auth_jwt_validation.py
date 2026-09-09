@@ -3,9 +3,15 @@ TC-33 (AUTH-01-FR-4, AUTH-01-NFR-security), plus the trust-boundary cases the
 dependency must also get right (unrecognized `kid`, wrong signing key, forged
 `kid`, missing/malformed `Authorization`).
 
-DB-free: `get_current_user` has no database dependency (DATA-DESIGN §1/§2) —
-this file never imports `migrated_db`/`test_session`. The only outbound call
-is the mocked Keycloak JWKS endpoint via `keycloak_mock` (`tests/conftest.py`).
+DB-free BY DESIGN, deliberately kept so: `get_current_user` DOES now declare
+a real `db: AsyncSession = Depends(get_db)` (AUTH-06-AC-1 resolves `programs`
+from `program_roster`), but nothing in this file exercises that path — the
+`_StubProgramRosterResolver` installed by `_build_app` returns `[]` without
+touching `db`, so no query is ever issued and the yielded session is never
+connected. This file therefore still never imports `migrated_db`/`test_session`,
+and must not gain a live-DB fixture: roster derivation is
+`test_auth_groups.py`'s subject, not this file's. The only outbound call here is
+the mocked Keycloak JWKS endpoint via `keycloak_mock` (`tests/conftest.py`).
 
 `app/main.py::create_app` (T-09) is not depended on here — it may not exist
 yet at scheduling time (D-07). `_build_app` below constructs a throwaway
@@ -19,10 +25,12 @@ Fresh app per test (the `app` fixture is function-scoped): the JWKS cache is
 per-app instance state (D-07 addendum), so reusing one app across tests would
 leak cached keys between tests and mask order-dependent bugs.
 
-Scope boundary: program-group PARSING cases (TC-05/18/19/20 — the `programs`
-field) belong to T-14's `test_auth_groups.py`, not here — TC-04's `groups`
-assertion below checks the raw claim only. Route-level dev-bypass gating
-belongs to T-16.
+Scope boundary: `programs`-derivation cases (TC-05/18/19/20) belong to
+`test_auth_groups.py`, not here. That derivation is now the `program_roster`
+lookup (AUTH-06-AC-1); the `groups`-claim parsing it used to be — and the
+`_parse_programs` helper that performed it — no longer exist (AUTH-06-AC-6).
+TC-04's `groups` assertion below checks the raw claim only. Route-level
+dev-bypass gating belongs to T-16.
 
 Discrepancy flagged (see this task's returned `questions`) at authoring
 time: the task brief described "TC-17" as covering an EXPIRED-token
@@ -46,6 +54,7 @@ import pytest
 import pytest_asyncio
 from fastapi import APIRouter, Depends, FastAPI
 from httpx import ASGITransport, AsyncClient, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwks import JwksCache
 from app.core.auth import CurrentUser, get_current_user
@@ -64,6 +73,30 @@ EXPECTED_401_BODY = {"error": {"code": "http_401", "message": "invalid_token", "
 UNRECOGNIZED_KID = "test-kid-rotated"
 
 
+class _StubProgramRosterResolver:
+    """Minimal local stub — `resolve()` returns `[]` immediately, no I/O.
+
+    Mirrors the role `_StubPersonaResolver` plays in
+    `tests/perf/test_programs_perf.py` / `test_rbac_perf.py`: structurally
+    compatible with the real
+    `app.core.program_roster_resolver.ProgramRosterResolver` (one async
+    `resolve(email, db) -> list[str]`), installed onto the same
+    `app.state.program_roster_resolver` seam `get_program_roster_resolver`
+    reads — never subclassing or importing the real class.
+
+    A stub rather than the real resolver because the real one would query
+    `program_roster` and drag a live database into a file whose whole point is
+    to be DB-free (module docstring). `db` is accepted to match the real
+    signature and then ignored, so the session `Depends(get_db)` yields is
+    never connected. What `programs` resolves TO is not this file's subject —
+    only that the dependency resolves at all, which is what every test here
+    needs before it can reach its own assertion.
+    """
+
+    async def resolve(self, email: str, db: AsyncSession) -> list[str]:
+        return []
+
+
 def _build_app() -> FastAPI:
     """Throwaway app: one route guarded by the real `get_current_user`.
 
@@ -77,12 +110,19 @@ def _build_app() -> FastAPI:
     already carries `build_access_token`'s default `aud=TEST_OIDC_CLIENT_ID`,
     so this activates real enforcement without changing any existing test's
     expected outcome.
+
+    `app.state.program_roster_resolver` is mandatory here, not optional
+    convenience: FastAPI resolves EVERY declared dependency parameter eagerly,
+    whichever branch of the function body actually uses it, so without this
+    attribute `get_program_roster_resolver` raises `AttributeError` on every
+    request — including ones that 401 before any claim is read.
     """
     settings = Settings(oidc_issuer=TEST_OIDC_ISSUER, oidc_client_id=TEST_OIDC_CLIENT_ID)
     app = FastAPI()
     register_exception_handlers(app)
     app.state.settings = settings
     app.state.jwks_cache = JwksCache(settings)
+    app.state.program_roster_resolver = _StubProgramRosterResolver()
 
     router = APIRouter()
 
@@ -125,14 +165,29 @@ def _assert_generic_401(resp: Response) -> None:
 
 def test_get_current_user_has_no_session_persistence_path() -> None:
     """TC-04/TC-17: "no server-side session row is created" / "no row is
-    written to any session/token table" — asserted directly against the
-    dependency's own signature rather than a session table that doesn't
-    exist (DATA-DESIGN §1/§2 defines no entity, no migration for AUTH-01):
-    `get_current_user` takes no DB/session dependency at all, so it has no
-    seam through which it could persist anything server-side.
+    written to any session/token table".
+
+    READ THIS BEFORE "RESTORING" THE OLD SET. This assertion used to read
+    `{"credentials", "settings", "jwks_cache"}`, on the reasoning that
+    `get_current_user` took no DB/session dependency AT ALL and therefore had
+    no seam through which it could persist anything. AUTH-06-AC-1 retired that
+    framing DELIBERATELY: `session.programs` is now resolved from
+    `program_roster`, so the dependency genuinely holds a `db` session (plus
+    the resolver that reads through it). `db`/`program_roster_resolver`
+    appearing here is the story landing, NOT a regression — do not delete them
+    to make the old invariant true again.
+
+    What TC-04/TC-17 actually require survives intact, and is what this test
+    still guards: the `db` seam is READ-ONLY on this path. `get_current_user`
+    issues one `SELECT` against `program_roster` (`ProgramRosterResolver
+    ._query_roster`) and writes no row anywhere — no session table, no token
+    table; none exists (DATA-DESIGN §1/§2 defines no such entity and no
+    migration). Pinning the EXACT parameter set is what keeps that reviewable:
+    a future write-capable dependency cannot be added to the auth critical
+    path without failing here first and being justified.
     """
     params = set(inspect.signature(get_current_user).parameters)
-    assert params == {"credentials", "settings", "jwks_cache"}
+    assert params == {"credentials", "settings", "jwks_cache", "db", "program_roster_resolver"}
 
 
 @pytest.mark.asyncio
@@ -144,8 +199,10 @@ async def test_valid_jwt_verifies_and_derives_claims_tc04(
 ) -> None:
     """AUTH-01-TC-04: a valid, unexpired Bearer JWT verifies against the
     mocked JWKS; user_id/email/role derive from the verified claims exactly,
-    and `groups` includes the RAW 'program-beta' entry, prefix intact
-    (parsed-`programs` coverage is T-14's `test_auth_groups.py`, not here).
+    and `groups` carries the RAW 'program-beta' entry verbatim. Nothing is
+    derived FROM that entry any more — `programs` comes from `program_roster`,
+    never the `groups` claim (AUTH-06-AC-6), and its coverage lives in
+    `test_auth_groups.py`, not here.
     """
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
     token = build_access_token(
@@ -198,10 +255,11 @@ async def test_forged_role_and_groups_headers_are_ignored_tc33(
 ) -> None:
     """AUTH-01-TC-33 (NFR-security): a forged X-Role/X-Groups header sent
     alongside a validly signed JWT is ignored entirely — role/groups derive
-    only from the verified claims. `get_current_user`'s only inputs are
-    `credentials` (via `HTTPBearer`), `settings`, and `jwks_cache` (see the
-    signature assertion above) — there is no parameter through which a
-    request header could reach it, so these forged headers exercise that
+    only from the verified claims. Every one of `get_current_user`'s inputs is
+    FastAPI-injected (see the signature assertion above): `credentials` — the
+    `Authorization` header alone, via `HTTPBearer` — plus `settings`,
+    `jwks_cache`, `db`, and `program_roster_resolver`. Not one of them can
+    carry an arbitrary request header, so these forged headers exercise that
     absence directly against the real dependency.
     """
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)

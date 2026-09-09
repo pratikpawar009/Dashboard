@@ -20,8 +20,8 @@
   "impl": "complete",
   "validation": "passed",
   "review": "PASS",
-  "security": null,
-  "phase": "review",
+  "security": "PASS",
+  "phase": "security-reviewed",
   "plan_validation": "PASS",
   "plan_validation_rounds": 1,
   "decisions": {
@@ -75,56 +75,87 @@
       "evidence": null
     },
     {
-      "id": "CF-05",
+      "item_id": "AF-02-raw-dict-payload-invariant",
       "kind": "finding",
-      "source_flag": "AF-02",
-      "note": "Standing invariant, not a defect. Risk is permanent and a breaking refactor passes every schema unit test, so it needs a written home.",
-      "resolved_at": null
+      "reason": "[AF-02] Standing invariant, not a defect. Risk is permanent and a breaking refactor passes every schema unit test, so it needs a written home.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "human-review/02-apply (flag AF-02 deferred)",
+      "resolved_at": null,
+      "evidence": null
     },
     {
-      "id": "CF-06",
+      "item_id": "AF-06-router-must-not-bind-manifestin",
       "kind": "finding",
-      "source_flag": "AF-06",
-      "note": "Same standing invariant as AF-02, seen from the router side.",
-      "resolved_at": null
+      "reason": "[AF-06] Same standing invariant as AF-02, seen from the router side.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "human-review/02-apply (flag AF-06 deferred)",
+      "resolved_at": null,
+      "evidence": null
     },
     {
-      "id": "CF-07",
+      "item_id": "AF-12-program-summary-icon-has-no-producer",
       "kind": "finding",
-      "source_flag": "AF-12",
-      "note": "Out of ING-10 scope: its ACs never mention icon, and inventing a producer is the design-what-the-mockups-do-not-show move CLAUDE.md forbids.",
-      "resolved_at": null
+      "reason": "[AF-12] Out of ING-10 scope: its ACs never mention icon, and inventing a producer is the design-what-the-mockups-do-not-show move CLAUDE.md forbids.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "human-review/02-apply (flag AF-12 deferred)",
+      "resolved_at": null,
+      "evidence": null
     },
     {
-      "id": "CF-08",
+      "item_id": "AF-16-no-browser-runner-for-render-check",
       "kind": "finding",
-      "source_flag": "AF-16",
-      "note": "Same infrastructure class as AF-15 but belongs in an ADR (ADR-0001 never picked a browser runner); matters most before the UI-heavy persona-dashboard stories.",
-      "resolved_at": null
+      "reason": "[AF-16] Same infrastructure class as AF-15 but belongs in an ADR (ADR-0001 never picked a browser runner); matters most before the UI-heavy persona-dashboard stories.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "human-review/02-apply (flag AF-16 deferred)",
+      "resolved_at": null,
+      "evidence": null
     },
     {
-      "id": "CF-09",
+      "item_id": "ING-10-doc-drift-role-mapping-admin",
       "kind": "finding",
-      "source_flag": null,
-      "note": "ING-10-doc-drift-role-mapping-admin (validation round 2): docs/requirements/api.md role_mapping prose and docs/features/ING-10/REQUIREMENTS.md:73 still list `admin` as a mapped slug after D-10 removed it; PLAN.md:118 still says \"8-slug mapping\". RESOLVED round 3: api.md/REQUIREMENTS.md:73/PLAN.md:118 all corrected to the 6-slug map with admin called out as removed (D-10/AF-01); verified by both gate agents.",
-      "resolved_at": "2026-09-08"
+      "reason": "ING-10-doc-drift-role-mapping-admin (validation round 2): docs/requirements/api.md role_mapping prose and docs/features/ING-10/REQUIREMENTS.md:73 still list `admin` as a mapped slug after D-10 removed it; PLAN.md:118 still says \"8-slug mapping\". RESOLVED round 3: api.md/REQUIREMENTS.md:73/PLAN.md:118 all corrected to the 6-slug map with admin called out as removed (D-10/AF-01); verified by both gate agents.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "implement/02-validate gate round 2 (validation-agent RETURN)",
+      "resolved_at": "2026-09-08",
+      "evidence": null
     },
     {
-      "id": "CF-10",
+      "item_id": "ING-10-conftest-hardening-gaps",
       "kind": "finding",
-      "source_flag": null,
-      "note": "ING-10-conftest-hardening-gaps: _ensure_database_exists (tests/conftest.py) interpolates the database identifier into CREATE DATABASE via f-string and sets no connect timeout; and tasks.json file_plan has no F-21/F-22 entries for the accepted-flag edits to BED-01-owned tests/conftest.py and tests/fixtures/prd_8_4_schema.json. Both raised by review+validation, deliberately not fixed (MEDIUM/LOW never trigger a fix pass).",
-      "resolved_at": null
+      "reason": "ING-10-conftest-hardening-gaps: _ensure_database_exists (tests/conftest.py) interpolates the database identifier into CREATE DATABASE via f-string and sets no connect timeout; and tasks.json file_plan has no F-21/F-22 entries for the accepted-flag edits to BED-01-owned tests/conftest.py and tests/fixtures/prd_8_4_schema.json. Both raised by review+validation, deliberately not fixed (MEDIUM/LOW never trigger a fix pass).",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "implement/02-validate gate round 3 (validation + code-review RETURN)",
+      "resolved_at": null,
+      "evidence": null
     },
     {
-      "id": "CF-11",
+      "item_id": "ING-10-role-map-comment-drift",
       "kind": "finding",
-      "source_flag": null,
-      "note": "ING-10-role-map-comment-drift: role_map.py cites D-03 instead of D-10 as the decision guarding against re-adding admin, and map_role_slug()'s docstring still lists admin among \"the mapped roster roles\" \u2014 contradicting the 6-key dict directly above it. Comment/docstring only; the dict and the regression test are correct, so zero behavioural impact. Found in gate round 3, which is the cap \u2014 fixing it would have invalidated the passing verdicts with no round left to re-earn them, so it is carried for a follow-up that gets its own gate.",
-      "resolved_at": null
+      "reason": "ING-10-role-map-comment-drift: role_map.py cites D-03 instead of D-10 as the decision guarding against re-adding admin, and map_role_slug()'s docstring still lists admin among \"the mapped roster roles\" \u2014 contradicting the 6-key dict directly above it. Comment/docstring only; the dict and the regression test are correct, so zero behavioural impact. Found in gate round 3, which is the cap \u2014 fixing it would have invalidated the passing verdicts with no round left to re-earn them, so it is carried for a follow-up that gets its own gate.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "implement/02-validate gate round 3 (code-review RETURN)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "ING-10-unbounded-aliases-amplification",
+      "kind": "finding",
+      "reason": "SECURITY F-1 (MEDIUM, CWE-770 / OWASP API4:2023) \u2014 unbounded aliases[] amplification. schemas/manifest.py:77-79 sets no max_length on aliases[]; FR-5's 500-entry cap counts only the top-level team[] array, not expanded roster rows, and no request-body-size middleware exists in app/main.py. So 500 entries x N aliases each is unbounded output. Compounding: DATA-DESIGN.md \u00a78 AND a code comment both incorrectly assert expansion is \"bounded\" by that cap \u2014 and research risk #5 flagged the concept but its suggested mitigation text is the same incorrect claim that shipped. Missed by all 3 code-review rounds. Fix: max_length on aliases[], or a cap on total expanded rows, plus correcting the two false \"bounded\" claims.",
+      "owner": "Pratik Pawar",
+      "added_at": "2026-09-08T19:25:00Z",
+      "added_by": "security-review (security-review-agent F-1)",
+      "resolved_at": null,
+      "evidence": null
     }
   ],
-  "last_updated": "2026-09-08T18:10:00Z",
+  "last_updated": "2026-09-08T19:20:00Z",
   "tracker_plan": "pratikpawar009/Dashboard#243",
   "impl_evidence": {
     "session_ended_at": "2026-09-08T10:58:00Z",
@@ -327,5 +358,13 @@
       "rationale": "Same infrastructure class as AF-15 but belongs in an ADR (ADR-0001 never picked a browser runner); matters most before the UI-heavy persona-dashboard stories.",
       "carry_forward_ref": "CF-08"
     }
-  ]
+  ],
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 2,
+    "low": 3,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/ING-10/SECURITY-20260908-1253.md"
 }

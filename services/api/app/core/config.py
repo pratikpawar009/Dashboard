@@ -53,8 +53,14 @@ class Settings(BaseSettings):
     # `app/auth/oidc.py::_resolve_redirect_uri`). Deliberately NOT part of
     # `oidc_configured`'s completeness triple below.
     oidc_redirect_uri: str | None = None
-    oidc_scope: str = "openid profile email groups"
-    program_group_prefix: str = "program-"
+    # AUTH-06-AC-6: `groups` is no longer requested by default. Program
+    # membership now comes from `program_roster` (see
+    # `app/core/program_roster_resolver.py`), so the Keycloak `groups` client
+    # scope / Group Membership mapper is no longer a deployment prerequisite.
+    # A deployment that needs the raw claim for some other purpose can safely
+    # append `groups` back to its own `OIDC_SCOPE` value -- `CurrentUser.groups`
+    # still populates verbatim whenever Keycloak sends the claim.
+    oidc_scope: str = "openid profile email"
     # Accepts a single origin (CORS_ORIGINS=https://dashboard.example.com) or a
     # comma-separated list (CORS_ORIGINS=https://a.example.com,https://b.example.com).
     # `NoDecode` opts this field out of pydantic-settings' default JSON-decode-from-env

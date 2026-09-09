@@ -38,9 +38,11 @@ check, AUTH-03 D-03; see `test_rbac_perf.py` module docstring), so
 built) is never exercised by this endpoint either way.
 
 Non-cio persona, scoped to 50 of 100: the dev-bypass token is minted with
-`programs=` set to 50 of the 100 seeded `program_id`s (mapped to `groups`
-via `PROGRAM_GROUP_PREFIX`, parsed back by `get_current_user`, AUTH-01-FR-5)
-and a role the stub resolver maps to a fixed non-`cio` persona -- the
+`programs=` set to 50 of the 100 seeded `program_id`s (carried as its own
+top-level `programs` JWT claim and read straight off the claims by
+`get_current_user`'s `kid == DEV_BYPASS_KID` branch, with no `program_roster`
+query at all -- AUTH-06-FR-3) and a role the stub resolver maps to a fixed
+non-`cio` persona -- the
 `cio`-sees-all path would skip the `WHERE program_id IN (...)` scoping
 clause TC-17 is measuring.
 

@@ -3,8 +3,11 @@
 `get_current_user` verifies the `Authorization: Bearer <jwt>` header's
 signature against Keycloak's JWKS (`app.auth.jwks.JwksCache`, a per-app
 cache — D-04/D-07 addendum) and maps the verified claims onto `CurrentUser`
-per AUTH-01-FR-4 (claim-to-field mapping) and AUTH-01-FR-5 (program-group
-parsing). Stateless: no token or session state is persisted server-side
+per AUTH-01-FR-4 (claim-to-field mapping). `programs` no longer derives from
+the `groups` claim (AUTH-01-FR-5, retired by AUTH-06-AC-6): on the
+non-dev-bypass path it is resolved from `program_roster` by the verified
+`email` claim (`app.core.program_roster_resolver`, AUTH-06-AC-1/FR-1).
+Stateless: no token or session state is persisted server-side
 (docs/requirements/auth.md § session).
 """
 
@@ -17,6 +20,7 @@ from authlib.jose.errors import JoseError
 from authlib.jose.util import extract_header
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.jwks import (
     DEV_BYPASS_AUDIENCE,
@@ -26,6 +30,11 @@ from app.auth.jwks import (
     get_jwks_cache,
 )
 from app.core.config import Settings, get_settings
+from app.core.db import get_db
+from app.core.program_roster_resolver import (
+    ProgramRosterResolver,
+    get_program_roster_resolver,
+)
 
 # Generic detail for every failure path in this module — never distinguishes
 # "missing header" from "bad signature" from "expired" to the caller
@@ -59,10 +68,12 @@ class CurrentUser:
     """Authenticated principal derived from a verified Keycloak access token.
 
     `groups` and `programs` are two DIFFERENT lists (docs/requirements/auth.md
-    § session; TC-04 vs TC-05): `groups` is the raw `groups` claim verbatim,
-    prefix intact; `programs` is the AUTH-01-FR-5-parsed remainder. Both come
-    only from verified JWT claims — never a client-supplied header
-    (AUTH-01-NFR-security, TC-33).
+    § session; TC-04 vs TC-05): `groups` is the raw `groups` claim, passed
+    through verbatim whenever Keycloak sends it and feeding nothing else
+    (AUTH-06-AC-6); `programs` is the `program_roster` membership set resolved
+    from the verified `email` claim (AUTH-06-AC-1/FR-1), or a dev-bypass
+    token's own `programs` claim (AUTH-06-AC-4). Neither is ever taken from a
+    client-supplied header (AUTH-01-NFR-security, TC-33).
     """
 
     user_id: str
@@ -172,34 +183,23 @@ def _claims_options(kid: str, settings: Settings) -> dict[str, Any]:
     return options
 
 
-def _parse_programs(groups: list[str], prefix: str) -> list[str]:
-    """AUTH-01-FR-5: strip `prefix` from each matching group; drop the rest.
-
-    A zero-length remainder is also dropped: a group equal to the bare
-    `prefix` itself (e.g. `"program-"`) trivially `startswith` it, but an
-    empty-string program id is not admitted into `programs` (D-10). The raw
-    `groups` claim still retains such an entry verbatim — only `programs`
-    filters it.
-    """
-    return [
-        group[len(prefix) :]
-        for group in groups
-        if group.startswith(prefix) and len(group) > len(prefix)
-    ]
-
-
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
     settings: Settings = Depends(get_settings),
     jwks_cache: JwksCache = Depends(get_jwks_cache),
+    db: AsyncSession = Depends(get_db),
+    program_roster_resolver: ProgramRosterResolver = Depends(get_program_roster_resolver),
 ) -> CurrentUser:
     """Verify the bearer JWT and derive the caller's identity (AUTH-01-FR-4).
 
     Consumer-facing contract is unchanged — callers still write
     `Depends(get_current_user)`; every added parameter here is FastAPI-
-    injected (D-07), never a caller-supplied positional. `role`/`groups`/
-    `programs` are derived exclusively from the claims verified below; no
-    client-supplied header is ever consulted (AUTH-01-NFR-security, TC-33).
+    injected (D-07/AUTH-06-D-01), never a caller-supplied positional. That
+    now includes `db` and `program_roster_resolver`, which back the roster
+    lookup below. `role`/`groups` come exclusively from the claims verified
+    below, and `programs` from the roster keyed by the verified `email` claim
+    (AUTH-06-AC-1); no client-supplied header is ever consulted
+    (AUTH-01-NFR-security, TC-33).
     """
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=_INVALID_TOKEN_DETAIL)
@@ -228,10 +228,35 @@ async def get_current_user(
     groups_claim = claims.get("groups")
     groups = list(groups_claim) if isinstance(groups_claim, list) else []
 
+    email = str(claims.get("email", ""))
+
+    # AUTH-06-FR-3 — `kid == DEV_BYPASS_KID` is the SOLE discriminator for
+    # skipping the roster query. It is the same computed value
+    # `_claims_options` already branches on above, and it only ever resolves to
+    # a signing key inside AUTH-01's fail-closed environment allow-list.
+    #
+    # Two alternatives were considered and REJECTED. Widening this check to
+    # either one is a SECURITY REGRESSION, NOT A REFACTOR:
+    #
+    #   (a) presence of a `programs` claim — a Keycloak-issued token carrying a
+    #       forged `programs` claim would silently skip the roster and be
+    #       granted caller-declared membership. Such a token MUST still resolve
+    #       its membership from `program_roster`.
+    #   (b) `payload.email` (e.g. `email == "dev-bypass@local"`) — caller-
+    #       supplied on the dev-bypass request body, therefore forgeable by any
+    #       caller.
+    #
+    # Do not `or` a second condition onto this branch; flag any such change at
+    # review (FR-3 durable regression guard).
+    if kid == DEV_BYPASS_KID:
+        programs = list(claims.get("programs") or [])
+    else:
+        programs = await program_roster_resolver.resolve(email, db)
+
     return CurrentUser(
         user_id=str(claims.get("sub", "")),
-        email=str(claims.get("email", "")),
+        email=email,
         role=_parse_role(claims),
         groups=groups,
-        programs=_parse_programs(groups, settings.program_group_prefix),
+        programs=programs,
     )

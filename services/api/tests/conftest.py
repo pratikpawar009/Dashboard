@@ -67,7 +67,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 
 API_ROOT = Path(__file__).resolve().parent.parent
 ALEMBIC_INI = API_ROOT / "alembic.ini"
@@ -660,8 +660,17 @@ _HERMETIC_SETTINGS_DEFAULTS: dict[str, Any] = {
     # branch is now exercised deterministically, and the two tests that assert
     # a configured value still override it per-call.
     "oidc_redirect_uri": None,
-    "oidc_scope": "openid profile email groups",
-    "program_group_prefix": "program-",
+    # Derived, never a literal (review F-1/F-12). This pin is a *constructor
+    # kwarg* — highest precedence, above env and the field default — so a stale
+    # literal here silently shadows the shipped default for every `build_app()`
+    # test in the suite, which is exactly what AUTH-06 hit when it dropped
+    # `groups` from the scope. Reading the default keeps hermeticity identical
+    # (a real `.env` value still cannot leak in, per the `oidc_redirect_uri`
+    # incident above) while making that class of drift impossible rather than
+    # merely corrected. `program_group_prefix` was pinned here too and is now
+    # deleted from `Settings`; `extra="ignore"` swallowed it, so it never erred
+    # — it just read as live config forever. Removed rather than left dead.
+    "oidc_scope": Settings.model_fields["oidc_scope"].default,
     "cors_origins": [],
 }
 

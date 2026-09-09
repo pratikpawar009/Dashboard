@@ -65,7 +65,6 @@ _ENV_KEYS = (
     "OIDC_REALM",
     "OIDC_REDIRECT_URI",
     "OIDC_SCOPE",
-    "PROGRAM_GROUP_PREFIX",
     "CORS_ORIGINS",
 )
 
@@ -83,6 +82,9 @@ def _build_settings(**overrides: Any) -> Settings:
 
 
 # AUTH-01-TC-12 — exact FR-1 field list and defaults, clean environment.
+# AUTH-06-AC-6 narrowed `oidc_scope`'s default to drop `groups`, and deleted
+# `program_group_prefix` outright — program membership now comes from
+# `program_roster`, not the Keycloak `groups` claim.
 def test_settings_default_field_list_matches_fr1() -> None:
     settings = _build_settings()
 
@@ -90,8 +92,7 @@ def test_settings_default_field_list_matches_fr1() -> None:
     assert settings.oidc_client_secret is None
     assert settings.oidc_issuer is None
     assert settings.oidc_realm is None
-    assert settings.oidc_scope == "openid profile email groups"
-    assert settings.program_group_prefix == "program-"
+    assert settings.oidc_scope == "openid profile email"
     assert settings.cors_origins == []
 
 

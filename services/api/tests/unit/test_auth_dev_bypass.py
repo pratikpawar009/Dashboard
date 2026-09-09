@@ -1,5 +1,5 @@
 """Route-level tests for `app/auth/dev_bypass.py` — AUTH-01-TC-08, TC-09,
-TC-10, TC-22, TC-23, TC-24, TC-37, TC-38, TC-39, TC-40.
+TC-10, TC-22, TC-23, TC-24, TC-37, TC-38, TC-39, TC-40, plus AUTH-06-TC-02.
 
 Boots the real `create_app` app factory via the D-07 `build_app`/
 `async_client_for` fixtures (`tests/conftest.py`) for every case — TC-09's
@@ -15,8 +15,23 @@ at all, does it issue a usable token, does that token verify against a real
 `Depends(get_current_user)`-guarded route, and does it ever touch Keycloak
 or the audit log.
 
-DB-free (DATA-DESIGN §1/§2: AUTH-01 adds no entity, no migration) — this
-file never imports `migrated_db`/`test_session`.
+DB-free for every AUTH-01 case (DATA-DESIGN §1/§2: AUTH-01 adds no entity,
+no migration). AUTH-06-TC-02 at the bottom of this file is the one deliberate
+exception, and it is not a drift from that intent: proving the NON-dev-bypass
+branch resolves membership from `program_roster` requires a real row in that
+table, so that test alone takes `migrated_db`/`test_session` and points its
+app's `get_db` at the disposable test database. Every AUTH-01 case above it
+still touches no database at all.
+
+AUTH-06-TC-02 (`app/core/auth.py`'s roster-skip branch) also changes what the
+dev-bypass CLAIM SHAPE means, and every AUTH-01 assertion in this file was
+re-checked against it: `dev_bypass.py` now emits `programs` as its own
+top-level JWT claim and omits `groups` ENTIRELY (AUTH-06-AC-4/AC-6, D-02),
+where it previously emitted a synthetic `groups: ["<prefix><program>"]` that
+`get_current_user` parsed back. No assertion here changed — TC-40's
+`accepted_body["programs"] == ["alpha"]` is stated at the ROUTE layer, where
+the two mechanisms are observationally identical; nothing in this file ever
+asserted on the synthetic `groups` shape itself.
 
 Log-capture idiom for TC-10 (black-box): a `StreamHandler`+`JSONFormatter`
 pair bound to an OWNED `io.StringIO`, attached directly to the root logger —
@@ -43,23 +58,38 @@ log line after the fact.
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import logging
-from collections.abc import Callable, Iterator
-from contextlib import AbstractAsyncContextManager
+import re
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import AbstractAsyncContextManager, contextmanager
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from httpx import AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.auth import oidc
+from app.auth.jwks import DEV_BYPASS_KID
 from app.core.auth import CurrentUser, get_current_user
 from app.core.config import NON_PRODUCTION_ENVIRONMENTS
+from app.core.db import get_db
 from app.core.logging import JSONFormatter
-from tests.conftest import KeycloakCallSpy
+from app.models.roster import ProgramRoster
+from tests.conftest import (
+    TEST_OIDC_CLIENT_ID,
+    TEST_OIDC_ISSUER,
+    AlembicRunner,
+    KeycloakCallSpy,
+    KeycloakMock,
+    RSATestKeypair,
+)
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
@@ -351,3 +381,296 @@ async def test_dev_bypass_token_accepted_by_guarded_route_and_rejected_in_produc
 
     assert rejected_resp.status_code == 401
     keycloak_call_spy.assert_zero_calls()
+
+
+# =============================================================================
+# AUTH-06-TC-02 (AC-4, FR-3, NFR-security) — the kid-discriminator regression
+# guard. `docs/test-cases/AUTH-06.json` calls this the highest-severity risk in
+# `docs/research/AUTH-06.md`'s register, and it is the reason this file grew a
+# database dependency (see module docstring).
+#
+# Scaffold below is local to this section, matching this repo's per-topic-file
+# precedent (`test_programs.py` / `test_personal_usage.py` each own their
+# `_db_override` and seeding helpers rather than sharing them via conftest).
+# =============================================================================
+
+# The two membership sets are disjoint ON PURPOSE, so a pass and a fail can
+# never be confused for one another: PROG-Q exists only in `program_roster`,
+# PROG-Z exists only inside the forged token's own claim. If `session.programs`
+# ever comes back as PROG-Z, the branch read the caller's claim.
+_TC02_DEV_BYPASS_PROGRAMS = ["PROG-X", "PROG-Y"]
+_TC02_FORGED_EMAIL = "eve@example.com"
+_TC02_ROSTER_PROGRAM = "PROG-Q"
+_TC02_FORGED_CLAIM_PROGRAM = "PROG-Z"
+
+_PROGRAM_ROSTER_RE = re.compile(r"\bprogram_roster\b", re.IGNORECASE)
+
+
+def _db_override(session: AsyncSession) -> Callable[[], AsyncIterator[AsyncSession]]:
+    """`app.dependency_overrides[get_db]` value pointing at `session`.
+
+    `app.core.db.get_db` is backed by a module-level engine bound to
+    `settings.database_url` (the dev DB), not per-app state like
+    `get_settings`/`get_jwks_cache` — so FastAPI's own `dependency_overrides`
+    is the seam, exactly as `test_programs.py` established it.
+    """
+
+    async def _get_db() -> AsyncIterator[AsyncSession]:
+        yield session
+
+    return _get_db
+
+
+def _decode_unverified_segment(token: str, index: int) -> dict[str, Any]:
+    """Base64/JSON-decode one JWT segment WITHOUT verifying the signature.
+
+    Mirrors `app.core.auth._peek_kid`'s own decode-without-verify technique
+    (and `tests/unit/test_personal_usage.py::_decode_unverified_claims`). Used
+    here only to prove what was MINTED, never to make a trust decision — the
+    real verification happens inside the route under test.
+    """
+    segment = token.split(".")[index]
+    padding = "=" * (-len(segment) % 4)
+    decoded: dict[str, Any] = json.loads(base64.urlsafe_b64decode(segment + padding))
+    return decoded
+
+
+def _decode_unverified_header(token: str) -> dict[str, Any]:
+    return _decode_unverified_segment(token, 0)
+
+
+def _decode_unverified_claims(token: str) -> dict[str, Any]:
+    return _decode_unverified_segment(token, 1)
+
+
+class _RosterSelectSpy:
+    """Every SELECT against `program_roster` captured while attached."""
+
+    def __init__(self) -> None:
+        self.statements: list[str] = []
+        self.parameters: list[Any] = []
+
+    @property
+    def count(self) -> int:
+        return len(self.statements)
+
+    def bound_values(self) -> list[Any]:
+        """Flatten the captured statements' bound parameters into one list.
+
+        SQLAlchemy's psycopg3 dialect binds named (pyformat) parameters, so
+        each entry is normally a dict; the sequence branch covers an
+        executemany-shaped capture rather than assuming the dict case.
+        """
+        flat: list[Any] = []
+        for params in self.parameters:
+            if isinstance(params, dict):
+                flat.extend(params.values())
+            else:
+                flat.extend(params or [])
+        return flat
+
+
+@contextmanager
+def _spy_program_roster_selects(engine: AsyncEngine) -> Iterator[_RosterSelectSpy]:
+    """Record `program_roster` SELECTs on `engine` for the `with` block.
+
+    Same `before_cursor_execute` mechanism as
+    `test_rollup_rebuild_query_plan.py::_count_usage_events_selects` and
+    `test_persona_resolver.py::_count_persona_config_selects`; detached in
+    `finally` so it cannot leak into a sibling test through the
+    session-scoped `test_engine`. Statements AND their bound parameters are
+    kept, because TC-02 asserts on the predicate, not just the count.
+    """
+    spy = _RosterSelectSpy()
+    sync_engine = engine.sync_engine
+
+    def _before_cursor_execute(
+        conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+    ) -> None:
+        if statement.strip().upper().startswith("SELECT") and _PROGRAM_ROSTER_RE.search(statement):
+            spy.statements.append(statement)
+            spy.parameters.append(parameters)
+
+    event.listen(sync_engine, "before_cursor_execute", _before_cursor_execute)
+    try:
+        yield spy
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", _before_cursor_execute)
+
+
+async def _seed_roster_row(session: AsyncSession, *, email: str, program_id: str) -> None:
+    """Insert one active `program_roster` row and commit.
+
+    Mirrors `tests/perf/test_program_roster_resolver_perf.py`'s seeding: the
+    ORM supplies no `created_at`/`updated_at` default (the migration carries
+    no `server_default` either — `app/models/roster.py`), so both are passed
+    explicitly.
+    """
+    now = datetime.now(UTC)
+    session.add(
+        ProgramRoster(
+            program_id=program_id,
+            email=email,
+            name="Eve Tester",
+            role="developer",
+            source="file",
+            removed_at=None,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_kid_is_sole_roster_skip_discriminator_tc02(
+    migrated_db: AlembicRunner,
+    test_session: AsyncSession,
+    test_engine: AsyncEngine,
+    build_app: Callable[..., FastAPI],
+    async_client_for: AsyncClientFactory,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-06-TC-02: `kid == DEV_BYPASS_KID` is the SOLE roster-skip
+    discriminator (AC-4, FR-3, NFR-security).
+
+    Two tokens hit the same `Depends(get_current_user)` route on the same app:
+
+    - a GENUINE dev-bypass token, minted through the real `POST /auth/dev-bypass`
+      (not hand-forged), carrying `programs: ["PROG-X","PROG-Y"]` as its own
+      top-level claim — must be honoured verbatim, with the roster never queried;
+    - a FORGED Keycloak-style token, signed by a real keypair under a `kid` that
+      is NOT `DEV_BYPASS_KID`, smuggling `programs: ["PROG-Z"]` — must be
+      resolved from `program_roster` (which grants it `PROG-Q` and nothing else),
+      with its own claim ignored.
+
+    The second half is the whole security value of this test. The two
+    alternatives `app/core/auth.py`'s inline comment records as REJECTED are
+    both exercised here: the forged token HAS a `programs` claim (so a
+    presence-based discriminator would wrongly skip the roster) and it HAS a
+    caller-chosen `email` (so a `payload.email`-based one would too). Both are
+    caller-forgeable; `kid` is not, because it only ever resolves to a signing
+    key inside AUTH-01's fail-closed environment allow-list.
+    """
+    await _seed_roster_row(test_session, email=_TC02_FORGED_EMAIL, program_id=_TC02_ROSTER_PROGRAM)
+
+    app = build_app(
+        environment="development",
+        oidc_issuer=TEST_OIDC_ISSUER,
+        oidc_client_id=TEST_OIDC_CLIENT_ID,
+    )
+    app.include_router(_guarded_router)
+    app.dependency_overrides[get_db] = _db_override(test_session)
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+
+    async with async_client_for(app) as client:
+        issue_resp = await client.post(
+            "/auth/dev-bypass", json={"programs": _TC02_DEV_BYPASS_PROGRAMS}
+        )
+        assert issue_resp.status_code == 200, issue_resp.text
+        dev_token = str(issue_resp.json()["access_token"])
+
+        # TC-02 step 1 — the minted token really does have the new shape:
+        # dev `kid`, `programs` as its OWN top-level claim, and no `groups`
+        # key at all (AUTH-06-AC-4/AC-6, D-02 — omitted entirely, not empty).
+        dev_header = _decode_unverified_header(dev_token)
+        dev_claims = _decode_unverified_claims(dev_token)
+        assert dev_header["kid"] == DEV_BYPASS_KID
+        assert dev_claims["programs"] == _TC02_DEV_BYPASS_PROGRAMS
+        assert "groups" not in dev_claims, (
+            "AUTH-06-D-02: a dev-bypass token must carry NO `groups` claim at "
+            f"all — not an empty one. Got groups={dev_claims.get('groups')!r}."
+        )
+
+        # TC-02 step 2 — same signing/claims path as any real Keycloak token
+        # in this suite (`build_access_token`), differing only in the forged
+        # `programs` claim. Its `kid` is the JWKS-served one, never the dev kid.
+        forged_token = build_access_token(
+            email=_TC02_FORGED_EMAIL,
+            extra_claims={"programs": [_TC02_FORGED_CLAIM_PROGRAM]},
+        )
+        forged_claims = _decode_unverified_claims(forged_token)
+        # False-green guard. Every assertion below compares "what the roster
+        # says" against "what the token claimed" — if the token never actually
+        # carried the smuggled claim (a silently-dropped `extra_claims`, a
+        # renamed key), that comparison proves nothing while still passing.
+        assert _decode_unverified_header(forged_token)["kid"] != DEV_BYPASS_KID
+        assert forged_claims["programs"] == [_TC02_FORGED_CLAIM_PROGRAM], (
+            "the forged token must genuinely carry the smuggled `programs` "
+            "claim, or this test is vacuous. Claims were: "
+            f"{forged_claims!r}"
+        )
+        assert forged_claims["email"] == _TC02_FORGED_EMAIL
+
+        with _spy_program_roster_selects(test_engine) as dev_spy:
+            dev_resp = await client.get(
+                _GUARDED_ROUTE_PATH, headers={"Authorization": f"Bearer {dev_token}"}
+            )
+
+        with _spy_program_roster_selects(test_engine) as forged_spy:
+            forged_resp = await client.get(
+                _GUARDED_ROUTE_PATH, headers={"Authorization": f"Bearer {forged_token}"}
+            )
+
+    # Neither token may 401 or 500 — a session that fails to construct would
+    # make every membership assertion below vacuously "safe".
+    assert dev_resp.status_code == 200, dev_resp.text
+    assert forged_resp.status_code == 200, forged_resp.text
+    dev_body = dev_resp.json()
+    forged_body = forged_resp.json()
+
+    # --- dev-bypass branch: own claim, honoured verbatim, roster untouched ---
+    assert dev_body["programs"] == _TC02_DEV_BYPASS_PROGRAMS, (
+        "AUTH-06-AC-4: a dev-bypass session's programs must be its own "
+        f"top-level claim verbatim, expected {_TC02_DEV_BYPASS_PROGRAMS!r}, "
+        f"got {dev_body['programs']!r}. Dev-bypass runs with zero roster seed "
+        "data by design, so reading the roster here would break it outright."
+    )
+    assert dev_body["groups"] == [], (
+        "AUTH-06-D-02: `dev_bypass.py` emits no `groups` claim, so "
+        f"`CurrentUser.groups` must fall back to []. Got {dev_body['groups']!r} "
+        "— a non-empty value means the retired synthetic-groups construction "
+        "is back."
+    )
+    assert dev_spy.count == 0, (
+        "AUTH-06-FR-3: the `kid == DEV_BYPASS_KID` branch must skip the roster "
+        f"query ENTIRELY, but {dev_spy.count} program_roster SELECT(s) ran: "
+        f"{dev_spy.statements!r}"
+    )
+
+    # --- forged Keycloak token: roster wins, claim ignored (the whole point) ---
+    assert forged_body["programs"] == [_TC02_ROSTER_PROGRAM], (
+        "SECURITY REGRESSION — AUTH-06-FR-3 / NFR-security / TC-02. A "
+        f"Keycloak-issued token (kid != {DEV_BYPASS_KID!r}) that smuggled "
+        f"`programs: [{_TC02_FORGED_CLAIM_PROGRAM!r}]` was granted "
+        f"caller-declared membership: expected [{_TC02_ROSTER_PROGRAM!r}] from "
+        f"program_roster, got {forged_body['programs']!r}. On the non-dev-bypass "
+        "branch `session.programs` MUST come from program_roster alone. The "
+        "roster-skip branch fires if and only if `kid == DEV_BYPASS_KID` — "
+        "never on the PRESENCE of a `programs` claim (this token has one) and "
+        "never on `payload.email` (caller-supplied, forgeable). If you widened "
+        "that branch, that is the regression this assertion exists to catch; "
+        "do not relax it to match the new behaviour."
+    )
+    assert _TC02_FORGED_CLAIM_PROGRAM not in forged_body["programs"], (
+        f"{_TC02_FORGED_CLAIM_PROGRAM!r} exists ONLY inside the forged token's "
+        "own claim and in no roster row — its appearance in session.programs "
+        "means the caller's claim was read on the Keycloak branch (FR-3)."
+    )
+    assert forged_spy.count == 1, (
+        "AUTH-06-FR-1: exactly one program_roster SELECT per non-dev-bypass "
+        f"session construction, got {forged_spy.count}: {forged_spy.statements!r}"
+    )
+
+    normalized_statement = " ".join(forged_spy.statements[0].upper().split())
+    assert "REMOVED_AT IS NULL" in normalized_statement, (
+        "AUTH-06-AC-3/FR-1: the roster query must filter soft-deleted rows "
+        f"(`removed_at IS NULL`). Statement was: {forged_spy.statements[0]!r}"
+    )
+    assert _TC02_FORGED_EMAIL in forged_spy.bound_values(), (
+        "AUTH-06-FR-1: the roster query must be bound to the VERIFIED `email` "
+        f"claim ({_TC02_FORGED_EMAIL!r}). Bound parameters were: "
+        f"{forged_spy.parameters!r}"
+    )

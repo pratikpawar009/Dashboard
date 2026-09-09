@@ -78,7 +78,16 @@ async def test_login_redirects_to_keycloak_with_valid_authorization_request(
     assert query["client_id"] == [TEST_OIDC_CLIENT_ID]
     assert query["redirect_uri"] == ["http://test/auth/callback"]
     assert query["response_type"] == ["code"]
-    assert query["scope"] == ["openid profile email groups"]  # settings.oidc_scope default
+    # AUTH-06-AC-6, end-to-end: `groups` is no longer requested, and this asserts
+    # it on the wire — the scope Keycloak's authorization request actually
+    # carries. This is a real guard on the shipped default, not just on verbatim
+    # forwarding, because `_HERMETIC_SETTINGS_DEFAULTS` DERIVES its pin from
+    # `Settings.model_fields["oidc_scope"].default` rather than repeating a
+    # literal: regress `config.py`'s default and this test fails alongside
+    # `test_auth_config.py` (verified by experiment, not assumed). It would stop
+    # guarding the default the moment someone pins a scope literal in conftest or
+    # overrides it on this test — don't.
+    assert query["scope"] == ["openid profile email"]
     assert len(query["state"]) == 1
     assert query["state"][0]  # non-empty
 
