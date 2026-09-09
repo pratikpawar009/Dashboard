@@ -31,6 +31,7 @@ allowed-tools: Read Write Edit Bash Grep Glob
 - `target_metadata = None` today (`migrations/env.py:25`) — no ORM `Base`/models module exists yet, so `--autogenerate` has nothing to diff. Migrations must be hand-written until a models module is added and its `Base.metadata` is wired in.
 - New revisions render from `migrations/script.py.mako`: revision id, `down_revision` chain, and both `upgrade()`/`downgrade()` functions are always present (mako only defaults a function body to `pass` when there are no ops to emit — don't leave a real schema change's `downgrade()` as `pass`).
 - No `migrations/versions/` directory exists yet — no migration has been written; the first one creates that directory.
+- A revision that adds an **index** is not self-contained: two existing test gates require the migration, the ORM model, and a schema fixture to agree, so all three change together. Read the gates rather than trusting this bullet — they are the authority and they will tell you the current rule: `services/api/tests/test_migrations.py::TestSchemaDiffGate` (runs `alembic check`, so an index present in a migration but absent from the model's `__table_args__` fails) and `services/api/tests/test_models.py::TestFixtureDrivenTableConstraints` (compares each table against `services/api/tests/fixtures/prd_8_4_schema.json`). `migrations/versions/002_personal_usage_indexes.py` is the worked precedent that updated all three; BED-05's migration 004 initially updated only the migration and failed both gates in preflight (BED-05 AF-09).
 
 ## Project structure
 

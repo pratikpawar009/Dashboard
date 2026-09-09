@@ -5,6 +5,13 @@ transaction wrapping (`docs/features/BED-03/DECISIONS.md`): a mid-rebuild
 failure rolls back the *entire* call's mutations, none of the 7
 program-scoped tables show a partial write.
 
+Also covers **BED-05-AC-2**. BED-05 rewrote `rollup_rebuild.py`'s aggregation
+to SQL `GROUP BY`; T-11 re-verified this mechanism against that rewrite and
+found it intact, so no change was required here. The monkeypatch seam
+(`_build_program_token_series`) survives as a module-level callable, the
+injected failure still fires after all 7 program-scoped DELETEs, and rollback
+is still asserted across the full scope (BED-05 AF-04).
+
 `_rebuild_transaction` (`rollup_rebuild.py`) has two branches (its module
 docstring): `session.begin()` when the session is genuinely idle, and
 `begin_nested()` (SAVEPOINT) when the session already has an autobegun
