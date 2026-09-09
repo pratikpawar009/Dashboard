@@ -18,6 +18,11 @@ Covers:
   name, and a real end-to-end rebuild call's captured log output (via the
   actual `app.core.logging.JSONFormatter` seam, matching `test_logging.py`'s
   idiom) never carries a PII field, per `.claude/rules/security-baseline.md`.
+- BED-05-AC-3: neither rollup-rebuild call site (`app/api/ingest.py`,
+  `app/services/manifest_ingest.py`) moved a single byte across this story's
+  whole diff — asserted against the real git blob at the commit BED-05
+  branched from, not an import-only smoke check — and `DECISIONS.md` records
+  D-05's caller-ordering write-up `ING-02` must implement.
 
 Against the disposable test database via `migrated_db`/`test_session`
 (`tests/conftest.py`), matching `tests/unit/test_rollup_rebuild_program.py`'s
@@ -31,6 +36,8 @@ import dataclasses
 import inspect
 import json
 import logging
+import re
+import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,9 +60,20 @@ from tests.conftest import AlembicRunner
 # services/api/tests/unit/test_rollup_rebuild_contract.py -> parents[2] = services/api
 API_ROOT = Path(__file__).resolve().parents[2]
 API_ROUTERS_DIR = API_ROOT / "app" / "api"
+# parents[3] = services, parents[4] = repo root -- needed for the AC-3 git-blob
+# diff and DECISIONS.md below.
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DECISIONS_MD_PATH = REPO_ROOT / "docs" / "features" / "BED-05" / "DECISIONS.md"
 
 # BED-03-TC-16 test_data.forbidden_log_fields, copied verbatim.
 FORBIDDEN_LOG_FIELDS = ("email", "user_email", "raw_content", "prompt_text")
+
+# BED-05-AC-3: the two rollup-rebuild call sites this story must never edit,
+# repo-root-relative (the shape `git show <ref>:<path>` needs).
+AC3_FROZEN_CALL_SITES = (
+    "services/api/app/api/ingest.py",
+    "services/api/app/services/manifest_ingest.py",
+)
 
 
 def _usage_event_row(**overrides: Any) -> dict[str, Any]:
@@ -257,3 +275,86 @@ async def test_rebuild_calls_log_no_pii_fields(
         serialized = json.dumps(payload)
         for field in FORBIDDEN_LOG_FIELDS:
             assert field not in serialized, f"forbidden field {field!r} found in: {formatted}"
+
+
+# ---------------------------------------------------------------------------
+# BED-05-AC-3 — call-site regression + DECISIONS.md write-up
+# ---------------------------------------------------------------------------
+
+
+def _resolve_ac3_diff_base_ref() -> str:
+    """The commit BED-05 branched from — the merge-base between `HEAD` and
+    `main` — so the byte-identical check below measures THIS story's own
+    diff contribution, not `main`'s current tip (which can move for reasons
+    unrelated to BED-05 and would otherwise produce a false failure/pass).
+    Tries `origin/main` first (the ref a fresh clone actually has), then a
+    local `main` branch; skips (not xfail/pass) if neither resolves, since a
+    checkout without either ref genuinely cannot answer this question.
+    """
+    for candidate in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "merge-base", "HEAD", candidate],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    pytest.skip(
+        "neither origin/main nor main resolves in this checkout — cannot compute "
+        "the AC-3 diff-base commit"
+    )
+
+
+def _git_blob_bytes(ref: str, repo_relative_path: str) -> bytes:
+    """Raw bytes of `repo_relative_path` as committed at `ref` (no `text=True`
+    decoding — AC-3 is a byte-identical check, not a text-normalized one).
+    """
+    result = subprocess.run(
+        ["git", "show", f"{ref}:{repo_relative_path}"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+    )
+    assert result.returncode == 0, (
+        f"git show {ref}:{repo_relative_path} failed: "
+        f"{result.stderr.decode(errors='replace')}"
+    )
+    return result.stdout
+
+
+@pytest.mark.parametrize("repo_relative_path", AC3_FROZEN_CALL_SITES)
+def test_ac3_call_site_is_byte_identical_to_pre_bed_05_commit(repo_relative_path: str) -> None:
+    """AC-3: this whole feature's diff touches neither call site. Asserted by
+    diffing the CURRENT working-tree file, byte for byte, against the git
+    blob at the commit BED-05 branched from — a real diff check against
+    history, not an import-only smoke test that would pass whether or not
+    either file changed. A mismatch means this feature edited a file it must
+    never touch; only `ING-02` may change either caller (D-05).
+    """
+    base_ref = _resolve_ac3_diff_base_ref()
+    baseline = _git_blob_bytes(base_ref, repo_relative_path)
+    current = (REPO_ROOT / repo_relative_path).read_bytes()
+    assert current == baseline, (
+        f"{repo_relative_path} differs from its content at {base_ref} — AC-3 forbids "
+        "BED-05 from editing either rollup-rebuild call site"
+    )
+
+
+def test_decisions_md_records_the_d05_caller_ordering_write_up() -> None:
+    """AC-3 requires the `ING-02` caller-ordering write-up to be recorded in
+    this module's own `DECISIONS.md`, not implemented here (D-05). Scopes
+    every assertion to the D-05 section specifically (not the whole file) so
+    an unrelated decision mentioning the same terms can't produce a false
+    pass.
+    """
+    text = DECISIONS_MD_PATH.read_text()
+    match = re.search(r"### D-05:.*?(?=\n### D-\d|\Z)", text, re.DOTALL)
+    assert match, "DECISIONS.md has no D-05 entry"
+    section = match.group(0)
+
+    assert "ING-02" in section, "D-05 must name ING-02 as the caller-ordering owner"
+    assert "rebuild_program_rollups" in section
+    assert "rebuild_org_rollups" in section
+    for repo_relative_path in AC3_FROZEN_CALL_SITES:
+        file_name = Path(repo_relative_path).name
+        assert file_name in section, f"D-05 does not name {file_name} as a frozen call site"

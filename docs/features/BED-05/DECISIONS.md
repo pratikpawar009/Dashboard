@@ -14,6 +14,29 @@ Mechanism shape, per table: `org_summary_rollup` is a true 1-row singleton — p
 
 T-03 implements this (including the hybrid delete-outside-set + upsert shape and the `func.min` translation); T-06/T-10 verify `contention_wait_ms` fits budget and zero `IntegrityError` under the AC-1 four-program case.
 
+**Scope correction (2026-09-09, code-review finding F-1, HIGH — accepted at the Validate ∥ Review
+gate)**: the convergence claim above is proven only for a **static `usage_events` read-set**, which is
+exactly the condition AC-1's test establishes — all rows are seeded before the race begins. The audit
+shows the *aggregates* are order-independent; it does **not** show the *write path* is safe when the
+input table is itself being written during the race.
+
+The residual risk, recorded as accepted rather than solved: under genuinely concurrent ingest from
+different programs, where `usage_events` is still receiving writes while two `rebuild_org_rollups()`
+calls are in flight, a call that read earlier can commit *after* one that read later and silently
+overwrite the fresher aggregate. There is no `IntegrityError`, no exception, and no log signal — the
+row is simply briefly stale. It self-heals on the next rebuild anywhere in the system, since every
+rebuild is a full re-derive, and it is still strictly better than the shipped behaviour it replaces
+(which crashed 2-of-4 concurrent calls outright). `ON CONFLICT DO UPDATE` therefore remains the right
+decision; the sentence 'all four converge on the identical final row set regardless of which commits
+first' was simply too strong.
+
+If a stronger guarantee is wanted later, the reviewer's suggested hardening is a scoped
+`pg_advisory_xact_lock` around **only** the org-write critical section — not around whole rebuilds,
+which is the shape D-01 rejected for queueing concurrent pushes. Tracked as carry-forward
+`F-1-residual-risk`. Note that no test in this feature can detect this: it is a timing property, and
+the golden-snapshot suite compares output shape over static data (the reviewer's own point — the
+right tool, aimed at a different risk).
+
 ### D-02: Replacement rebuild budget + statement/connection timeout are set by a measure-then-pin task sequence, not invented now · blast:service · rev:mechanical · adr:—
 
 **Context**: Both values are functions of code that does not exist yet (the SQL rewrite + its supporting index); the PRD defers them to `/arh-plan-implementation`, bounded by a fixed ceiling (rebuild's share of ING-02's p95 ≤3s for a 5,000-row batch) and a fixed shape (table-size-indexed, flat across ≥2 of {20k, 40k, 160k} rows). Inventing a number now would re-encode the pre-rewrite cost model this story exists to replace.
@@ -37,3 +60,42 @@ T-03 implements this (including the hybrid delete-outside-set + upsert shape and
 **Context**: AC-3 requires the upsert-plus-rebuild call-site ordering that `ING-02` must implement to be written down against the `rollup-rebuild` contract's `commit_boundary_note` (`docs/requirements/data.md#rollup-rebuild`) and in this module's own `DECISIONS.md` — without this story editing any call site (`app/api/ingest.py`, `app/services/manifest_ingest.py:355` stay unchanged).
 
 **Decision**: `ING-02`'s own acceptance criteria must implement: (1) validate + upsert the batch into `usage_events` and commit that write; (2) call `rebuild_program_rollups(session, program_id)` — it is already atomic per this story's unchanged `_rebuild_transaction`; on exception, let it propagate to `ING-02`'s own error handling rather than swallowing it; (3) call `rebuild_org_rollups(session)` the same way; (4) a failure in either rebuild call leaves `usage_events` committed with rollups un-rebuilt behind it — the same accepted divergence `manifest_ingest.py:355`'s shipped precedent already has — and `ING-02` decides its own retry/response-status semantics for that case. This story designs no staleness or retry semantics (RTM decision, taken as given) and touches no call site. T-12 asserts `manifest_ingest.py`/`ingest.py` remain byte-unchanged and that this write-up exists in `DECISIONS.md`.
+
+**Correction (2026-09-09, AF-01 accepted at triage)**: this entry's Context described
+`manifest_ingest.py:355` as an existing commit-then-rebuild call site. It is not — that line is
+`await db.commit()`, and no production code calls either rebuild function. `ING-02` will be the
+**first** caller of the ordering this decision writes down, not a continuation of an established
+one. The decision itself is unchanged: BED-05 documents the ordering and implements no call site.
+
+### D-06: Migration 004 ships `ix_usage_events_program_id_covering`, not D-04's `ix_usage_events_ts` — supersedes D-04 on measured evidence · blast:feature · rev:mechanical · adr:—
+
+**Context**: D-04 was taken at plan time, before the rewrite existed, and named `ix_usage_events_ts`
+as the index the `GROUP BY` rewrite would need. T-04's task notes required `EXPLAIN ANALYZE` against
+the real rewritten queries at 160k rows *before* fixing the index set. That measurement contradicted
+the prediction.
+
+**Decision**: migration `004_rollup_query_indexes.py` adds exactly one index,
+`ix_usage_events_program_id_covering` — `(program_id) INCLUDE (total, lines_added)` — and does **not**
+add `ix_usage_events_ts`.
+
+**Evidence**: across all 11 statements the two rebuild functions issue,
+`ix_usage_events_ts` was never selected by the planner. Plans, costs and timings came back
+byte-identical to baseline, and it still lost to the pre-existing `ix_usage_events_user_ts` even with
+`enable_seqscan = off`. Two independent reasons, both structural rather than incidental:
+
+1. The three org-wide aggregates carry no `WHERE` clause. At 100% selectivity a sequential scan is the
+   physically correct plan for touching every row, whatever indexes exist.
+2. The bucketing expression is the 3-argument zone-aware `date_trunc(text, timestamptz, text)`, which
+   Postgres marks `STABLE`, not `IMMUTABLE`. `CREATE INDEX ... (date_trunc('month', ts, 'UTC'))` is
+   rejected outright, so no expression index matching the query can legally exist.
+
+The measurement did surface a real, different need: `_build_org_summary` was using an existing
+`program_id`-prefixed index purely to get sorted input for its `COUNT(DISTINCT program_id)` while
+still touching the heap for all 160k rows. The covering index converts that to an Index Only Scan —
+`Heap Fetches: 0`, buffers 61,681 → 967, ~60ms → ~33ms, reproduced over two independent runs.
+
+**Consequence**: `DATA-DESIGN.md` §8's expectation that "no query falls back to a sequential scan" is
+**not achievable** and should not be treated as a defect. Three org-wide aggregates will always seq
+scan, correctly. AC-9 is satisfied as written — the revision is additive, index-only, revises
+`003_program_roster`, and its `downgrade()` drops exactly what `upgrade()` added. T-05's round-trip
+assertion must target the real index name; its task notes still say `ix_usage_events_ts`.

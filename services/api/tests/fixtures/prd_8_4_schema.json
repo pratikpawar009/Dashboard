@@ -100,7 +100,7 @@
         }
       ],
       "constraints": [
-        "unique(org_id) \u2014 singleton, org_id default 'org-1'"
+        "unique(org_id) — singleton, org_id default 'org-1'"
       ]
     },
     "token_series": {
@@ -206,7 +206,7 @@
           "nullable": false,
           "default": null,
           "unique": false,
-          "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD \u00a78.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled \u2014 part of the frozen contract."
+          "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD §8.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled — part of the frozen contract."
         }
       ],
       "constraints": [
@@ -349,7 +349,7 @@
           "nullable": false,
           "default": null,
           "unique": false,
-          "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD \u00a78.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled \u2014 part of the frozen contract."
+          "note": "confirmed at /arh-human-review 2026-08-27 (AF-02): not itemized in PRD §8.4's prose for this table, but every sibling rollup carries as_of_timestamp and these are rebuilt-from-usage_events rollups where a staleness marker is load-bearing. Settled — part of the frozen contract."
         }
       ],
       "constraints": [
@@ -1061,7 +1061,8 @@
         "index(program_id, user)",
         "index(program_id, command)",
         "index(program_id, session_id)",
-        "index(user, ts)"
+        "index(user, ts)",
+        "index(program_id)"
       ]
     },
     "ingest_tokens": {
@@ -1129,7 +1130,7 @@
       "constraints": [
         "unique(token_hash)",
         "index(user_email)",
-        "no column stores the raw token (AC-5, NFR-006) \u2014 forbidden columns: token, raw_token, plaintext_token, secret"
+        "no column stores the raw token (AC-5, NFR-006) — forbidden columns: token, raw_token, plaintext_token, secret"
       ]
     },
     "system_metadata": {

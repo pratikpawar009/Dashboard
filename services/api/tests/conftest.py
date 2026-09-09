@@ -41,6 +41,7 @@ The cost (each test pays a full upgrade+downgrade) is acceptable at this table
 count.
 """
 
+import asyncio
 import os
 import re
 import time
@@ -68,6 +69,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import Settings, settings
+from app.services.rollup_rebuild import RebuildResult, rebuild_org_rollups, rebuild_program_rollups
 
 API_ROOT = Path(__file__).resolve().parent.parent
 ALEMBIC_INI = API_ROOT / "alembic.ini"
@@ -284,6 +286,115 @@ async def test_session(test_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     session_factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
     async with session_factory() as session:
         yield session
+
+
+# =============================================================================
+# BED-05 (T-02, F-05) — four-distinct-program concurrent-session fixture
+# (research condition C-4, BED-05-FR-4). Consumed by
+# `tests/unit/test_rollup_rebuild_concurrency.py` (BED-05-TC-01 / AC-1, T-10 —
+# a different task/worker; this file supplies only the fixture, never that
+# test).
+#
+# Why a new fixture: `migrated_db`/`test_session` above are both single-session
+# — every existing rollup_rebuild test (`tests/perf/test_rollup_rebuild_perf.py`,
+# `tests/unit/test_rollup_rebuild_transaction.py`, ...) runs its call pair on
+# ONE `AsyncSession`, so two calls on the same session are always ordered by
+# that session's own transaction boundary and can never race. AC-1's scenario
+# is four *distinct* ingest-token callers, each with their own session,
+# hitting `rebuild_org_rollups`' org-singleton write path (`org_summary_rollup`,
+# `token_series`, `mau_series` — `DECISIONS.md` D-01) at the same time.
+# Reproducing that needs four independently-connected `AsyncSession`s racing
+# through real Postgres I/O, not four coroutines sharing one
+# session/connection.
+#
+# The sessions below are bound to the shared, session-scoped `test_engine`
+# (never a fresh per-fixture engine) so each gets its own pooled connection
+# and their statements genuinely overlap at the wire level — real psycopg
+# network I/O yields control back to the event loop at each `await`, so
+# `asyncio.gather` across four such sessions is genuine concurrency, not the
+# false-concurrency trap `tests/perf/test_auth_jwks_perf.py`'s docstring
+# documents for a purely synchronous mock (AF-04, that file). A single shared
+# `AsyncSession` here would collapse this fixture back to the serial case it
+# exists to avoid; `run_concurrent_rebuild_pairs` below is how genuine
+# concurrency was verified for this fixture, not assumed.
+# =============================================================================
+
+#: Fixed, distinct program ids for the AC-1 four-program case. Not reused by
+#: any other test's seeded `usage_events` (grep before adding a new
+#: rollup_rebuild test that also seeds a "prog-concurrent-*" program).
+FOUR_CONCURRENT_PROGRAM_IDS: tuple[str, str, str, str] = (
+    "prog-concurrent-1",
+    "prog-concurrent-2",
+    "prog-concurrent-3",
+    "prog-concurrent-4",
+)
+
+
+@dataclass
+class ConcurrentRebuildSession:
+    """One AC-1 program's `program_id` plus its own dedicated `AsyncSession`.
+
+    Sessions are independent — never shared across entries — so each can be
+    mid-transaction at the same wall-clock instant as the others.
+    """
+
+    program_id: str
+    session: AsyncSession
+
+
+@pytest_asyncio.fixture
+async def four_program_concurrent_sessions(
+    test_engine: AsyncEngine,
+) -> AsyncIterator[list[ConcurrentRebuildSession]]:
+    """C-4/BED-05-FR-4: four distinct programs, each on its own `AsyncSession`
+    bound to `test_engine`, for AC-1's real-concurrency case.
+
+    Pair with `migrated_db` for a live schema and `run_concurrent_rebuild_pairs`
+    to drive the four sessions' call pairs concurrently. Every session is
+    closed on teardown regardless of how the test exits.
+    """
+    session_factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    concurrent_sessions = [
+        ConcurrentRebuildSession(program_id=program_id, session=session_factory())
+        for program_id in FOUR_CONCURRENT_PROGRAM_IDS
+    ]
+    try:
+        yield concurrent_sessions
+    finally:
+        for entry in concurrent_sessions:
+            await entry.session.close()
+
+
+async def run_concurrent_rebuild_pairs(
+    concurrent_sessions: list[ConcurrentRebuildSession],
+) -> list[tuple[RebuildResult, RebuildResult] | BaseException]:
+    """Run `rebuild_program_rollups(session, program_id)` ->
+    `rebuild_org_rollups(session)` for every entry in `concurrent_sessions`,
+    all four launched together via `asyncio.gather(..., return_exceptions=True)`.
+
+    Each program's own two calls stay ordered on its OWN session (the program
+    rebuild is awaited before that session starts its org rebuild) — it is
+    only the four *sessions'* call pairs that race against each other, which
+    is exactly AC-1's scenario: four independent callers hitting the org-scope
+    singleton at once (`DECISIONS.md` D-01).
+
+    `return_exceptions=True` is deliberate: AC-1's whole point is to observe
+    what happens when four callers hit `org_summary_rollup`'s unique
+    constraint concurrently (an `IntegrityError` on the pre-rewrite
+    implementation, zero on the rewritten one — `DECISIONS.md` D-01) — a bare
+    `asyncio.gather` would cancel the other three in-flight calls the moment
+    the first exception surfaced, hiding their outcomes from the caller.
+    """
+
+    async def _call_pair(entry: ConcurrentRebuildSession) -> tuple[RebuildResult, RebuildResult]:
+        program_result = await rebuild_program_rollups(entry.session, entry.program_id)
+        org_result = await rebuild_org_rollups(entry.session)
+        return program_result, org_result
+
+    return await asyncio.gather(
+        *(_call_pair(entry) for entry in concurrent_sessions),
+        return_exceptions=True,
+    )
 
 
 # =============================================================================

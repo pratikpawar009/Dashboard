@@ -52,7 +52,20 @@
         "org-singleton",
         "regression-risk"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#259"
+      "tracker_test": "pratikpawar009/Dashboard#259",
+      "last_run": {
+        "started_at": "2026-09-09T11:15:00Z",
+        "duration_ms": 900,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 900, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "BED-05-TC-02",
@@ -110,7 +123,25 @@
         "table-size-indexed",
         "regression-risk"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#260"
+      "tracker_test": "pratikpawar009/Dashboard#260",
+      "last_run": {
+        "started_at": "2026-09-09T11:16:00Z",
+        "duration_ms": 64990,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 64990, "reason": null}
+        ],
+        "budget": {
+          "target": "org: p95<=0.5s@20k / <=1.5s@160k, ratio<=8.0x; program: p95<=1.5s@5k-in-prog / <=7.0s@40k-in-prog; total-independence ratio<=1.5x",
+          "measured": "all 3 parametrized budget/growth-curve assertions passed within their pinned constants in this run (org+program+isolation suite, 64.99s wall)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     }
   ],
   "coverage_audit": {

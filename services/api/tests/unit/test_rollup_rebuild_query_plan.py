@@ -1,11 +1,31 @@
-"""`app.services.rollup_rebuild` — single-pass query-plan proof (BED-03-TC-11,
-BED-03-TC-12).
+"""`app.services.rollup_rebuild` — query-plan proof (BED-05 AC-4/AC-5,
+superseding BED-03-TC-11/TC-12).
 
-FR-3 / D-05 / C-2: each rebuild call issues exactly ONE `SELECT` against
-`usage_events` — never one scan per rollup table. A regression here (an N+1
-creeping back into `rebuild_program_rollups`/`rebuild_org_rollups`) is exactly
-what this file exists to catch; the assertion is deliberately "exactly 1", not
-"at least 1" or "<= N".
+BED-03 D-05/FR-3 pinned "exactly 1 SELECT against `usage_events`" as the
+query-plan invariant guarding against N+1 — but that one SELECT was the bare,
+unbounded `select(UsageEvent)` scan (no `WHERE`, no `LIMIT`) that AC-4/AC-5
+exist to delete. BED-05's SQL `GROUP BY` rewrite replaces it with a small,
+named, bounded set of SQL aggregate queries per call (one `SELECT COUNT(*)`
+for `event_count` plus one aggregate/`GROUP BY` query per rollup table) — more
+queries than before, but each one an aggregate rather than a full-row scan, so
+this file's invariant is re-expressed as two properties instead of one magic
+number:
+
+1. **No full-row materialisation** — every captured SELECT against
+   `usage_events` must be a SQL aggregate (`COUNT`/`SUM`/`MIN`/`MAX`); none may
+   be a bare per-row fetch. This is the assertion that would actually catch a
+   regression back to `select(UsageEvent)`.
+2. **Bounded and constant with respect to row count** — the query count is a
+   small named constant (`_PROGRAM_SCOPE_QUERY_COUNT`, `_ORG_SCOPE_QUERY_COUNT`)
+   that does not grow as `usage_events` grows. Each test proves this by
+   measuring the count at two different row volumes and requiring the same
+   number — a hardcoded "exactly 7"/"exactly 4" alone would flag every future
+   legitimate aggregate addition/merge as a defect (pure churn), while a
+   "constant across sizes" check alone could miss a genuine fan-out that
+   happens to be constant per call; asserting both together is what makes this
+   a durable invariant rather than either single-property version.
+
+Still zero N+1 per `.claude/rules/performance-baseline.md`.
 
 Mechanism: `before_cursor_execute` is a sync SQLAlchemy core event — attached
 to `test_engine.sync_engine` (the underlying sync `Engine` an `AsyncEngine`
@@ -79,6 +99,34 @@ def _count_usage_events_selects(engine: AsyncEngine) -> Iterator[_SelectCounter]
         event.remove(sync_engine, "before_cursor_execute", _before_cursor_execute)
 
 
+# BED-05 AC-4/AC-5: named bounds superseding BED-03 D-05's "exactly 1". Each
+# is `1 SELECT COUNT(*)` (event_count) + one aggregate/GROUP BY query per
+# rollup table in that scope — verified against `rollup_rebuild.py` itself,
+# not assumed: 7 = 1 + {program_summary, program_commands, program_members,
+# session_series, program_token_series, user_sessions}; 4 = 1 +
+# {org_summary, token_series, mau_series}. A change to either number must be
+# a deliberate table-count change, not silent drift — that is why this is a
+# named constant and not a bare literal.
+_PROGRAM_SCOPE_QUERY_COUNT = 7
+_ORG_SCOPE_QUERY_COUNT = 4
+
+_AGGREGATE_FUNCTION_RE = re.compile(r"\b(count|sum|min|max)\s*\(", re.IGNORECASE)
+
+
+def _assert_no_full_row_materialisation(counter: _SelectCounter) -> None:
+    """AC-4/AC-5: no captured SELECT against `usage_events` may materialise
+    full rows — each must be a SQL aggregate (`COUNT`/`SUM`/`MIN`/`MAX`), never
+    a bare per-row fetch. A regression back to the old, unbounded
+    `select(UsageEvent)` scan (`rollup_rebuild.py:470`, pre-rewrite) compiles
+    to a statement with none of these functions and fails here.
+    """
+    for statement in counter.statements:
+        assert _AGGREGATE_FUNCTION_RE.search(statement), (
+            "expected every SELECT against usage_events to be a SQL aggregate "
+            f"(no full-row materialisation), got: {statement}"
+        )
+
+
 def _ts(month: int, day: int, hour: int) -> datetime:
     """UTC timestamp for the 2026 calendar year; at `hour=0` also the
     expected day-bucket key, matching `rollup_rebuild._day()`'s truncation.
@@ -106,18 +154,43 @@ def _usage_event_row(**overrides: Any) -> dict[str, Any]:
     return row
 
 
+def _many_usage_event_rows(program_id: str, count: int) -> list[dict[str, Any]]:
+    """`count` synthetic `usage_events` rows for `program_id`, spread across a
+    handful of users/sessions/commands/days.
+
+    Used only to prove the query count named by `_PROGRAM_SCOPE_QUERY_COUNT`/
+    `_ORG_SCOPE_QUERY_COUNT` does not grow with row volume (AC-4/AC-5) — not
+    to assert specific aggregated values, so the exact distribution across
+    keys is incidental.
+    """
+    return [
+        _usage_event_row(
+            program_id=program_id,
+            session_id=f"bulk-s{i % 10}",
+            user=f"bulk-user-{i % 5}",
+            command=f"bulk-cmd-{i % 3}",
+            ts=_ts((i % 12) + 1, (i % 28) + 1, 10),
+            cmd_ts=_ts((i % 12) + 1, (i % 28) + 1, 10),
+            total=10,
+        )
+        for i in range(count)
+    ]
+
+
 async def _insert_events(test_session: AsyncSession, rows: list[dict[str, Any]]) -> None:
     await test_session.execute(sa.insert(models.UsageEvent), rows)
     await test_session.commit()
 
 
 @pytest.mark.asyncio
-async def test_rebuild_program_rollups_issues_exactly_one_select(
+async def test_rebuild_program_rollups_query_count_bounded_no_row_materialisation(
     migrated_db: AlembicRunner, test_engine: AsyncEngine, test_session: AsyncSession
 ) -> None:
-    """BED-03-TC-11: exactly 1 SELECT against `usage_events` for
-    `rebuild_program_rollups`, and all 7 program-scoped tables are correctly
-    populated from that single scan.
+    """BED-05 AC-4/AC-5 (supersedes BED-03-TC-11): `rebuild_program_rollups`
+    issues exactly `_PROGRAM_SCOPE_QUERY_COUNT` SELECTs against `usage_events`
+    — every one a SQL aggregate, none a full-row fetch — and all 7
+    program-scoped tables are correctly populated. A second run at a much
+    larger row count proves the query count does not grow with table size.
     """
     program_id = "prog-perf-scan"
     events = [
@@ -187,9 +260,11 @@ async def test_rebuild_program_rollups_issues_exactly_one_select(
     with _count_usage_events_selects(test_engine) as counter:
         result = await rebuild_program_rollups(test_session, program_id)
 
-    assert counter.count == 1, (
-        f"expected exactly 1 SELECT against usage_events, got {counter.count}: {counter.statements}"
+    assert counter.count == _PROGRAM_SCOPE_QUERY_COUNT, (
+        f"expected {_PROGRAM_SCOPE_QUERY_COUNT} SELECTs against usage_events, "
+        f"got {counter.count}: {counter.statements}"
     )
+    _assert_no_full_row_materialisation(counter)
     assert result.event_count == 4
 
     # program_summary
@@ -286,14 +361,34 @@ async def test_rebuild_program_rollups_issues_exactly_one_select(
     assert user_sessions["s3"].duration_seconds == 25
     assert user_sessions["s3"].tokens == 200
 
+    # AC-4/AC-5 + performance-baseline "no N+1": the bound above must hold
+    # regardless of table size, not just at this test's 4-row fixture — a
+    # rewrite that happens to be constant-but-coincidental at one size would
+    # slip past a single-size check. Re-run against a materially larger row
+    # count, on a distinct program (isolation from the assertions above), and
+    # require the identical query count.
+    large_program_id = "prog-perf-scan-large"
+    await _insert_events(test_session, _many_usage_event_rows(large_program_id, 300))
+    with _count_usage_events_selects(test_engine) as large_counter:
+        await rebuild_program_rollups(test_session, large_program_id)
+    assert large_counter.count == _PROGRAM_SCOPE_QUERY_COUNT, (
+        "query count grew with row count -- this is the N+1 this test polices: "
+        f"expected {_PROGRAM_SCOPE_QUERY_COUNT} at 300 rows, got {large_counter.count}: "
+        f"{large_counter.statements}"
+    )
+    _assert_no_full_row_materialisation(large_counter)
+
 
 @pytest.mark.asyncio
-async def test_rebuild_org_rollups_issues_exactly_one_select(
+async def test_rebuild_org_rollups_query_count_bounded_no_row_materialisation(
     migrated_db: AlembicRunner, test_engine: AsyncEngine, test_session: AsyncSession
 ) -> None:
-    """BED-03-TC-12: exactly 1 SELECT against `usage_events` for
-    `rebuild_org_rollups`, and all 3 org-scoped tables are correctly
-    populated from that single scan across programs prog-a/prog-b/prog-c.
+    """BED-05 AC-4/AC-5 (supersedes BED-03-TC-12): `rebuild_org_rollups`
+    issues exactly `_ORG_SCOPE_QUERY_COUNT` SELECTs against `usage_events` —
+    every one a SQL aggregate, none a full-row fetch — and all 3 org-scoped
+    tables are correctly populated across programs prog-a/prog-b/prog-c. A
+    second run at a much larger row count proves the query count does not
+    grow with table size.
     """
     events = [
         _usage_event_row(
@@ -347,9 +442,11 @@ async def test_rebuild_org_rollups_issues_exactly_one_select(
     with _count_usage_events_selects(test_engine) as counter:
         result = await rebuild_org_rollups(test_session)
 
-    assert counter.count == 1, (
-        f"expected exactly 1 SELECT against usage_events, got {counter.count}: {counter.statements}"
+    assert counter.count == _ORG_SCOPE_QUERY_COUNT, (
+        f"expected {_ORG_SCOPE_QUERY_COUNT} SELECTs against usage_events, "
+        f"got {counter.count}: {counter.statements}"
     )
+    _assert_no_full_row_materialisation(counter)
     assert result.event_count == 5
 
     # org_summary_rollup — singleton row.
@@ -374,3 +471,19 @@ async def test_rebuild_org_rollups_issues_exactly_one_select(
     assert mau_series["2026-01"].developer == 2
     assert mau_series["2026-01"].architect == 0
     assert mau_series["2026-02"].developer == 2
+
+    # AC-4/AC-5 + performance-baseline "no N+1": prove the bound holds
+    # regardless of table size, not just at this test's 5-row fixture. Add a
+    # materially larger batch (a new program, prog-d) and require the
+    # identical query count — `rebuild_org_rollups` scans across every
+    # program's usage_events, so this both grows total row count and adds a
+    # new GROUP BY key, not just more rows under existing keys.
+    await _insert_events(test_session, _many_usage_event_rows("prog-d", 300))
+    with _count_usage_events_selects(test_engine) as large_counter:
+        await rebuild_org_rollups(test_session)
+    assert large_counter.count == _ORG_SCOPE_QUERY_COUNT, (
+        "query count grew with row count -- this is the N+1 this test polices: "
+        f"expected {_ORG_SCOPE_QUERY_COUNT} at 305 rows, got {large_counter.count}: "
+        f"{large_counter.statements}"
+    )
+    _assert_no_full_row_materialisation(large_counter)

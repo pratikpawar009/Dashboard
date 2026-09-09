@@ -34,6 +34,16 @@ class UsageEvent(Base):
         Index("ix_usage_events_program_id_command", "program_id", "command"),
         Index("ix_usage_events_program_id_session_id", "program_id", "session_id"),
         Index("ix_usage_events_user_ts", "user", "ts"),
+        # BED-05 (migration 004, DECISIONS.md D-06): covering index that turns
+        # `_build_org_summary`'s aggregate into an Index Only Scan. Declared here as
+        # well as in the migration because this project's schema-diff gate
+        # (`tests/test_migrations.py::TestSchemaDiffGate`) requires model metadata and
+        # migrations to agree -- every other index above is declared the same way.
+        Index(
+            "ix_usage_events_program_id_covering",
+            "program_id",
+            postgresql_include=["total", "lines_added"],
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

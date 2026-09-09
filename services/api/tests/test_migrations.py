@@ -507,3 +507,76 @@ class TestObservability:
             async with test_engine.begin() as conn:
                 await conn.execute(text("DROP TABLE IF EXISTS org_summary_rollup"))
                 await conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+
+class TestRollupQueryIndexRevision:
+    """BED-05-AC-9: revision 004 is additive and index-only, and isolable.
+
+    The generic round-trip tests above exercise 004 as part of the whole chain;
+    this isolates the one index it owns so a regression in 004 alone is legible.
+
+    The index asserted here is `ix_usage_events_program_id_covering`, NOT the
+    `ix_usage_events_ts` that DECISIONS.md D-04 originally proposed. D-04 was
+    superseded by D-06 after T-04's `EXPLAIN ANALYZE` at 160k rows showed
+    `ix_usage_events_ts` is never selected by the planner: the org-wide
+    aggregates carry no `WHERE` clause (100% selectivity makes a seq scan
+    correct), and the 3-arg `date_trunc(text, timestamptz, text)` is `STABLE`
+    rather than `IMMUTABLE`, so a matching expression index cannot be created
+    at all. See DECISIONS.md D-06.
+    """
+
+    INDEX_NAME = "ix_usage_events_program_id_covering"
+    REVISION_004 = "004_rollup_query_indexes"
+    REVISION_003 = "003_program_roster"
+
+    @staticmethod
+    def _usage_event_index_names(sync_conn: Any) -> set[str]:
+        return {ix["name"] for ix in inspect(sync_conn).get_indexes("usage_events")}
+
+    @pytest.mark.asyncio
+    async def test_index_present_at_004_and_absent_at_003(
+        self, migrated_db: AlembicRunner, test_engine: AsyncEngine
+    ) -> None:
+        async with test_engine.connect() as conn:
+            at_head = await conn.run_sync(self._usage_event_index_names)
+            revision = (
+                await conn.execute(text("SELECT version_num FROM alembic_version"))
+            ).scalar_one()
+
+        # Present at 004 -- asserted positively, so a rename or a typo in the
+        # index name fails here rather than passing vacuously on the absence
+        # check below.
+        assert revision == self.REVISION_004
+        assert self.INDEX_NAME in at_head
+
+        # And it is really the covering index D-06 describes, not just some
+        # object that happens to carry the name.
+        async with test_engine.connect() as conn:
+            definition = (
+                await conn.execute(
+                    text("SELECT indexdef FROM pg_indexes WHERE indexname = :name"),
+                    {"name": self.INDEX_NAME},
+                )
+            ).scalar_one()
+        assert "usage_events" in definition
+        assert "program_id" in definition
+        assert "INCLUDE" in definition.upper()
+        assert "total" in definition
+        assert "lines_added" in definition
+
+        migrated_db.downgrade("-1")
+
+        async with test_engine.connect() as conn:
+            at_003 = await conn.run_sync(self._usage_event_index_names)
+            revision = (
+                await conn.execute(text("SELECT version_num FROM alembic_version"))
+            ).scalar_one()
+
+        assert revision == self.REVISION_003
+        assert self.INDEX_NAME not in at_003
+
+        # Index-only: downgrading 004 removes exactly that one index and
+        # nothing else on the table.
+        assert at_head - at_003 == {self.INDEX_NAME}
+        assert at_003 - at_head == set()
+
+        migrated_db.upgrade("head")

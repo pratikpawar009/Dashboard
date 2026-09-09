@@ -13,8 +13,17 @@
   "design_artifact": "docs/features/BED-05/DESIGN.md",
   "design_provider": "none",
   "design_iteration": 0,
-  "phase": "plan-implementation",
-  "last_updated": "2026-09-09T09:48:23Z",
+  "phase": "security-reviewed",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 3,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/BED-05/SECURITY-20260909-1930.md",
+  "last_updated": "2026-09-09T13:23:29Z",
   "tracker_prd": "pratikpawar009/Dashboard#258",
   "gate": "APPROVE",
   "plan": "complete",
@@ -39,7 +48,307 @@
       "added_by": "plan-implementation/03-tasks (risk accepted)",
       "resolved_at": null,
       "evidence": null
+    },
+    {
+      "item_id": "AF-07-carry",
+      "kind": "finding",
+      "reason": "Introducing a `slow` marker scheme means changing project-commands.yaml's test/test_unit commands — a project-wide convention call that should not be invented inside one feature's implementation.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:13:53Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-08-carry",
+      "kind": "finding",
+      "reason": "BED-05 ships as scoped with the measured limit documented. Whether the program rebuild becomes incremental or moves out of the request path reopens a scoping decision the story took as given, so it belongs to a follow-up story.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:13:53Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-1-residual-risk",
+      "kind": "finding",
+      "reason": "D-01 / DATA-DESIGN §5 overclaim ON CONFLICT convergence: proven only for a STATIC usage_events read-set (which is what AC-1's test holds). Under genuinely concurrent different-program ingest, with usage_events still being written during the race, a stale read can silently overwrite a fresher committed aggregate — no exception, no log signal. Self-heals on the next rebuild anywhere in the system and is still better than the shipped crash-on-collision. Correct the wording and record the staleness window as an accepted residual risk; harden later with a scoped pg_advisory_xact_lock around only the org-write critical section if stronger guarantees are wanted.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-2-invariant-check",
+      "kind": "finding",
+      "reason": "func.min(user) in _build_user_sessions relies on a session_id -> single user 1:1 invariant that is NOT schema-enforced — the only constraint is UniqueConstraint(program_id, session_id, cmd_ts). No test detects a violation. Not a regression (shipped code had the same gap, less deterministically). Add a cheap data-quality signal.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-3-fixture-shape",
+      "kind": "finding",
+      "reason": "generate_rollup_golden_snapshots.py seeds one event per session universally, inflating the golden fixtures to ~49MB (dominated by degenerate user_sessions rows) while leaving multi-row session aggregation untested at that scale. Regenerating with ~20-50 events/session would shrink them an order of magnitude and close the coverage gap at once.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-4-timezone-assumption",
+      "kind": "finding",
+      "reason": "Explicit date_trunc(..., 'UTC') diverges from personal_usage.py's un-zoned precedent. Verified sound for this deployment (Docker postgres:16, no TZ override) but the assumption is undocumented — record it in DECISIONS.md / DATA-DESIGN.md.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-6-activity-log-hook",
+      "kind": "finding",
+      "reason": "docs/activity/activity.jsonl's writer mutates several pre-existing historical rows (unrelated /model, AUTH-01, AUTH-03 entries) rather than only appending. Not BED-05 code — harness-hook issue, investigate separately.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-08-ING-02-dependency-note",
+      "kind": "finding",
+      "reason": "Escalation of AF-08-carry: 3,645ms p95 at 40k in-program exceeds ING-02's OWN stated end-to-end p95 <=3s ceiling on its own. Raise as a blocking-dependency note on ING-02's plan rather than reopening BED-05. Reviewer concurs AF-08 should stay carry-forward here, not block.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T11:36:13Z",
+      "added_by": "arh-implement/02-validate join (code-review-agent)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-SEC-4-guard-depth",
+      "kind": "finding",
+      "reason": "Security review F-SEC-4 (Low, round 2): _assert_safe_to_truncate() is enforced only in main(); _truncate_all() and _run() remain independently importable and would skip it if ever called another way. Verified no live bypass exists — repo-wide grep shows nothing imports this module, consistent with the scripts/-is-CLI-only precedent (test_mint_ingest_token.py uses subprocess). Recommended defence-in-depth: move the assertion inside _truncate_all() itself. Deliberately NOT applied in this PR: it is a behaviour/structure change, and the implement gate's own rule is that the commit must be the snapshot the gates passed — a post-PASS code edit would mean the security verdict no longer covers the shipped code. Apply it with a gate re-run, or in a follow-up.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-09T13:23:29Z",
+      "added_by": "arh-security-review round 2",
+      "resolved_at": null,
+      "evidence": null
     }
   ],
-  "tracker_plan": "pratikpawar009/Dashboard#261"
+  "tracker_plan": "pratikpawar009/Dashboard#261",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-09T11:00:38Z",
+    "rounds": 1,
+    "runner": "orchestrator-inline (subagents rate-limited; per 01-implement.md 'if Task is unavailable, run sequentially')",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/typecheck.log",
+        "detail": "pnpm tsc --noEmit clean; mypy 0 issues across 120 source files"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/unit-tests.log",
+        "detail": "web vitest 20 files / 99 tests passed; api pytest 507 passed (was 505 pre-T-08; T-08 replaced 1 empty-table test with 3 table-size-indexed ones)"
+      },
+      "lint": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/lint.log",
+        "detail": "eslint clean; ruff 'All checks passed!'"
+      },
+      "runtime": {
+        "status": "PASS",
+        "flag_id": null,
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "log": "evidence/runtime-fastapi-2.log",
+            "detail": "uvicorn on canonical port 8000; /health 200 in 3s; /docs 200; boot-log scan 0 matches for Error|Exception|Panic|FATAL|fatal"
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "log": "evidence/runtime-nextjs.log",
+            "detail": "pnpm dev on canonical port 3000; ready in 1112ms, compiled and served GET / 307 (auth redirect to /overview, expected); boot-log scan 0 matches. No /health route exists on this stack, so the root page was smoked instead. NOTE: /overview itself 404s -- pre-existing and NOT from BED-05 (which touched zero apps/web files); no overview route exists in apps/web/src/app and OVW-01..04 are all impl=None. Recorded as carry-forward."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/compile.log",
+        "detail": "pnpm -C apps/web build exit 0 (Next.js prerender + dynamic routes emitted). FastAPI has no compiled build step per project-commands.yaml."
+      },
+      "design_check": {
+        "status": "N/A",
+        "flag_id": "AF-10",
+        "log": null,
+        "detail": "design_check is empty in docs/config/project-commands.yaml by deliberate choice (no a11y/console-scan/perf tool declared yet). BED-05 is backend-only with design: n/a, so there is no UI surface to check regardless."
+      }
+    }
+  },
+  "impl": "complete",
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "summary_source": "docs/requirements/data.md:104",
+      "task_id": "T-12",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Real documentation defect: three artefacts call manifest_ingest.py:355 a rebuild call site when it is `await db.commit()` and no production code calls either rebuild function. Reword to 'the ordering ING-02 must establish'."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "unusual-pattern",
+      "summary_source": "services/api/app/services/rollup_rebuild.py:373",
+      "task_id": "T-01",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Comparison-cost consequence already mitigated in T-09 (streamed, key-indexed per table); the deeper latency consequence is tracked separately as AF-08. Nothing left to act on under this flag."
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "unusual-pattern",
+      "summary_source": "services/api/scripts/generate_rollup_golden_snapshots.py",
+      "task_id": "T-01",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Harmless artifact: AC-6 compares pre- and post-rewrite output over identical seeded rows, so seed skew cancels exactly."
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "inconsistency",
+      "summary_source": "services/api/tests/unit/test_rollup_rebuild_transaction.py:1-36",
+      "task_id": "T-11",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Add BED-05-AC-2 to the module docstring traceability line so anyone tracing AC-2 finds the covering test."
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "plan-drift",
+      "summary_source": "docs/features/BED-05/DATA-DESIGN.md:8",
+      "task_id": "T-04",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "DATA-DESIGN.md §8 states an unachievable expectation ('no query falls back to a sequential scan'); correct it and point at D-06 so no reviewer or later perf story chases an index that cannot exist."
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "plan-drift",
+      "summary_source": "docs/features/BED-05/tasks.json",
+      "task_id": "T-04",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Correct T-05's notes to name ix_usage_events_program_id_covering so the task record matches what was built and a re-run cannot reintroduce the stale premise."
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "unusual-pattern",
+      "summary_source": "services/api/pyproject.toml",
+      "task_id": "T-09",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Introducing a `slow` marker scheme means changing project-commands.yaml's test/test_unit commands — a project-wide convention call that should not be invented inside one feature's implementation.",
+      "carry_forward_ref": "AF-07-carry"
+    },
+    {
+      "flag_id": "AF-08",
+      "kind": "risky-pattern",
+      "summary_source": "docs/stories/BED-05.md",
+      "task_id": "T-06",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "BED-05 ships as scoped with the measured limit documented. Whether the program rebuild becomes incremental or moves out of the request path reopens a scoping decision the story took as given, so it belongs to a follow-up story.",
+      "carry_forward_ref": "AF-08-carry"
+    },
+    {
+      "flag_id": "AF-09",
+      "kind": "plan-drift",
+      "summary_source": "docs/features/BED-05/tasks.json",
+      "task_id": "T-04",
+      "raised_at": "2026-09-09",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "Correct F-13 to list all three files so the task record matches the diff, and record a pointer to the two enforcing gates so the next index-adding story plans for them."
+    },
+    {
+      "flag_id": "AF-10",
+      "kind": "evidence-na",
+      "summary_source": "docs/config/project-commands.yaml",
+      "task_id": "evidence-pass",
+      "raised_at": "2026-09-09",
+      "raised_by": "evidence-pass",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-09T11:13:53Z",
+      "rationale": "N/A confirmed: no design_check tool is wired by deliberate project choice, and BED-05 is backend-only (design: n/a) so there is no UI surface to examine. The evidence packet already records the N/A with this flag as its receipt."
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-09-09 P=2/2 in 1 round(s)",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/BED-05/REVIEW.md",
+  "validation_report": "docs/features/BED-05/VALIDATION-20260909-1135.md",
+  "review_findings": {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3
+  },
+  "impl_branch": "feature/BED-05",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06"
+  ]
 }
