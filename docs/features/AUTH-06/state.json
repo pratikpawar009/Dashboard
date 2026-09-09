@@ -12,7 +12,7 @@
   "design_iteration": 0,
   "rtm_source_sha": "b3cd0523ae59",
   "phase": "review",
-  "last_updated": "2026-09-09T12:00:00Z",
+  "last_updated": "2026-09-09T12:10:00Z",
   "tracker_story": "pratikpawar009/Dashboard#237",
   "tracker_research": "pratikpawar009/Dashboard#245",
   "tracker_prd": "pratikpawar009/Dashboard#246",
@@ -646,5 +646,7 @@
       "rationale": "The underlying 404 is documented, accepted, pending-route behaviour; only the check line is wrong, and it will produce a false failure for any future smoke run.",
       "carry_forward_ref": "AF-19-carry"
     }
-  ]
+  ],
+  "tracker_review_comment": "5597102553",
+  "tracker_pr": "https://github.com/pratikpawar009/Dashboard/pull/252"
 }
