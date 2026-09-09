@@ -71,6 +71,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.models as models
+from app.core.config import NON_PRODUCTION_ENVIRONMENTS, settings
 from app.core.db import SessionLocal
 from app.services.rollup_rebuild import rebuild_org_rollups, rebuild_program_rollups
 
@@ -195,6 +196,44 @@ async def _generate_one_size(
     return snapshot, timings
 
 
+def _assert_safe_to_truncate(assume_yes: bool) -> str | None:
+    """Refuse to run unless BOTH guards pass. Returns an error message, or None.
+
+    BED-05 F-SEC-1 (High, security review 2026-09-09). `_truncate_all()` deletes
+    every row from `usage_events` and all 10 rollup tables against whatever
+    `DATABASE_URL` is in the ambient environment. Before this guard the script had
+    no confirmation, no flag, and no environment check, so pointing it at a
+    production URL would irreversibly destroy the ingest history and every rollup.
+
+    Two independent layers, because the operation cannot be undone:
+
+    1. **Environment allow-list** — membership in `NON_PRODUCTION_ENVIRONMENTS`,
+       reusing `app.core.config`'s own frozenset rather than restating the values
+       here (a second copy would drift the moment that one is edited). This is
+       fail-closed by allow-list, not a `!= "production"` deny-check: nothing named
+       `production` needs to be enumerated for it to be refused, and an
+       unanticipated value -- a typo, an abbreviation, an unnamed real environment
+       like `staging` -- is denied by default. Same discipline as
+       `Settings.dev_bypass_enabled` / `/auth/dev-bypass` (config D-01).
+    2. **Explicit `--yes`** — an allow-listed environment is not on its own consent.
+       A developer whose `ENVIRONMENT` happens to say `dev` while `DATABASE_URL`
+       points at a shared database still has to opt in per invocation.
+    """
+    if settings.environment not in NON_PRODUCTION_ENVIRONMENTS:
+        return (
+            f"refusing to run: ENVIRONMENT is {settings.environment!r}, which is not in the "
+            f"allow-list {sorted(NON_PRODUCTION_ENVIRONMENTS)}. This script TRUNCATES "
+            f"usage_events and all rollup tables; it is a local fixture-generation tool only."
+        )
+    if not assume_yes:
+        return (
+            "refusing to run without --yes: this script DELETES every row in usage_events "
+            "and all 10 rollup tables on the database DATABASE_URL points at. Re-run with "
+            "--yes once you have confirmed the target is a disposable database."
+        )
+    return None
+
+
 async def _run(sizes: list[int], programs: tuple[str, ...], output_dir: Path) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     for size in sizes:
@@ -251,11 +290,23 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=DEFAULT_OUTPUT_DIR,
         help=f"Directory to write rollup_golden_<size>.json into (default: {DEFAULT_OUTPUT_DIR}).",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help=(
+            "Confirm the destructive truncate of usage_events and all rollup tables. "
+            "Required; see _assert_safe_to_truncate (BED-05 F-SEC-1)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main() -> int:
     args = _parse_args(sys.argv[1:])
+    refusal = _assert_safe_to_truncate(args.yes)
+    if refusal is not None:
+        print(f"generate_rollup_golden_snapshots.py: {refusal}", file=sys.stderr)
+        return 2
     sizes = [int(s.strip()) for s in args.sizes.split(",") if s.strip()]
     programs = _programs(args.program_count)
     return asyncio.run(_run(sizes, programs, args.output_dir))

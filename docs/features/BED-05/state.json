@@ -13,8 +13,17 @@
   "design_artifact": "docs/features/BED-05/DESIGN.md",
   "design_provider": "none",
   "design_iteration": 0,
-  "phase": "review",
-  "last_updated": "2026-09-09T11:36:13Z",
+  "phase": "security-reviewed",
+  "security": "BLOCKED",
+  "security_findings": {
+    "critical": 0,
+    "high": 1,
+    "medium": 1,
+    "low": 1,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/BED-05/SECURITY-20260909-1700.md",
+  "last_updated": "2026-09-09T17:00:00Z",
   "tracker_prd": "pratikpawar009/Dashboard#258",
   "gate": "APPROVE",
   "plan": "complete",
@@ -177,7 +186,7 @@
       }
     }
   },
-  "impl": "branch:feature/BED-05",
+  "impl": "complete",
   "agent_flags": [
     {
       "flag_id": "AF-01",
@@ -322,5 +331,14 @@
     "high": 1,
     "medium": 2,
     "low": 3
-  }
+  },
+  "impl_branch": "feature/BED-05",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06"
+  ]
 }
