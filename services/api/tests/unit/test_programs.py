@@ -25,7 +25,9 @@ Scaffold pieces (for T-07..T-11 to reuse, not duplicate):
 - `_program_summary_row` / `_seed_programs` -- seed `program_summary` rows
   via `migrated_db`/`test_session` (`tests/conftest.py`), matching
   `test_rollup_rebuild_program.py::_insert_events`'s seed-then-commit
-  pattern against the same disposable test database.
+  pattern against the same disposable test database. `_seed_roster` (T-15)
+  does the same for `program_roster`, the table that now backs
+  `session.programs`.
 - `_db_override` / `_build_programs_app` -- wires a real `create_app()`
   instance (`build_app` fixture, D-07) for HTTP-level testing against a live
   DB: `app.state.persona_resolver` is swapped for a stub/spy (the
@@ -47,14 +49,24 @@ Scaffold pieces (for T-07..T-11 to reuse, not duplicate):
 
 TC-02 note: the test case's `preconditions` prose names literal groups
 `['program-2','program-4']`, but its own `test_data.session_programs` is
-`['prog-2','prog-4']` and `CurrentUser.programs` is always SERVER-DERIVED
-from the `groups` claim via `_parse_programs` (`app/core/auth.py`), never
-settable directly. This test builds a token whose `groups` claim
-(`['program-prog-2','program-prog-4']`) parses, under the default
-`program_group_prefix='program-'`, to `programs=['prog-2','prog-4']` --
-matching `test_data`'s actual intent and every `expected_results` assertion
-(`{prog-2, prog-4}`), not the preconditions' literal (inconsistent with the
-seeded `prog-N` ids) groups string.
+`['prog-2','prog-4']` and `CurrentUser.programs` is always SERVER-DERIVED,
+never settable by the caller -- so this file targets `test_data`'s actual
+intent and every `expected_results` assertion (`{prog-2, prog-4}`), not the
+preconditions' literal (inconsistent with the seeded `prog-N` ids) groups
+string.
+
+AUTH-06 fixture note (T-15): WHERE that derivation reads from changed. The
+`groups` claim no longer feeds `session.programs` at all -- `_parse_programs`
+and `program_group_prefix` are deleted (AUTH-06-AC-6) -- and
+`get_current_user` now resolves membership from `program_roster` by the
+verified `email` claim (AUTH-06-AC-1/FR-1). Every scoped non-cio test below
+therefore mints its token with an explicit, test-specific `email=` and seeds
+that email's rows via `_seed_roster`; not one assertion changed, only the
+fixture that produces the scope. `app/api/programs.py` itself needed zero
+change (AUTH-04-AC-8), and keeping the retired `groups=[...]` fixtures would
+have hidden that: the scoped tests would fail outright (an unrostered email
+resolves to `[]`) and TC-05 would keep passing for a reason its own docstring
+no longer described.
 """
 
 from __future__ import annotations
@@ -84,6 +96,7 @@ from app.core.persona_resolver import (
     PersonaResolver,
 )
 from app.models.rollup import ProgramSummary
+from app.models.roster import ProgramRoster
 from tests.conftest import (
     TEST_OIDC_CLIENT_ID,
     TEST_OIDC_ISSUER,
@@ -135,7 +148,8 @@ def _configure_persona_resolver(stub: _StubPersonaResolver) -> PersonaResolver:
 
 
 # -----------------------------------------------------------------------------
-# program_summary seeding helpers (migrated_db/test_session, tests/conftest.py).
+# program_summary + program_roster seeding helpers (migrated_db/test_session,
+# tests/conftest.py).
 # -----------------------------------------------------------------------------
 
 
@@ -175,6 +189,40 @@ async def _seed_programs(test_session: AsyncSession, program_ids: list[str]) -> 
     pattern against this same disposable test database."""
     rows = [_program_summary_row(pid) for pid in program_ids]
     await test_session.execute(sa.insert(ProgramSummary), rows)
+    await test_session.commit()
+
+
+async def _seed_roster(test_session: AsyncSession, email: str, program_ids: list[str]) -> None:
+    """Insert one live `program_roster` row per `(email, program_id)`, then
+    commit -- the `_seed_programs` counterpart for the table that actually
+    produces `session.programs` since AUTH-06 (AC-1/FR-1).
+
+    ORM `add_all` rather than `_seed_programs`' Core `sa.insert`, matching the
+    in-repo precedent for this specific table
+    (`tests/perf/test_program_roster_resolver_perf.py`), whose `id`/`source`
+    ORM-level defaults this relies on.
+
+    Every row is seeded live (`removed_at=None`); the soft-delete exclusion
+    (AC-3) is `test_auth_groups.py`'s subject, not this file's. A seeded
+    `program_id` need NOT exist in `program_summary` -- TC-15/TC-16 depend on
+    seeding one that does not.
+    """
+    now = datetime.now(UTC)
+    test_session.add_all(
+        [
+            ProgramRoster(
+                program_id=program_id,
+                email=email,
+                name="Roster Member",
+                role="developer",
+                source="file",
+                removed_at=None,
+                created_at=now,
+                updated_at=now,
+            )
+            for program_id in program_ids
+        ]
+    )
     await test_session.commit()
 
 
@@ -282,16 +330,20 @@ async def test_non_cio_persona_scoped_to_two_of_five_sees_exactly_those_tc02(
     build_access_token: Callable[..., str],
 ) -> None:
     """AUTH-04-TC-02: a non-cio persona scoped to `session.programs=
-    ['prog-2','prog-4']` sees exactly those two of the 5 seeded rows. See
-    module docstring for the groups-claim -> programs derivation note."""
+    ['prog-2','prog-4']` sees exactly those two of the 5 seeded rows. The
+    scope is this email's two `program_roster` rows -- see the module
+    docstring's AUTH-06 fixture note for why it is no longer a groups
+    claim."""
     seeded_ids = ["prog-1", "prog-2", "prog-3", "prog-4", "prog-5"]
     await _seed_programs(test_session, seeded_ids)
+    scoped_email = "tc02-developer@example.com"
+    await _seed_roster(test_session, scoped_email, ["prog-2", "prog-4"])
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app = _build_programs_app(build_app, test_session, persona_resolver)
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
-    token = build_access_token(role="developer", groups=["program-prog-2", "program-prog-4"])
+    token = build_access_token(role="developer", email=scoped_email)
 
     resp = await _get_programs(async_client_for, app, token=token)
 
@@ -317,17 +369,20 @@ async def test_non_cio_with_empty_programs_returns_200_and_empty_list_tc05(
     rsa_test_keypair: RSATestKeypair,
     build_access_token: Callable[..., str],
 ) -> None:
-    """AUTH-04-TC-05: a non-cio session whose `groups` claim matches zero
-    seeded programs (`groups=[]` -> `programs=[]`) is a valid empty result --
-    `200` with `programs: []`, never a 403/404."""
+    """AUTH-04-TC-05: a non-cio session rostered into zero programs is a
+    valid empty result -- `200` with `programs: []`, never a 403/404. Under
+    AUTH-06 the empty scope comes from having no `program_roster` row for
+    this email (AC-2's zero-row answer), not from an empty `groups` claim."""
     seeded_ids = ["prog-1", "prog-2", "prog-3", "prog-4", "prog-5"]
     await _seed_programs(test_session, seeded_ids)
+    # Deliberately NO `_seed_roster` call -- the zero-row case IS this test.
+    unrostered_email = "tc05-developer@example.com"
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app = _build_programs_app(build_app, test_session, persona_resolver)
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
-    token = build_access_token(role="developer", groups=[])
+    token = build_access_token(role="developer", email=unrostered_email)
 
     resp = await _get_programs(async_client_for, app, token=token)
 
@@ -452,12 +507,14 @@ async def test_no_per_program_403_open_aggregate_gate_tc09(
     token_a = build_access_token(role="cio", groups=[])
     resp_a = await _get_programs(async_client_for, app_a, token=token_a)
 
-    # Scenario B -- non-cio scoped to prog-1/prog-3.
+    # Scenario B -- non-cio scoped to prog-1/prog-3 by its roster rows.
+    scoped_email = "tc09-developer@example.com"
+    await _seed_roster(test_session, scoped_email, ["prog-1", "prog-3"])
     resolver_b = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app_b = _build_programs_app(build_app, test_session, resolver_b)
-    token_b = build_access_token(role="developer", groups=["program-prog-1", "program-prog-3"])
+    token_b = build_access_token(role="developer", email=scoped_email)
     resp_b = await _get_programs(async_client_for, app_b, token=token_b)
 
     assert resp_a.status_code == 200
@@ -491,12 +548,14 @@ async def test_client_supplied_programs_query_param_ignored_tc18(
     widened by a client-supplied filter."""
     seeded_ids = ["prog-1", "prog-2", "prog-3", "prog-4", "prog-5"]
     await _seed_programs(test_session, seeded_ids)
+    scoped_email = "tc18-developer@example.com"
+    await _seed_roster(test_session, scoped_email, ["prog-1"])
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app = _build_programs_app(build_app, test_session, persona_resolver)
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
-    token = build_access_token(role="developer", groups=["program-prog-1"])
+    token = build_access_token(role="developer", email=scoped_email)
 
     resp = await _get_programs(
         async_client_for,
@@ -667,15 +726,14 @@ async def test_program_visibility_called_once_not_once_per_program_tc11(
     request scoped to 5 seeded programs -- never once per program row."""
     seeded_ids = ["prog-1", "prog-2", "prog-3", "prog-4", "prog-5"]
     await _seed_programs(test_session, seeded_ids)
+    scoped_email = "tc11-developer@example.com"
+    await _seed_roster(test_session, scoped_email, seeded_ids)
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app = _build_programs_app(build_app, test_session, persona_resolver)
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
-    token = build_access_token(
-        role="developer",
-        groups=[f"program-{pid}" for pid in seeded_ids],
-    )
+    token = build_access_token(role="developer", email=scoped_email)
     visibility_calls = _spy_on_program_visibility(monkeypatch)
 
     resp = await _get_programs(async_client_for, app, token=token)
@@ -754,6 +812,13 @@ async def test_programs_list_returned_log_payload_allowlist_tc10(
     their absence from the payload proves deliberate exclusion, not that they
     were never present to log (C-1; mirrors AUTH-02 TC-15 / AUTH-03 TC-20)."""
     await _seed_programs(test_session, ["alpha"])
+    # AUTH-06 (T-15): this roster row, not the `groups` claim below, is what
+    # puts `alpha` in `session.programs` and therefore what makes
+    # `returned_count == 1`. The `groups` claim STAYS on the token on purpose
+    # -- it now feeds nothing, and its whole job here is to be PII-shaped bait
+    # whose absence from the logged payload proves deliberate exclusion (C-1),
+    # exactly as `email` does.
+    await _seed_roster(test_session, "dev@example.com", ["alpha"])
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
@@ -969,17 +1034,22 @@ async def test_missing_program_silently_filtered_from_response_tc15(
     """AUTH-04-TC-15: `current_user.programs` contains `prog-99`, which has
     no matching `program_summary` row -- the WHERE clause silently excludes
     it, response is 200 (no exception), and `returned_count` reflects only
-    the two real rows."""
+    the two real rows.
+
+    `prog-99` is a real `program_roster` row for this test's email that is
+    deliberately absent from `program_summary`. AUTH-06 makes that MORE
+    realistic, not less: membership now comes from the file-authoritative
+    roster (AC-1), so a program can be rostered before it is ever rolled up.
+    Dropping the unseeded id here would silently delete the scenario."""
     await _seed_programs(test_session, ["prog-1", "prog-2"])
+    scoped_email = "tc15-developer@example.com"
+    await _seed_roster(test_session, scoped_email, ["prog-1", "prog-2", "prog-99"])
     persona_resolver = _configure_persona_resolver(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     app = _build_programs_app(build_app, test_session, persona_resolver)
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
-    token = build_access_token(
-        role="developer",
-        groups=["program-prog-1", "program-prog-2", "program-prog-99"],
-    )
+    token = build_access_token(role="developer", email=scoped_email)
 
     resp = await _get_programs(async_client_for, app, token=token)
 
@@ -995,9 +1065,10 @@ async def test_missing_program_silently_filtered_from_response_tc15(
 # AUTH-04-TC-16 (FR-4, C-5) -- the same discrepancy fires a separately named
 # WARN event (`programs_missing_from_summary`) exactly once, alongside (not
 # instead of) `programs_list_returned`. Also asserts the negative case the
-# plan called out: a `cio` request with a small `groups` list must never
-# emit the discrepancy WARN, since `returned_count` there is the full table
-# size and the comparison against `current_user.programs` is meaningless.
+# plan called out: a `cio` request rostered into fewer programs than the
+# response returns must never emit the discrepancy WARN, since
+# `returned_count` there is the full table size and the comparison against
+# `current_user.programs` is meaningless.
 # -----------------------------------------------------------------------------
 
 
@@ -1017,10 +1088,11 @@ async def test_discrepancy_warn_logged_alongside_programs_list_returned_tc16(
     `{user_id, expected_count, returned_count}` with `expected_count (3) >
     returned_count (2)`, alongside a separate `programs_list_returned` INFO
     record (`returned_count == 2`) -- both present, neither replacing the
-    other. cio scenario -- the same seeded table with a `groups` claim
-    naming an unseeded program never emits the discrepancy WARN, since the
-    comparison is meaningless on the cio path (AC-1: `returned_count` is the
-    full table size, not derived from `current_user.programs`)."""
+    other. cio scenario -- the same seeded table, with the cio session
+    rostered only into the unseeded `prog-99`, never emits the discrepancy
+    WARN, since the comparison is meaningless on the cio path (AC-1:
+    `returned_count` is the full table size, not derived from
+    `current_user.programs`)."""
     await _seed_programs(test_session, ["prog-1", "prog-2"])
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
 
@@ -1029,10 +1101,14 @@ async def test_discrepancy_warn_logged_alongside_programs_list_returned_tc16(
         _StubPersonaResolver(mapping={"developer": "developer"})
     )
     developer_app = _build_programs_app(build_app, test_session, developer_resolver)
+    developer_email = "tc16-developer@example.com"
+    # prog-99 is rostered but has no `program_summary` row -- the discrepancy
+    # this scenario exists to detect (see TC-15's docstring).
+    await _seed_roster(test_session, developer_email, ["prog-1", "prog-2", "prog-99"])
     developer_token = build_access_token(
         sub="u-901",
         role="developer",
-        groups=["program-prog-1", "program-prog-2", "program-prog-99"],
+        email=developer_email,
     )
 
     with _capture_programs_logger() as developer_records:
@@ -1064,7 +1140,9 @@ async def test_discrepancy_warn_logged_alongside_programs_list_returned_tc16(
     # never trigger the discrepancy WARN on the cio path.
     cio_resolver = _configure_persona_resolver(_StubPersonaResolver(mapping={"cio": "cio"}))
     cio_app = _build_programs_app(build_app, test_session, cio_resolver)
-    cio_token = build_access_token(sub="u-902", role="cio", groups=["program-prog-99"])
+    cio_email = "tc16-cio@example.com"
+    await _seed_roster(test_session, cio_email, ["prog-99"])
+    cio_token = build_access_token(sub="u-902", role="cio", email=cio_email)
 
     with _capture_programs_logger() as cio_records:
         cio_resp = await _get_programs(async_client_for, cio_app, token=cio_token)

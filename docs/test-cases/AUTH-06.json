@@ -1,0 +1,377 @@
+{
+  "story_id": "AUTH-06",
+  "cap_note": "User-imposed hard cap of 3 test cases for this run (AUTH-06 has 9 ACs, 3 delta FRs, and 4 NFR topics, one of which — accessibility — is N/A per the story/PRD and excluded from this audit, mirroring ING-10's precedent). The 3 cases below were chosen to (a) exercise the core behavioural swap — roster-derived session.programs via alias-row match, cross-program removed-row exclusion, and zero-match empty-list, reading program_roster exclusively (AC-1/2/3/9, FR-1); (b) cover the single HIGH-severity regression risk named in docs/research/AUTH-06.md's risk register and FR-3's 'durable regression guard' clause — the kid == DEV_BYPASS_KID discriminator, proving a Keycloak-issued token carrying a forged programs claim is still resolved from the roster and never granted caller-declared membership (AC-4, FR-3, NFR-security); and (c) validate the cache/lock/timeout mechanics plus the PII-free observability event (AC-5, FR-2, NFR-performance, NFR-observability). This fully covers all 3 delta FRs and 3 of the 4 in-scope NFR topics. AC-6, AC-7, and AC-8 are left uncovered by deliberate scope cut, not derivation gap: AC-6/AC-7 are code/doc-presence assertions (Settings field deletion, .env.example rows, README wording, dev_bypass.py:98) — cheap to verify by inspection and poor value for a scarce automated slot; AC-8 is a zero-code-change contract guarantee on GET /api/programs (AUTH-04, unchanged) best confirmed by a diff/no-diff check on app/api/programs.py rather than a new automated TC. All three are listed explicitly in coverage_audit.uncovered per the run instructions and must be escalated for follow-up test-case authoring before the Product Gate.",
+  "test_cases": [
+    {
+      "id": "AUTH-06-TC-01",
+      "title": "Roster-derived session.programs: distinct-set aggregation across programs, alias-row match, and cross-program removed-row exclusion — program_roster is the only table read",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-06-AC-1",
+      "given": "program_roster holds multiple active rows for one primary email across two programs, an alias row for the same person under one of those programs, and a removed_at-set row for a third program, plus an email with zero rows",
+      "when": "a session is constructed via get_current_user for the primary email, for the alias email, and for the zero-match email",
+      "then": "the primary email's session.programs is the distinct set of its non-removed program_ids, the alias email resolves independently to its own row's program_id, the removed program is excluded even though the same email has other active rows, the zero-match email yields [] with no error, and every lookup queries program_roster only",
+      "objective": "Verify the roster-derived session.programs mechanism end-to-end: multi-program distinct-set aggregation (AC-1), alias-row matching (AC-1), same-email cross-program removed-row exclusion (AC-3), zero-match success (AC-2), and the exclusive program_roster table read (AC-9, FR-1) — the story's core behavioural swap.",
+      "preconditions": [
+        "program_roster seeded with: alice@example.com/PROG-100/active, alice.rossi@example.com/PROG-100/active (alias row, same person), alice@example.com/PROG-200/active, alice@example.com/PROG-300/removed_at=2026-08-01T00:00:00Z",
+        "bob@example.com has zero program_roster rows",
+        "Non-dev-bypass bearer tokens (kid != DEV_BYPASS_KID) minted for alice@example.com, alice.rossi@example.com, and bob@example.com",
+        "A SQL query spy/log capture is attached to the test DB session to record every table name and WHERE predicate queried during each get_current_user call"
+      ],
+      "test_data": {
+        "program_roster_seed": [
+          {
+            "email": "alice@example.com",
+            "program_id": "PROG-100",
+            "removed_at": null
+          },
+          {
+            "email": "alice.rossi@example.com",
+            "program_id": "PROG-100",
+            "removed_at": null
+          },
+          {
+            "email": "alice@example.com",
+            "program_id": "PROG-200",
+            "removed_at": null
+          },
+          {
+            "email": "alice@example.com",
+            "program_id": "PROG-300",
+            "removed_at": "2026-08-01T00:00:00Z"
+          }
+        ],
+        "bearer_token_alice_primary": "<JWT_ALICE_PRIMARY_KEYCLOAK>",
+        "bearer_token_alice_alias": "<JWT_ALICE_ALIAS_KEYCLOAK>",
+        "bearer_token_bob_zero_match": "<JWT_BOB_KEYCLOAK>"
+      },
+      "steps": [
+        "Seed program_roster with the four rows above and confirm bob@example.com has zero rows",
+        "Attach the query spy to the test DB session",
+        "Invoke get_current_user (or call a protected endpoint) with bearer_token_alice_primary",
+        "Invoke get_current_user with bearer_token_alice_alias",
+        "Invoke get_current_user with bearer_token_bob_zero_match",
+        "Inspect the query spy's captured queries across all three calls"
+      ],
+      "expected_results": [
+        "Alice-primary call: session.programs is the distinct set {PROG-100, PROG-200}; PROG-300 is excluded; call succeeds with no 401/500",
+        "Alice-alias call: session.programs is {PROG-100} only — the alias row resolves independently of the primary row",
+        "Bob call: session.programs is [] and construction still succeeds (no 401/500)",
+        "The query spy recorded a query against program_roster for every call and zero queries against program_members or user_roles across all three calls",
+        "Every recorded program_roster query's predicate includes removed_at IS NULL"
+      ],
+      "tags": [
+        "happy-path",
+        "roster-membership",
+        "alias-match",
+        "removed-row-exclusion",
+        "zero-match"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#248",
+      "flow_path": "services/api/tests/unit/test_auth_groups.py::test_roster_derived_programs_aggregation_alias_and_removed_row_tc01",
+      "last_run": {
+        "started_at": "2026-09-09T06:16:00Z",
+        "duration_ms": 560,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 560,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py::test_roster_derived_programs_aggregation_alias_and_removed_row_tc01",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 1272,
+          "log_tail": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-06-TC-02",
+      "title": "kid == DEV_BYPASS_KID is the sole roster-skip discriminator: a Keycloak-issued token carrying a forged programs claim is still resolved from the roster, never from its own claim",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-06-AC-4",
+      "given": "a genuine dev-bypass token (kid == DEV_BYPASS_KID) minted with an explicit top-level programs claim, and a separate Keycloak-style token (kid != DEV_BYPASS_KID) that also carries a forged top-level programs claim plus a program_roster row for the same email granting different membership",
+      "when": "each token is used to construct a session via get_current_user",
+      "then": "the dev-bypass token's session.programs equals its own claim exactly with zero program_roster query performed, while the Keycloak-style token's session.programs is resolved from program_roster only and its own programs claim is never read — proving the discriminator is kid == DEV_BYPASS_KID and never claim presence or payload.email",
+      "objective": "Verify the FR-3 regression guard: the roster-skip branch fires if and only if kid == DEV_BYPASS_KID, so a Keycloak-issued token cannot forge program membership by smuggling a programs claim — the highest-severity risk in docs/research/AUTH-06.md's risk register.",
+      "preconditions": [
+        "ENVIRONMENT resolves to an allow-listed value (e.g. 'local') so /auth/dev-bypass is registered",
+        "A dev-bypass token is minted via POST /auth/dev-bypass with programs=[\"PROG-X\",\"PROG-Y\"] (kid == DEV_BYPASS_KID)",
+        "A Keycloak-style test JWT is crafted with kid != DEV_BYPASS_KID, email=eve@example.com, and a forged top-level programs claim [\"PROG-Z\"]",
+        "program_roster is seeded with eve@example.com → PROG-Q (active) only — deliberately not PROG-Z, so pass/fail is unambiguous",
+        "A DB query spy/log capture is attached to record whether program_roster is queried per call"
+      ],
+      "test_data": {
+        "dev_bypass_request_payload": {
+          "role": null,
+          "email": null,
+          "programs": [
+            "PROG-X",
+            "PROG-Y"
+          ]
+        },
+        "dev_bypass_bearer_token": "<JWT_DEV_BYPASS_MINTED>",
+        "forged_keycloak_token_claims": {
+          "kid": "keycloak-rsa-1",
+          "email": "eve@example.com",
+          "programs": [
+            "PROG-Z"
+          ]
+        },
+        "forged_keycloak_bearer_token": "<JWT_FORGED_KEYCLOAK_WITH_PROGRAMS_CLAIM>",
+        "program_roster_seed": [
+          {
+            "email": "eve@example.com",
+            "program_id": "PROG-Q",
+            "removed_at": null
+          }
+        ]
+      },
+      "steps": [
+        "POST /auth/dev-bypass with dev_bypass_request_payload; decode the returned token and confirm kid == DEV_BYPASS_KID and a top-level programs claim of [\"PROG-X\",\"PROG-Y\"]",
+        "Craft forged_keycloak_bearer_token via the same signing/claims path as a real Keycloak-issued token but with kid != DEV_BYPASS_KID and the forged programs claim",
+        "Invoke get_current_user with dev_bypass_bearer_token; record session.programs and whether program_roster was queried",
+        "Invoke get_current_user with forged_keycloak_bearer_token; record session.programs and whether program_roster was queried",
+        "Compare both resulting session.programs values against each token's own claim and against the program_roster seed"
+      ],
+      "expected_results": [
+        "Dev-bypass call: session.programs equals [\"PROG-X\",\"PROG-Y\"] exactly, and the query spy recorded zero program_roster queries for that call",
+        "Forged-Keycloak-token call: session.programs equals [\"PROG-Q\"] (from program_roster), never [\"PROG-Z\"] — the token's own programs claim is not read on this branch",
+        "The query spy recorded exactly one program_roster query for the forged-token call, filtered on email = eve@example.com AND removed_at IS NULL",
+        "Neither call returns 401 or 500 — both sessions construct successfully",
+        "The forged token's presence of a programs claim does not change which branch executes — confirming kid == DEV_BYPASS_KID, not claim presence, is the sole discriminator"
+      ],
+      "tags": [
+        "security",
+        "dev-bypass",
+        "regression-guard",
+        "kid-discriminator",
+        "negative"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#249",
+      "flow_path": "services/api/tests/unit/test_auth_dev_bypass.py::test_kid_is_sole_roster_skip_discriminator_tc02",
+      "last_run": {
+        "started_at": "2026-09-09T06:16:00Z",
+        "duration_ms": 760,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 760,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_dev_bypass.py::test_kid_is_sole_roster_skip_discriminator_tc02",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 1272,
+          "log_tail": null
+        }
+      }
+    },
+    {
+      "id": "AUTH-06-TC-03",
+      "title": "program_roster lookup is cache-backed per email (TTL 300s): cache hit skips the query, concurrent misses collapse to one query, and a stalled read raises within the 3.0s wait_for bound",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "AUTH-06-AC-5",
+      "given": "a non-dev-bypass session for the same email is constructed repeatedly within the 300s TTL window, then twice concurrently right after the cache entry expires, then once more with the underlying DB read stalled beyond 3.0s",
+      "when": "get_current_user resolves session.programs on each call",
+      "then": "the second call within TTL hits cache with zero additional DB queries (tier=cache_hit), the two concurrent post-expiry calls issue exactly one DB query between them under the asyncio.Lock double-checked re-read (tier=db_query for both), a stalled read raises at the 3.0s bound rather than hanging, and program_membership_resolved is emitted on every non-dev-bypass call with no email or program_id list",
+      "objective": "Verify the FR-2 cache/lock/timeout mechanics mirroring PersonaResolver (TTL 300s, asyncio.Lock double-checked re-read, 3.0s asyncio.wait_for bound) and the NFR-observability/NFR-security PII-free program_membership_resolved event — the highest-severity integration risk (research risk #1) since this lookup runs beneath every authenticated request.",
+      "preconditions": [
+        "program_roster seeded with frank@example.com → PROG-M (active)",
+        "The resolver's per-process cache is empty for frank@example.com at test start",
+        "The test harness can mock/advance time.monotonic() to simulate TTL expiry without a real 300s wait",
+        "The test harness can inject an artificial delay into the DB read path to simulate a stalled query (> 3.0s)",
+        "A structured-log capture fixture is attached to record every emitted program_membership_resolved event"
+      ],
+      "test_data": {
+        "bearer_token_frank": "<JWT_FRANK_KEYCLOAK>",
+        "program_roster_seed": [
+          {
+            "email": "frank@example.com",
+            "program_id": "PROG-M",
+            "removed_at": null
+          }
+        ],
+        "cache_ttl_seconds": 300,
+        "query_timeout_seconds": 3.0,
+        "simulated_query_delay_seconds": 5.0
+      },
+      "steps": [
+        "Call get_current_user with bearer_token_frank on a cold cache; record whether a program_roster query ran and the emitted event's tier",
+        "Immediately call get_current_user again with the same token, no time advance; record the same",
+        "Advance the mocked monotonic clock past 300s to expire the cache entry, then fire two concurrent get_current_user calls for the same token; record how many program_roster queries execute across both calls",
+        "Inject a 5.0s artificial delay into the DB read path, expire the cache again, and call get_current_user once more; measure how long the call takes to fail",
+        "Inspect every captured program_membership_resolved log record from all prior steps"
+      ],
+      "expected_results": [
+        "Cold-cache call: tier=db_query, exactly one program_roster query executes, session.programs equals [\"PROG-M\"]",
+        "Warm-cache call (within TTL): tier=cache_hit, zero program_roster queries execute",
+        "Concurrent post-expiry calls: exactly one program_roster query executes across both calls, both return tier=db_query and session.programs equals [\"PROG-M\"]",
+        "Stalled-read call: the call raises/times out at approximately 3.0s, not 5.0s and not indefinitely",
+        "Every captured program_membership_resolved record contains only {tier, program_count} — no email key and no program_id list in any record"
+      ],
+      "tags": [
+        "performance",
+        "cache",
+        "ttl",
+        "asyncio-lock",
+        "timeout-boundary",
+        "observability"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#250",
+      "flow_path": "services/api/tests/unit/test_auth_groups.py::test_roster_lookup_cache_lock_and_timeout_mechanics_tc03",
+      "last_run": {
+        "started_at": "2026-09-09T06:16:00Z",
+        "duration_ms": 3530,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 3530,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_auth_groups.py::test_roster_lookup_cache_lock_and_timeout_mechanics_tc03",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "stack_smoke": {
+          "status": "PASS",
+          "sub_step": "none",
+          "duration_ms": 4261,
+          "log_tail": null
+        },
+        "budget": {
+          "target": "cold ProgramRosterResolver.resolve p95 < 100ms (D-03); inside AUTH-04 end-to-end p95 < 300ms; 300s TTL; 3.0s wait_for bound",
+          "measured": "p95 = 1.97ms across 10 cold calls (min 0.75ms, max 1.97ms, 1 seeded program_roster row); stalled read raised at 3.05s, not 5.0s",
+          "budget_pass": true
+        }
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-06-AC-1",
+        "covered_by": [
+          "AUTH-06-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-06-AC-2",
+        "covered_by": [
+          "AUTH-06-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-06-AC-3",
+        "covered_by": [
+          "AUTH-06-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-06-AC-4",
+        "covered_by": [
+          "AUTH-06-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-06-AC-5",
+        "covered_by": [
+          "AUTH-06-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-06-AC-6",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-06-AC-7",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-06-AC-8",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-06-AC-9",
+        "covered_by": [
+          "AUTH-06-TC-01"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-06-FR-1",
+        "covered_by": [
+          "AUTH-06-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-06-FR-2",
+        "covered_by": [
+          "AUTH-06-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-06-FR-3",
+        "covered_by": [
+          "AUTH-06-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-06-NFR-performance",
+        "covered_by": [
+          "AUTH-06-TC-03"
+        ]
+      },
+      {
+        "id": "AUTH-06-NFR-security",
+        "covered_by": [
+          "AUTH-06-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-06-NFR-observability",
+        "covered_by": [
+          "AUTH-06-TC-03"
+        ]
+      }
+    ],
+    "uncovered": [
+      "AUTH-06-AC-6",
+      "AUTH-06-AC-7",
+      "AUTH-06-AC-8"
+    ],
+    "uncovered_reason": "Deliberate user-imposed 3-test-case cap for this run, not a derivation failure. AUTH-06-NFR-accessibility is intentionally excluded from this audit (story and PRD both mark it N/A — backend session-construction change, no UI surface). All 3 uncovered ids above (AC-6: Settings.program_group_prefix/PROGRAM_GROUP_PREFIX/OIDC_SCOPE deletion + _parse_programs removal + dev_bypass.py:98 replacement; AC-7: README Keycloak-requirements bullet and env-var-table removals; AC-8: GET /api/programs zero-code-change contract guarantee) are code/doc-presence assertions cheaper to verify by inspection/diff than by a scarce automated TC slot, and must be escalated for follow-up test-case authoring (or explicit manual sign-off) before the Product Gate."
+  }
+}

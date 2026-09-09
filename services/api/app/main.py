@@ -17,6 +17,7 @@ from app.core.db import engine
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.persona_resolver import PersonaResolver
+from app.core.program_roster_resolver import ProgramRosterResolver
 
 configure_logging()
 
@@ -45,11 +46,17 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     # Tier-2 YAML raises uncaught, failing `create_app()` at import time so
     # Uvicorn's own process-exit-on-import-failure is the fail-fast behavior.
     app.state.persona_resolver = PersonaResolver(cfg)
+    # AUTH-06 D-01: one resolver per app/worker, mirroring the `persona_resolver`
+    # / `jwks_cache` seams. Takes no config and does no I/O at construction
+    # (unlike PersonaResolver's Tier-2 YAML read), so it is safe to build
+    # unconditionally; the `AsyncSession` it queries with arrives per-call from
+    # `get_current_user`'s own `Depends(get_db)`, never from resolver state.
+    app.state.program_roster_resolver = ProgramRosterResolver()
     # AUTH-03 D-06: rbac.py's five checks reach the resolver via this
     # module-level seam (the locked rbac-checks contract has no
     # Request/resolver parameter to thread it through) -- must run
-    # immediately after the line above, or every persona-resolving check
-    # raises RuntimeError at first call.
+    # immediately after `app.state.persona_resolver = PersonaResolver(cfg)`
+    # above, or every persona-resolving check raises RuntimeError at first call.
     rbac.configure(app.state.persona_resolver)
 
     register_exception_handlers(app)

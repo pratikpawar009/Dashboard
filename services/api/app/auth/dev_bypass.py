@@ -95,14 +95,13 @@ async def dev_bypass_sign_in(
     role = payload.role or _DEFAULT_ROLE
     email = payload.email or _DEFAULT_EMAIL
     programs = payload.programs or []
-    groups = [f"{settings.program_group_prefix}{program}" for program in programs]
 
     issued_at = int(time.time())
     claims: dict[str, Any] = {
         "sub": str(uuid4()),
         "email": email,
         "realm_access": {"roles": [role]},
-        "groups": groups,
+        "programs": programs,
         "iss": DEV_BYPASS_ISSUER,
         "aud": DEV_BYPASS_AUDIENCE,
         "iat": issued_at,

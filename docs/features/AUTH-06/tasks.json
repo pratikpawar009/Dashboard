@@ -1,0 +1,519 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-06",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-08T14:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/core/program_roster_resolver.py",
+      "reason": "New ProgramRosterResolver: per-process cache/lock/timeout resolver mirroring PersonaResolver's cache mechanics (300s TTL, asyncio.Lock double-checked re-read, 3.0s wait_for) but single-tier -- one query against program_roster, no env/YAML fallthrough (AC-1/AC-2/AC-3/AC-9, FR-1/FR-2). Also defines get_program_roster_resolver(request) -> ProgramRosterResolver, mirroring get_persona_resolver's app.state read pattern."
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/core/auth.py",
+      "reason": "get_current_user: delete _parse_programs (definition + call site), add db: AsyncSession = Depends(get_db) and program_roster_resolver: ProgramRosterResolver = Depends(get_program_roster_resolver), branch on kid == DEV_BYPASS_KID to read the programs claim directly (zero roster query) vs resolver.resolve(email, db) otherwise (AC-1..AC-4, AC-9, FR-1, FR-3)."
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/core/config.py",
+      "reason": "Delete Settings.program_group_prefix field; change oidc_scope default from 'openid profile email groups' to 'openid profile email' (AC-6)."
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/auth/dev_bypass.py",
+      "reason": "Delete line 98's synthetic groups = [f'{prefix}{program}' ...] construction; claims dict carries 'programs': programs (payload.programs verbatim) as its own top-level JWT claim instead, and omits 'groups' entirely (AC-4, AC-6, D-02)."
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "create_app(): construct app.state.program_roster_resolver = ProgramRosterResolver() alongside the existing app.state.persona_resolver assignment -- entry-registration/wiring site for the new module (F-01), no wiring beyond app.state is required (no router, no new route)."
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "Remove the PROGRAM_GROUP_PREFIX=program- line; update OIDC_SCOPE default to \"openid profile email\"; trim the explanatory comment block that describes the Keycloak groups client-scope/Group-Membership-mapper requirement, since groups is no longer requested by default (AC-6)."
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Keycloak client requirements: remove the 'groups client scope with a Group Membership mapper' bullet. Environment variables table: remove the PROGRAM_GROUP_PREFIX row, update OIDC_SCOPE's documented default to 'openid profile email', add the operator-facing note that (a) a deployment relying on groups for another purpose must re-add it to its own OIDC_SCOPE value, and (b) a roster re-push is visible only after the next per-worker/per-process 300s TTL expiry, with an app restart as the only faster lever (AC-7, Condition 3)."
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "docs/requirements/auth.md",
+      "reason": "Fill the concrete `session` contract shape for AUTH-06 (one of its produced_by stories, step 10): add `programs` to `fields`, correct program_membership_source's stale `program_members` reference to `program_roster` and finalize its wording as shipped (not pending), mark program_group_parsing DELETED, add a dev_bypass_programs key describing the explicit-claim mechanism."
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_groups.py",
+      "reason": "Full-content rewrite (D-04): replace _parse_programs-based claim-parsing tests with roster-derived session.programs tests -- AUTH-06-TC-01 (match/alias/removed-row/zero-match, AC-1/AC-2/AC-3/AC-9, FR-1, exclusive program_roster read) and AUTH-06-TC-03 (cache/lock/timeout mechanics + program_membership_resolved PII-free event, AC-5, FR-2, NFR-performance/observability). Old _parse_programs boundary-case tests removed -- the function no longer exists."
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_dev_bypass.py",
+      "reason": "Add AUTH-06-TC-02 (kid == DEV_BYPASS_KID sole roster-skip discriminator, AC-4, FR-3, NFR-security regression guard) using program_roster seeding for the forged-Keycloak-token case; review existing dev-bypass claim assertions against the new explicit-programs-claim shape (AC-4, AC-6)."
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_config.py",
+      "reason": "Remove PROGRAM_GROUP_PREFIX from _ENV_KEYS and the settings.program_group_prefix == 'program-' assertion; update the oidc_scope default assertion to 'openid profile email' (AC-6)."
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_jwt_validation.py",
+      "reason": "D-04 (discovered ripple): this file's custom _build_app() sets app.state.jwks_cache directly, bypassing create_app() -- add app.state.program_roster_resolver = <stub> so get_current_user's now-eager resolver dependency resolves without AttributeError; update test_get_current_user_has_no_session_persistence_path's exact params-set assertion to include the new db/program_roster_resolver parameters, since the file's own 'DB-free' invariant is superseded by AC-1's requirement."
+    },
+    "F-13": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_ingest_token_isolation.py",
+      "reason": "D-04 (discovered ripple): _build_dual_dependency_app() sets app.state.jwks_cache directly -- add app.state.program_roster_resolver = <stub> for the same eager-dependency-resolution reason as F-12. The roster is never actually queried by either of this file's two requests (proven by its own docstring), but the attribute must exist."
+    },
+    "F-14": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_programs.py",
+      "reason": "D-04 (discovered ripple): replace every non-cio-scoped token's groups=[...] construction (~9 call sites: TC-02, TC-09 scenario B, TC-11, TC-15/16, TC-18) with an explicit email= override plus new program_roster seed rows for that email (mirrors _seed_programs); cio-path tests are unaffected (they never read the parsed programs value). CORRECTION (AF-09, accepted at human-review 2026-09-09): TC-10 was ALSO listed here as unaffected and that was wrong -- it asserts returned_count == 1, which the non-cio WHERE program_id IN current_user.programs clause produces, so it failed 0 != 1 at T-15's baseline and required a roster seed. Its groups claim was kept deliberately, because in that test its job is to be PII bait. TC-12/13/14 are genuinely PII-payload-only. Protects AC-8's 'zero code change to app/api/programs.py' claim from silently passing for the wrong reason."
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "services/api/tests/perf/test_programs_perf.py",
+      "reason": "Comment-only fix (D-04, research risk #4): module docstring's line describing dev-bypass programs -> groups via PROGRAM_GROUP_PREFIX, parsed back by get_current_user, AUTH-01-FR-5 is stale -- update to describe the direct top-level programs claim (AC-4/AC-6). No assertion or fixture change: this file already uses dev-bypass tokens exclusively, unaffected behaviourally."
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_roster_resolver_perf.py",
+      "reason": "Research Condition 1 prototype: measure ProgramRosterResolver.resolve()'s cold (db_query-tier) latency directly against a live migrated test DB, p95 < 100ms (D-03) -- AUTH-04's existing test_programs_perf.py cannot exercise this path since its dev-bypass tokens always skip the roster query (FR-3)."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Create ProgramRosterResolver + get_program_roster_resolver dependency",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-5",
+        "AUTH-06-AC-9",
+        "AUTH-06-FR-1",
+        "AUTH-06-FR-2"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05",
+        "R-07",
+        "R-09"
+      ],
+      "notes": "Single-tier resolver: __init__(self) holds only self._cache: dict[str, tuple[list[str], float]] = {} and self._lock = Lock() -- no session_factory (D-01: db is a per-call argument, not resolver-owned). async def resolve(self, email: str, db: AsyncSession) -> list[str]: fast path returns a warm (time.monotonic() < expiry) cache hit immediately, logging tier=cache_hit; miss path acquires self._lock, re-checks the cache (double-checked, bounds concurrent misses for the same email to one query), then runs SELECT DISTINCT program_id FROM program_roster WHERE email = :email AND removed_at IS NULL via db.execute(select(distinct(ProgramRoster.program_id)).where(...)) wrapped in asyncio.wait_for(timeout=3.0) -- a TimeoutError raises ProgramRosterResolutionError('program_roster query timeout after 3.0s'), never hangs. Only a successful resolution is cached (a raise is never negative-cached). _log_resolution emits logger.info('program_membership_resolved', extra={tier, program_count, timestamp}) on every call, cache hit or miss -- exact 3-field allowlist, no email, no program_id list (NFR-security). get_program_roster_resolver(request: Request) -> ProgramRosterResolver: return request.app.state.program_roster_resolver, mirroring get_persona_resolver verbatim.",
+      "status": "done",
+      "completed_at": "2026-09-08T14:41:54Z",
+      "files_touched": [
+        "services/api/app/core/program_roster_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Wire app.state.program_roster_resolver in create_app()",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Import ProgramRosterResolver from app.core.program_roster_resolver; add app.state.program_roster_resolver = ProgramRosterResolver() immediately after the existing app.state.persona_resolver = PersonaResolver(cfg) line. No I/O at construction (unlike PersonaResolver's Tier-2 YAML read) -- safe to construct unconditionally, once per app/worker.",
+      "status": "done",
+      "completed_at": "2026-09-08T14:47:41Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "get_current_user: replace groups-claim parsing with roster/dev-bypass branch",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-1",
+        "AUTH-06-AC-2",
+        "AUTH-06-AC-3",
+        "AUTH-06-AC-4",
+        "AUTH-06-AC-9",
+        "AUTH-06-FR-1",
+        "AUTH-06-FR-3"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-03",
+        "R-04",
+        "R-08"
+      ],
+      "notes": "Delete _parse_programs (definition, lines 175-188) entirely. Add db: AsyncSession = Depends(get_db) and program_roster_resolver: ProgramRosterResolver = Depends(get_program_roster_resolver) to get_current_user's signature (D-01/D-07: FastAPI-injected, never a caller-supplied positional). Replace the return statement's programs=_parse_programs(groups, settings.program_group_prefix) with: if kid == DEV_BYPASS_KID: programs = list(claims.get('programs') or []) (FR-3 -- reads the claim AC-4 requires, zero roster query); else: programs = await program_roster_resolver.resolve(email, db). Add an inline comment on this branch recording the two REJECTED discriminators verbatim -- claim presence (a Keycloak token carrying a forged programs claim must still resolve from the roster) and payload.email (caller-supplied, forgeable) -- so a future edit does not silently widen the check (FR-3's own 'durable regression guard' requirement). email must be computed once (str(claims.get('email', ''))) and reused for both the CurrentUser.email field and the resolver call.",
+      "status": "done",
+      "completed_at": "2026-09-08T14:47:41Z",
+      "files_touched": [
+        "services/api/app/core/auth.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "dev_bypass.py: explicit top-level programs claim replaces synthetic groups",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-4",
+        "AUTH-06-AC-6"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-08"
+      ],
+      "notes": "Delete line 98 (groups = [f'{settings.program_group_prefix}{program}' for program in programs]) and the now-unused settings.program_group_prefix reference. Add 'programs': programs directly to the claims dict (payload.programs or [], already computed on the line above); remove the 'groups': groups key from claims entirely (D-02 -- no groups claim on a dev-bypass token at all, not an empty one). dev_bypass_sign_in no longer needs settings for this purpose, but keep the settings: Settings = Depends(get_settings) parameter (still used elsewhere in the module signature per D-07 pattern, and this task must not remove parameters unrelated to its own change).",
+      "status": "done",
+      "completed_at": "2026-09-08T14:41:54Z",
+      "files_touched": [
+        "services/api/app/auth/dev_bypass.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "config.py: delete program_group_prefix field, change oidc_scope default",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-6"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Delete the program_group_prefix: str = 'program-' field from Settings (config.py:57) -- ordered after T-03/T-04 so no remaining reference breaks mid-sequence. Change oidc_scope default from 'openid profile email groups' to 'openid profile email'. No other Settings field, validator, or property touches program_group_prefix -- confirmed by grep (research risk #4 grep scope).",
+      "status": "done",
+      "completed_at": "2026-09-08T15:03:10Z",
+      "files_touched": [
+        "services/api/app/core/config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "docs(.env.example): retire PROGRAM_GROUP_PREFIX + groups OIDC_SCOPE default",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-6"
+      ],
+      "risk_refs": [],
+      "notes": "Remove the 'PROGRAM_GROUP_PREFIX=program-' line. Change 'OIDC_SCOPE=\"openid profile email groups\"' to 'OIDC_SCOPE=\"openid profile email\"'. Trim the multi-line comment block above it explaining the Keycloak groups client-scope/Group Membership mapper requirement (no longer accurate as the shipped default) -- keep a short note that adding 'groups' back is safe if a deployment needs the raw claim for another purpose, since CurrentUser.groups still populates verbatim whenever Keycloak sends it.",
+      "status": "done",
+      "completed_at": "2026-09-09T01:21:59Z",
+      "files_touched": [
+        "services/api/.env.example"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "docs(readme): remove Keycloak groups requirement, update env table, add TTL note",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-7"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "'Keycloak client requirements' section: remove the bullet 'A groups client scope with a Group Membership mapper ... if OIDC_SCOPE requests groups'. Environment variables table: remove the PROGRAM_GROUP_PREFIX row; update OIDC_SCOPE's Default column to 'openid profile email' and its Notes to drop the groups-requirement explanation. Add an operator-facing note (Condition 3): (a) a deployment relying on groups for a purpose other than program-membership scoping must re-add it to its own OIDC_SCOPE value; (b) a program_roster re-push via POST /api/ingest/manifest becomes visible only after the next per-worker/per-process 300s TTL expiry, with an app restart as the only faster lever.",
+      "status": "done",
+      "completed_at": "2026-09-09T01:21:59Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Fill concrete `session` contract shape in docs/requirements/auth.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Step 10 contract-fill: add programs: [str, ...] to the session contract's fields line; rewrite program_membership_source to name program_roster (correcting the existing program_members typo) and describe it as shipped, not pending; mark program_group_parsing DELETED (historical record only); add a dev_bypass_programs key describing the explicit top-level claim + kid-discriminator mechanism. Already drafted during planning -- verify it matches T-03/T-04's final implementation before merge.",
+      "status": "done",
+      "completed_at": "2026-09-09T01:21:59Z",
+      "files_touched": [
+        "docs/requirements/auth.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Rewrite test_auth_groups.py: roster-derived programs (TC-01)",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-1",
+        "AUTH-06-AC-2",
+        "AUTH-06-AC-3",
+        "AUTH-06-AC-9",
+        "AUTH-06-FR-1"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-06"
+      ],
+      "notes": "Delete every _parse_programs-based test (the function no longer exists) and the module's stale docstring framing ('program-group claim parsing'). New scaffold: migrated_db/test_session (tests/conftest.py) to seed program_roster rows directly (mirrors test_manifest_ingest.py's ProgramRoster-seeding pattern); _build_app(settings) now also sets app.state.program_roster_resolver = ProgramRosterResolver() (real, DB-backed -- this file's whole purpose is testing roster derivation) alongside its existing app.state.jwks_cache assignment. TC-01 scenario: seed alice@example.com/PROG-100/active, alice.rossi@example.com/PROG-100/active (alias row), alice@example.com/PROG-200/active, alice@example.com/PROG-300/removed_at=<past>; bob@example.com has zero rows. Build 3 non-dev-bypass tokens (alice primary, alice alias, bob) via build_access_token(email=...); hit /whoami for each. Assert alice-primary programs == {PROG-100, PROG-200} (order-insensitive set compare, PROG-300 excluded), alice-alias programs == {PROG-100} (resolves independently of alice's primary rows), bob programs == [] with 200 (not 401/500). Attach a before_cursor_execute query spy (mirrors test_persona_resolver.py's existing pattern) across all three calls: assert every query targets program_roster, zero queries against program_members or user_roles, and every program_roster query's compiled statement/params include removed_at IS NULL.",
+      "status": "done",
+      "completed_at": "2026-09-08T15:03:10Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_groups.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Extend test_auth_groups.py: cache/lock/timeout mechanics (TC-03)",
+      "complexity": "M",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-5",
+        "AUTH-06-FR-2",
+        "AUTH-06-NFR-performance",
+        "AUTH-06-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05",
+        "R-07"
+      ],
+      "notes": "Same file (F-09), sequential after T-09 (shared-file DAG edge). Seed frank@example.com -> PROG-M once; reuse ONE app/resolver instance across multiple calls (unlike T-09's per-call fresh-app helper) so cache state persists between requests. Steps: (1) cold call -- assert exactly one program_roster query ran and the emitted program_membership_resolved log record has tier=db_query; (2) immediate repeat call, no time advance -- assert tier=cache_hit, zero additional queries; (3) monkeypatch time.monotonic (module app.core.program_roster_resolver's imported reference) past the 300s TTL, then asyncio.gather two concurrent calls for the same email -- assert exactly one program_roster query executed across both (lock double-checked re-read), both tier=db_query; (4) inject an artificial >3.0s delay into the resolver's DB read path (monkeypatch the resolver's internal query coroutine, mirrors test_persona_resolver_perf.py's _resolve_tier3 wrapping style) and expire the cache again -- assert the call raises/fails at ~3.0s, not 5s and not indefinitely (wall-clock-bounded assertion). Capture every program_membership_resolved log record across all steps (root_log_capture-style fixture, mirrors test_auth_dev_bypass.py's own pattern) and assert each contains only {tier, program_count, timestamp} -- no email key, no program_id list, in any record.",
+      "status": "done",
+      "completed_at": "2026-09-08T15:16:25Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_groups.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "test_auth_dev_bypass.py: kid-discriminator regression guard (TC-02) + claim assertions",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-4",
+        "AUTH-06-FR-3",
+        "AUTH-06-NFR-security"
+      ],
+      "risk_refs": [
+        "R-03"
+      ],
+      "notes": "Review every existing dev-bypass claim assertion in this file against the new shape (payload={role,email,programs} -> token carries programs as its own top-level claim, no groups key) -- confirm accepted_body['programs'] == ['alpha']-style assertions still hold unchanged (they should: the net observable effect at /test-only/current-user is the same). Add migrated_db/test_session fixtures (not currently used in this file) plus ProgramRoster seeding for TC-02: mint a genuine dev-bypass token via POST /auth/dev-bypass with programs=['PROG-X','PROG-Y'] (build_app's real create_app() covers app.state.program_roster_resolver automatically per T-02); separately craft a forged Keycloak-style token (kid != DEV_BYPASS_KID, a real signing keypair, email=eve@example.com, extra_claims={'programs': ['PROG-Z']}); seed program_roster with eve@example.com -> PROG-Q only (deliberately not PROG-Z). Hit /test-only/current-user with each: assert dev-bypass call's programs == ['PROG-X','PROG-Y'] with zero program_roster queries (query spy); assert forged-token call's programs == ['PROG-Q'] (from the roster, never PROG-Z) with exactly one program_roster query filtered on email=eve@example.com AND removed_at IS NULL. Neither call 401s/500s.",
+      "status": "done",
+      "completed_at": "2026-09-08T15:03:10Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_dev_bypass.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "test_auth_config.py: remove program_group_prefix, update oidc_scope default",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-6"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Remove 'PROGRAM_GROUP_PREFIX' from the _ENV_KEYS tuple (hermetic-env cleanup list) and the settings.program_group_prefix == 'program-' assertion in test_settings_default_field_list_matches_fr1. Update settings.oidc_scope == 'openid profile email groups' to == 'openid profile email' in the same test.",
+      "status": "done",
+      "completed_at": "2026-09-08T15:16:25Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "test_auth_jwt_validation.py: stub resolver wiring + signature assertion update",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "D-04 discovered ripple. In _build_app(): add app.state.program_roster_resolver = a minimal local stub (e.g. a small class whose async resolve(email, db) returns [] immediately, no I/O -- mirrors _StubPersonaResolver's role in test_programs_perf.py/test_rbac_perf.py) so this file's real-JWT tests (test_valid_jwt_verifies_and_derives_claims_tc04, test_claim_to_field_mapping_and_statelessness_tc17) resolve get_current_user's new dependency without touching a live DB, preserving this file's 'DB-free' design intent even though it must now import ProgramRosterResolver's type for the stub's shape. Update test_get_current_user_has_no_session_persistence_path's assertion from params == {'credentials', 'settings', 'jwks_cache'} to the new full parameter set {'credentials', 'settings', 'jwks_cache', 'db', 'program_roster_resolver'} -- rewrite its docstring to acknowledge AC-1 now adds a genuine DB dependency to get_current_user (the prior 'no DB/session dependency at all' framing is retired by this story, not a regression).",
+      "status": "done",
+      "completed_at": "2026-09-08T15:16:25Z",
+      "files_touched": [
+        "services/api/tests/unit/test_auth_jwt_validation.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "test_ingest_token_isolation.py: stub resolver wiring",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "D-04 discovered ripple. In _build_dual_dependency_app(): add app.state.program_roster_resolver = <same minimal stub as T-13> so the dual-dependency route's Depends(get_current_user) resolves without AttributeError. Neither of this file's two requests actually reaches the roster query (proven by its own module docstring: the ingest-token path 401s before claims processing; the dev-bypass path takes the kid == DEV_BYPASS_KID branch, FR-3) -- this is wiring-only, no assertion changes needed.",
+      "status": "done",
+      "completed_at": "2026-09-08T15:16:25Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_token_isolation.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "test_programs.py: replace groups=[...] fixtures with roster-seeded emails",
+      "complexity": "L",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "AUTH-06-AC-9"
+      ],
+      "risk_refs": [
+        "R-04",
+        "R-06"
+      ],
+      "notes": "D-04 discovered ripple -- protects AUTH-04-AC-8's 'zero code change' claim from passing for the wrong reason (a stale groups-claim fixture would silently exercise dead code, not the shipped roster path). Add a _seed_roster(test_session, email, program_ids) helper mirroring _seed_programs. For every non-cio-scoped test that currently builds groups=[...] to control scoping -- test_non_cio_persona_scoped_to_two_of_five_sees_exactly_those_tc02, test_no_per_program_403_open_aggregate_gate_tc09 (scenario B), test_program_visibility_called_once_not_once_per_program_tc11, test_client_supplied_programs_query_param_ignored_tc18, test_missing_program_silently_filtered_from_response_tc15, test_discrepancy_warn_logged_alongside_programs_list_returned_tc16 -- switch the token to an explicit, test-specific email= override and seed matching program_roster rows for that email/program_id set (TC-15/16 must still seed a program_id absent from program_summary, e.g. prog-99, to preserve the discrepancy scenario). cio-path tests (groups=[] with role='cio') and PII-payload-only tests (TC-10, TC-12/13/14) need no change -- they never read the parsed programs value. Do not touch app/api/programs.py itself (AUTH-04-AC-8).",
+      "status": "done",
+      "completed_at": "2026-09-08T15:03:10Z",
+      "files_touched": [
+        "services/api/tests/unit/test_programs.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "test_programs_perf.py: comment-only fix (stale PROGRAM_GROUP_PREFIX reference)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Module docstring line 'the dev-bypass token is minted with programs= set to 50 of the 100 seeded program_ids (mapped to groups via PROGRAM_GROUP_PREFIX, parsed back by get_current_user, AUTH-01-FR-5)' is now inaccurate -- update to describe the direct top-level programs claim mechanism (AC-4/AC-6). No fixture or assertion change: this file mints tokens exclusively via POST /auth/dev-bypass, unaffected behaviourally by the roster-vs-groups swap.",
+      "status": "done",
+      "completed_at": "2026-09-09T01:21:59Z",
+      "files_touched": [
+        "services/api/tests/perf/test_programs_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "Prototype perf test: roster resolver cold-query latency (Condition 1)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "AUTH-06-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "Mirrors test_persona_resolver_perf.py's cold-Tier-3 structure exactly: migrated_db/test_session/test_engine fixtures, production_logging fixture (copied, same JSON-stdout rationale), _percentile helper (copied, not imported, per this repo's own precedent). Seed one program_roster row for a fixed test email. Construct ProgramRosterResolver() directly (no app/route involved -- this measures the resolver, not the endpoint). Clear resolver._cache before each of COLD_ITERATIONS=10 calls to resolve(email, db) bound to test_engine; assert p95 < COLD_P95_BUDGET_MS=100.0 (D-03) across the 10 calls, with an honest failure message matching this repo's own convention ('do not relax this budget; investigate a real regression') if it breaches. This is the Condition-1 prototype measurement REQUIREMENTS.md's PLAN-phase mitigation requires -- report the measured number regardless of pass/fail.",
+      "status": "done",
+      "completed_at": "2026-09-08T14:47:41Z",
+      "files_touched": [
+        "services/api/tests/perf/test_program_roster_resolver_perf.py"
+      ],
+      "reason": null
+    }
+  ]
+}
