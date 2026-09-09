@@ -421,12 +421,18 @@ writeFileSync(outPath, out.join('\n') + '\n');
 // hook; skipped entirely (no network call at all) when profile.yaml is
 // absent or has no programId — most projects with no MCP server configured
 // never attempt the request.
-const profilePath = resolve(projectDir, '.harness', 'profile.yaml');
-const programId = safe(() => {
-  const text = readFileSync(profilePath, 'utf8');
-  const m = text.match(/^programId:\s*(.+?)\s*$/m);
-  return m ? m[1] : null;
-}, null);
+// `programId` lives in the COMMITTED program.yaml, not profile.yaml: the
+// .harness layout is two files now — program.yaml carries programId/program/
+// team[] and is reviewed via PR, while profile.yaml is per-machine identity
+// only and gitignored. Fall back to profile.yaml so a program that has not
+// migrated to the split layout yet keeps pushing rather than going quiet.
+const readProgramId = (file) =>
+  safe(() => {
+    const text = readFileSync(resolve(projectDir, '.harness', file), 'utf8');
+    const m = text.match(/^programId:\s*(.+?)\s*$/m);
+    return m ? m[1] : null;
+  }, null);
+const programId = readProgramId('program.yaml') ?? readProgramId('profile.yaml');
 if (programId) {
   const pushScript = resolve(dirname(fileURLToPath(import.meta.url)), 'harness-mcp-push.mjs');
   if (existsSync(pushScript)) {
