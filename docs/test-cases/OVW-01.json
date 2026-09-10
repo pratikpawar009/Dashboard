@@ -1,0 +1,572 @@
+{
+  "story_id": "OVW-01",
+  "generated_at": "2026-09-09",
+  "generation_note": "No cap applied (per invocation instruction) -- coverage was derived from all 8 story ACs + 4 delta FRs + 4 NFR topics, consolidated along natural seams the way PGD-01/SHP-01 do rather than one TC per id. The endpoint (`GET /api/overview/summary`) and the `/overview` frontend route do not exist yet, so glyph/label literal text in test_data (e.g. 'Programs using AI', glyphs 'P'/'T'/'L'/'R'/'H') is illustrative/best-available for TDD authoring per FR-1's 'fixed presentation constants owned by the producer' -- not a confirmed schema. AC-6 is deliberately NOT tested for any rendered timestamp -- settled backend-only by the story's 2026-09-09 Decision log (research C-1); TC-01 only asserts the accessor is invoked and its output never reaches the response body.",
+  "test_cases": [
+    {
+      "id": "OVW-01-TC-01",
+      "title": "GET /api/overview/summary returns the full 5-card + adoption payload for a populated org, format_number()-formatted, no inline CSS, freshness read succeeds silently",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-AC-1",
+      "given": "a CIO session and a populated org_summary_rollup + system_metadata ingestion row for org-1",
+      "when": "GET /api/overview/summary is called",
+      "then": "the response returns the 5 pre-formatted cards in FR-1's fixed order, the raw programs_using_ai {count, total, adoption_percent} object, no color/style keys, and the freshness accessor read succeeds without any of its output appearing in the response",
+      "objective": "Verify the populated-org contract in one pass: card list shape/order/formatting (FR-1), the separate raw programs_using_ai object, the presentation/data boundary (FR-2 -- no server-supplied color/style keys), and that AC-6's freshness read succeeds and stays fully server-side (nothing renders it, per the story's 2026-09-09 Decision log).",
+      "preconditions": [
+        "Test database migrated to head; org_summary_rollup seeded for org_id='org-1' with programs_using_ai_count=7, programs_total=10, total_token_consumption=12500000, lines_of_code_generated=850000, releases_using_harness=42, repos_with_harness_installed=18, repos_total=25",
+        "system_metadata seeded with key='ingestion', last_successful_run_at='2026-09-08T03:15:00Z'",
+        "A valid CIO bearer token",
+        "Field/glyph/label names in test_data are best-available for TDD authoring (endpoint not yet implemented) -- not a confirmed schema"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "seeded_programs_using_ai_count": 7,
+        "seeded_programs_total": 10,
+        "seeded_total_token_consumption": 12500000,
+        "seeded_lines_of_code_generated": 850000,
+        "seeded_releases_using_harness": 42,
+        "seeded_repos_with_harness_installed": 18,
+        "seeded_repos_total": 25,
+        "seeded_ingestion_last_successful_run_at": "2026-09-08T03:15:00Z",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_card_order": [
+          "programs_using_ai",
+          "total_token_consumption",
+          "lines_of_code_generated",
+          "releases_using_harness",
+          "repos_with_harness_installed_over_total"
+        ],
+        "expected_total_token_consumption_value": "12.5M",
+        "expected_lines_of_code_generated_value": "850.0K",
+        "expected_releases_using_harness_value": "42",
+        "expected_programs_using_ai": {
+          "count": 7,
+          "total": 10,
+          "adoption_percent": 70.0
+        },
+        "expected_programs_using_ai_value": "7 / 10",
+        "expected_programs_using_ai_sub": "70% adoption",
+        "expected_repos_value": "18",
+        "expected_sub_for_cards_2_to_5": null
+      },
+      "steps": [
+        "Seed org_summary_rollup for org_id='org-1' and system_metadata key='ingestion' from test_data",
+        "Attach a spy on FreshnessAccessor.get_last_successful_run() to confirm it is invoked and does not raise",
+        "Call GET /api/overview/summary with the CIO bearer token",
+        "Parse the JSON response body",
+        "Diff the response's top-level and cards[]/programs_using_ai keys against FR-1's declared shape"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "cards is a 5-entry list in the exact order: programs_using_ai, total_token_consumption, lines_of_code_generated, releases_using_harness, repos_with_harness_installed_over_total",
+        "cards[1].value == '12.5M', cards[2].value == '850.0K', cards[3].value == '42' -- each via format_number()",
+        "cards[4].value == '18' -- the literal ratio string, not passed through format_number()",
+        "programs_using_ai == {count: 7, total: 10, adoption_percent: 70.0}",
+        "No card or top-level field carries a color/style/CSS value -- FR-2's presentation/data boundary holds",
+        "FreshnessAccessor.get_last_successful_run() was called exactly once and returned without raising",
+        "The response body contains no freshness/as-of field anywhere -- AC-6's read is backend-only",
+        "Card 1 (`programs_using_ai`) value is the literal ratio '7 / 10' (exempt from format_number()) and its sub is '70% adoption'; cards 2-5 have sub = null so the sc-if omits the element (corrected 2026-09-10 against the mockup's embedded orgKpis sample-data block)."
+      ],
+      "tags": [
+        "happy-path",
+        "contract",
+        "card-order",
+        "no-inline-css",
+        "freshness-silent",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#265"
+    },
+    {
+      "id": "OVW-01-TC-02",
+      "title": "Missing org_summary_rollup row returns an all-zero payload, not an error, with adoption_percent null",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-AC-2",
+      "given": "a CIO session and no org_summary_rollup row for org-1, but a system_metadata ingestion row present",
+      "when": "GET /api/overview/summary is called",
+      "then": "the response is 200 with every AC-1 field zeroed, programs_using_ai.adoption_percent is null (never 0.0), and no error is raised",
+      "objective": "Verify the fresh-database (never-ingested rollup) path returns a well-formed all-zero envelope rather than a 404/500, and that adoption_percent is null rather than 0.0 when programs_total==0 (research Condition 2) -- isolated from the freshness-missing case (FR-3).",
+      "preconditions": [
+        "Test database migrated to head; no row exists in org_summary_rollup for org_id='org-1'",
+        "system_metadata seeded with key='ingestion' so this case isolates the rollup-absent path from the freshness-absent path (FR-3)",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "seeded_ingestion_last_successful_run_at": "2026-09-08T03:15:00Z",
+        "expected_status": 200,
+        "expected_cards_values": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0 / 0"
+        ],
+        "expected_programs_using_ai": {
+          "count": 0,
+          "total": 0,
+          "adoption_percent": null
+        }
+      },
+      "steps": [
+        "Ensure no org_summary_rollup row exists for org_id='org-1'; seed system_metadata key='ingestion'",
+        "Call GET /api/overview/summary with the CIO bearer token",
+        "Parse the JSON response body",
+        "Inspect programs_using_ai.adoption_percent's JSON type"
+      ],
+      "expected_results": [
+        "Response status is 200, not 404/500",
+        "All 5 cards render zeroed values ('0' for the 4 format_number() cards, '0 / 0' for the ratio card)",
+        "programs_using_ai == {count: 0, total: 0, adoption_percent: null}",
+        "adoption_percent is JSON null, never the number 0.0"
+      ],
+      "tags": [
+        "fresh-db",
+        "all-zero",
+        "null-adoption-percent",
+        "boundary",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#266"
+    },
+    {
+      "id": "OVW-01-TC-03",
+      "title": "Missing system_metadata ingestion row raises a clear 'ingestion job may not have run yet' error",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-AC-7",
+      "given": "a CIO session, an org_summary_rollup row present for org-1, and no system_metadata row for key='ingestion'",
+      "when": "GET /api/overview/summary is called",
+      "then": "the freshness accessor raises and the endpoint returns a clear ingestion-not-run error rather than a silent/empty state",
+      "objective": "Verify the isolated freshness-missing case (org_summary_rollup present, system_metadata absent) surfaces FreshnessAccessor's raise as a clear error, per FR-3's 'not conditioned on the rollup lookup' rule and the PRD's 'No freshness record' scenario.",
+      "preconditions": [
+        "Test database migrated to head; org_summary_rollup seeded for org_id='org-1' (any populated values)",
+        "No system_metadata row exists for key='ingestion'",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_status": 500,
+        "expected_error_substring": "ingestion job may not have run yet"
+      },
+      "steps": [
+        "Seed org_summary_rollup for org_id='org-1'; ensure no system_metadata row exists for key='ingestion'",
+        "Call GET /api/overview/summary with the CIO bearer token",
+        "Parse the response status and error body"
+      ],
+      "expected_results": [
+        "Response status is 500 (propagated HTTPException from FreshnessAccessor), not a silent/empty 200",
+        "The error message contains 'ingestion job may not have run yet' or equivalent clear wording -- not an opaque/generic message",
+        "No partial cards/programs_using_ai payload is returned alongside the error"
+      ],
+      "tags": [
+        "freshness-missing",
+        "error-path",
+        "negative",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#267"
+    },
+    {
+      "id": "OVW-01-TC-04",
+      "title": "Fully-fresh database (both org_summary_rollup and system_metadata absent) still raises the freshness error -- the check is never skipped or masked by the all-zero fallback",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-FR-3",
+      "given": "a CIO session, no org_summary_rollup row, and no system_metadata ingestion row -- the genuinely fresh, never-ingested database",
+      "when": "GET /api/overview/summary is called",
+      "then": "the freshness check still runs and its raise propagates as the response (500), even though the rollup side alone would have produced a valid all-zero payload",
+      "objective": "Verify FR-3's explicit ordering rule: the freshness check is unconditioned by whether org_summary_rollup returned a row, so on a fully-fresh database the response is 500, not a masked all-zero 200 -- this is the sharpest edge case per the research risk register, since it is the state a real never-ingested deployment is actually in.",
+      "preconditions": [
+        "Test database migrated to head; no row exists in org_summary_rollup for org_id='org-1'",
+        "No row exists in system_metadata for key='ingestion'",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_status": 500,
+        "expected_error_substring": "ingestion job may not have run yet"
+      },
+      "steps": [
+        "Ensure no org_summary_rollup row and no system_metadata 'ingestion' row exist for org_id='org-1'",
+        "Call GET /api/overview/summary with the CIO bearer token",
+        "Parse the response status and body",
+        "Confirm the freshness accessor was invoked despite the rollup lookup returning no row"
+      ],
+      "expected_results": [
+        "Response status is 500 -- the all-zero fallback (AC-2) is NOT what is returned when both rows are absent together",
+        "The error body contains the same 'ingestion job may not have run yet' wording as the isolated case",
+        "FreshnessAccessor.get_last_successful_run() was called exactly once, confirming the call is unconditioned by the rollup result"
+      ],
+      "tags": [
+        "fresh-db",
+        "combined-edge-case",
+        "freshness-precedence",
+        "boundary",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#268"
+    },
+    {
+      "id": "OVW-01-TC-05",
+      "title": "Non-CIO personas get 403 with no data body; every org_access check (pass or deny) logs rbac_check_org_access with user id, persona, authorized bool, and timestamp",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-AC-3",
+      "given": "sessions for a CIO and for each of architect, developer, product-manager, engineering-manager, with log capture attached over the org_access() check",
+      "when": "GET /api/overview/summary is called once per session",
+      "then": "the CIO call passes with authorized=true logged, every non-CIO call is rejected 403 with no data body and authorized=false logged, and every log record carries user id, persona, authorized bool, and timestamp",
+      "objective": "Verify org_access is a server-side-only gate (never UI-only hiding) for every non-CIO persona, and that NFR-011's rbac_check_org_access structured log fires with the required fields on every request, both allow and deny.",
+      "preconditions": [
+        "Test database migrated to head; org_summary_rollup seeded (any populated values) so a 200 response is possible for the CIO case",
+        "5 valid bearer tokens: one per persona (cio, architect, developer, product-manager, engineering-manager)",
+        "Log capture attached over the logger, filtering for the rbac_check_org_access event"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "product_manager_bearer_token": "<PM_TEST_JWT>",
+        "engineering_manager_bearer_token": "<EM_TEST_JWT>",
+        "expected_non_cio_status": 403,
+        "expected_log_event": "rbac_check_org_access",
+        "expected_log_fields": [
+          "user_id",
+          "persona",
+          "authorized",
+          "timestamp"
+        ]
+      },
+      "steps": [
+        "Attach log capture filtering for rbac_check_org_access",
+        "Call GET /api/overview/summary with the CIO bearer token",
+        "Call GET /api/overview/summary once per remaining persona bearer token (architect, developer, product-manager, engineering-manager)",
+        "Inspect each response body and status",
+        "Inspect the captured log records for each of the 5 calls"
+      ],
+      "expected_results": [
+        "The CIO call returns 200",
+        "Each non-CIO call returns 403 with no data body (no cards/programs_using_ai keys, error envelope only)",
+        "Exactly 5 rbac_check_org_access log records were emitted, one per call",
+        "Every record includes user_id, persona, authorized (bool), and timestamp",
+        "The CIO record has authorized=true; every non-CIO record has authorized=false"
+      ],
+      "tags": [
+        "rbac",
+        "org-access",
+        "403-no-body",
+        "observability",
+        "structured-log",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#269"
+    },
+    {
+      "id": "OVW-01-TC-06",
+      "title": "Adoption Overview page renders 5 summary cards and the adoption indicator (headline, proportional bar, legend) from GET /api/overview/summary, computing bar/legend colors client-side",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-01-AC-4",
+      "given": "the /overview route is rendered for a CIO session with GET /api/overview/summary mocked at the fetch boundary to return a populated, color/style-free payload",
+      "when": "the page loads",
+      "then": "the 5 summary cards render icon+value+label, the adoption indicator renders '<count>/<total> -- <adoption_percent>% of the org' with a progress bar proportional to the adopted fraction and a legend pairing color with count+label text, and the bar-segment widths/legend colors are computed client-side from the fixed tokens.md palette rather than any server-supplied field",
+      "objective": "Verify the frontend-owned rendering contract in one pass: 5-card render (AC-5), adoption headline/bar/legend (AC-4), the client-side derivation of bar width and legend color from a fixed palette (FR-2 -- confirming the mocked response carries no color/style field and the component still renders correctly), and that the legend never uses color as the sole indicator (NFR-008 accessibility -- color is paired with visible count+label text).",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/overview-summary -> 200 fixture with cards[5], programs_using_ai={count:7,total:10,adoption_percent:70.0}, and no color/style keys anywhere in the fixture",
+        "Initial render at /overview for a CIO session"
+      ],
+      "test_data": {
+        "fixture_cards": [
+          {
+            "glyph": "P",
+            "value": "7 / 10",
+            "label": "Programs using AI",
+            "sub": "70% adoption"
+          },
+          {
+            "glyph": "T",
+            "value": "12.5M",
+            "label": "Total token consumption"
+          },
+          {
+            "glyph": "L",
+            "value": "850.0K",
+            "label": "Lines of code generated"
+          },
+          {
+            "glyph": "R",
+            "value": "42",
+            "label": "Releases using Harness"
+          },
+          {
+            "glyph": "H",
+            "value": "18",
+            "label": "Repos with Harness installed"
+          }
+        ],
+        "fixture_programs_using_ai": {
+          "count": 7,
+          "total": 10,
+          "adoption_percent": 70.0
+        },
+        "expected_headline": "7/10 — 70% of the org",
+        "expected_bar_using_width_pct": 70,
+        "expected_bar_not_width_pct": 30
+      },
+      "steps": [
+        "Render /overview with the mocked GET /api/overview/summary fixture",
+        "Assert all 5 cards render their icon, value, and label from the fixture",
+        "Assert the adoption headline text matches '7/10 -- 70% of the org'",
+        "Inspect the two progress-bar segment elements' computed width styles",
+        "Inspect the legend entries for color swatch + count + label text pairing",
+        "Confirm none of the rendered style values were sourced from a fixture field (the fixture carries no color/style key)"
+      ],
+      "expected_results": [
+        "All 5 cards render icon/value/label exactly as fixture data",
+        "Adoption headline renders '7/10 -- 70% of the org'",
+        "The 'using' bar segment computes to ~70% width and the 'not' segment to ~30% width, both derived client-side",
+        "Each legend entry shows a color swatch alongside its count and label text -- color is never the sole indicator",
+        "Legend/bar colors match the fixed docs/design/tokens.md palette, not any fixture-supplied value"
+      ],
+      "tags": [
+        "frontend-integration",
+        "adoption-indicator",
+        "summary-cards",
+        "client-side-style",
+        "accessibility",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#270"
+    },
+    {
+      "id": "OVW-01-TC-07",
+      "title": "Zero-programs adoption indicator renders '0/0' headline, a flat single-color bar, and legend entries both showing 0",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "OVW-01-FR-4",
+      "given": "the /overview route is rendered for a CIO session with GET /api/overview/summary mocked to return programs_using_ai={count:0,total:0,adoption_percent:null}",
+      "when": "the page loads",
+      "then": "the adoption indicator renders the literal headline '0/0', a flat single-color bar with no adopted/not-adopted split, and both legend entries show 0 -- no invented empty-state banner or hidden section",
+      "objective": "Verify the undesigned zero-programs edge state (FR-4) renders the logged fallback exactly: literal '0/0' headline, flat single-color bar, both legend counts at 0 -- confirming no empty-state UI was invented beyond what FR-4 specifies.",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/overview-summary -> 200 fixture with programs_using_ai={count:0, total:0, adoption_percent:null} and all-zero cards",
+        "Initial render at /overview for a CIO session"
+      ],
+      "test_data": {
+        "fixture_programs_using_ai": {
+          "count": 0,
+          "total": 0,
+          "adoption_percent": null
+        },
+        "expected_headline": "0/0",
+        "expected_bar_segments": 1,
+        "expected_legend_counts": [
+          0,
+          0
+        ]
+      },
+      "steps": [
+        "Render /overview with the mocked all-zero/null-percent fixture",
+        "Assert the adoption headline renders exactly '0/0'",
+        "Inspect the progress bar's DOM structure for the number of colored segments",
+        "Inspect both legend entries' rendered count values"
+      ],
+      "expected_results": [
+        "Headline text is exactly '0/0', no percent suffix and no NaN/undefined rendering",
+        "The bar renders a single flat-color segment, not a 2-segment adopted/not-adopted split",
+        "Both legend entries display '0' -- no invented empty-state banner or hidden section replaces them"
+      ],
+      "tags": [
+        "edge-case",
+        "null-adoption-percent",
+        "undesigned-state",
+        "frontend",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#271"
+    },
+    {
+      "id": "OVW-01-TC-08",
+      "title": "Org summary request completes as a single indexed-row read within the page's 3s render budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "OVW-01-NFR-performance",
+      "given": "a seeded org_summary_rollup row for org-1 and a query counter/spy attached to the test database session",
+      "when": "GET /api/overview/summary is called",
+      "then": "exactly one indexed select() runs against org_summary_rollup with no joins/fan-out, and the handler completes well inside the 3s page-render budget",
+      "objective": "Verify the endpoint's performance contract per NFR-001/research: a single indexed-row read, no joins, no N+1, well under the 3s dashboard render budget -- the backend's share of that budget (frontend/network legs are out of a backend test's reach, no e2e framework configured -- test_e2e is empty in docs/config/project-commands.yaml).",
+      "preconditions": [
+        "Test database migrated to head; org_summary_rollup seeded for org_id='org-1'",
+        "system_metadata seeded with key='ingestion' so the freshness read succeeds and does not confound the timing",
+        "A query counter or session-level spy attached for the duration of the call",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "org_id": "org-1",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "query_count_budget": 1,
+        "handler_duration_budget_ms": 500
+      },
+      "steps": [
+        "Attach the query counter",
+        "Call GET /api/overview/summary with the CIO bearer token, timing the call",
+        "Inspect the query counter for org_summary_rollup"
+      ],
+      "expected_results": [
+        "Exactly one SELECT ran against org_summary_rollup -- no joins, no N+1 fan-out",
+        "The handler's own duration is under the recorded budget (proxy for the story's 3s page-render budget; frontend/network legs are out of this backend test's reach)"
+      ],
+      "tags": [
+        "performance",
+        "query-budget",
+        "single-row-read",
+        "ovw-01"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#272"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "OVW-01-AC-1",
+        "covered_by": [
+          "OVW-01-TC-01"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-2",
+        "covered_by": [
+          "OVW-01-TC-02"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-3",
+        "covered_by": [
+          "OVW-01-TC-05"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-4",
+        "covered_by": [
+          "OVW-01-TC-06",
+          "OVW-01-TC-07"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-5",
+        "covered_by": [
+          "OVW-01-TC-01",
+          "OVW-01-TC-06"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-6",
+        "covered_by": [
+          "OVW-01-TC-01"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-7",
+        "covered_by": [
+          "OVW-01-TC-03",
+          "OVW-01-TC-04"
+        ]
+      },
+      {
+        "id": "OVW-01-AC-8",
+        "covered_by": [
+          "OVW-01-TC-05"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "OVW-01-FR-1",
+        "covered_by": [
+          "OVW-01-TC-01",
+          "OVW-01-TC-02"
+        ]
+      },
+      {
+        "id": "OVW-01-FR-2",
+        "covered_by": [
+          "OVW-01-TC-01",
+          "OVW-01-TC-06"
+        ]
+      },
+      {
+        "id": "OVW-01-FR-3",
+        "covered_by": [
+          "OVW-01-TC-02",
+          "OVW-01-TC-03",
+          "OVW-01-TC-04"
+        ]
+      },
+      {
+        "id": "OVW-01-FR-4",
+        "covered_by": [
+          "OVW-01-TC-07"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "OVW-01-NFR-performance",
+        "covered_by": [
+          "OVW-01-TC-08"
+        ]
+      },
+      {
+        "id": "OVW-01-NFR-security",
+        "covered_by": [
+          "OVW-01-TC-05"
+        ]
+      },
+      {
+        "id": "OVW-01-NFR-accessibility",
+        "covered_by": [
+          "OVW-01-TC-06"
+        ]
+      },
+      {
+        "id": "OVW-01-NFR-observability",
+        "covered_by": [
+          "OVW-01-TC-05"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "AC-6 is deliberately covered only for its backend-only assertion (freshness accessor invoked, succeeds, nothing in the response) -- no TC asserts a rendered timestamp, per the story's 2026-09-09 Decision log (research C-1) and CLAUDE.md 'do not design it'.",
+      "FR-3 (freshness/rollup call-ordering independence) is covered by three TCs deliberately, not one: TC-02 and TC-03 are the two isolated-row cases research called out, TC-04 is the explicit combined fully-fresh case FR-3 itself mandates ('test coverage must include the fully-fresh case ... in addition to the two isolated-row cases'). AC-2 is NOT listed as covered_by TC-04, since TC-04's outcome (500) is the opposite of AC-2's outcome (200 all-zero) -- only the isolated case (TC-02) satisfies AC-2's own assertion.",
+      "AC-7 is covered by both TC-03 (isolated: rollup present, system_metadata absent) and TC-04 (combined: both absent) -- both scenarios genuinely trigger and assert the same raise.",
+      "FR-1's nullable adoption_percent clause (research Condition 2) is split across TC-01 (populated, non-null) and TC-02 (missing row, null) so both trigger cases from Condition 2 are exercised.",
+      "NFR-accessibility has no numeric budget, so per the coverage-minimum rule no dedicated type:security/contract TC was mandated; its color-plus-text-pairing rule is genuinely exercised inside TC-06's legend assertions.",
+      "No unit-shaped cases appear here by design (test-case-generation skill, Scope section): format_number()/compute_adoption_percent() already have upstream unit coverage (BED-02), and this story's own new-module unit tests (app/routers/overview.py, frontend AdoptionOverview/SummaryCards/AdoptionIndicator components) belong in docs/features/OVW-01/tasks.json per the story's own Test mapping section.",
+      "No TC of type e2e was written: docs/config/project-commands.yaml's test_e2e is empty (no Playwright/Cypress configured). TC-06/TC-07 use type integration (frontend Testing-Library render against a mocked fetch boundary) as the closest runnable substitute for the page-load scenario; TC-08's objective notes this explicitly for the performance budget's frontend/network legs.",
+      "Cross-checked against REQUIREMENTS.md Scope Out: (monthly token-cost bar chart/MAU-by-role/program leaderboard for OVW-02/03/04, any freshness/as-of timestamp UI, mobile/responsive layout, program-level detail/drilldown PGD-01..06) -- no test case references any of these."
+    ]
+  }
+}
