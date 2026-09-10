@@ -1,0 +1,258 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#19",
+  "tracker_research": "pratikpawar009/Dashboard#263",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/OVW-01/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "review",
+  "last_updated": "2026-09-10T08:01:40Z",
+  "tracker_prd": "pratikpawar009/Dashboard#264",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/OVW-01/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/OVW-01/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/OVW-01/tasks.json"
+  },
+  "pending_carry_forward": [
+    {
+      "item_id": "auth-03-security-review-open-caveat",
+      "kind": "risk",
+      "reason": "AUTH-03's security review is open (security: null) though org_access()'s implementation is complete and validated (impl: complete, review: PASS); OVW-01 depends on org_access() as-is (research R-01/Condition 1). Documented in the PR via T-03's route docstring -- not a merge blocker for this story; a later AUTH-03 finding is triaged against AUTH-03, not re-litigated here.",
+      "owner": "AUTH-03 (security review completion)",
+      "added_at": "2026-09-10T00:00:00Z",
+      "added_by": "impl-planning-agent (plan-implementation Phase 1)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-02-carry",
+      "kind": "finding",
+      "reason": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected — it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-10T07:23:14Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-06-carry",
+      "kind": "finding",
+      "reason": "F-05 is already corrected to `modify`, but the durable mitigation belongs in the plan-validation rubric: stat each file_plan path and check the declared action against reality. That would have caught both this and BED-05's F-13. Recorded where a rubric revision would read it.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-10T07:23:14Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-07-carry",
+      "kind": "finding",
+      "reason": "A genuine coverage gap rather than an inapplicable dimension: this story ships four components and a route, and nothing automated checked contrast, focus order or keyboard reachability against WCAG 2.2 AA. Choosing and wiring axe-playwright or pa11y-ci is a project-level decision that should not be invented mid-story. OVW-02/03/04 and the four persona pages are queued behind it.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-10T07:23:14Z",
+      "added_by": "human-review/02-apply",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "F-1-data-design-card5",
+      "kind": "finding",
+      "reason": "Code review F-1 (MEDIUM): DATA-DESIGN.md still described card 5 as a ratio over repos_total and card 1 as a format_number() count — the pre-correction design, and the FOURTH artefact in the D-02 propagation chain the sweep missed. FIXED 2026-09-10 in the same session; recorded because the miss is instructive: AF-03's own lesson was that a post-approval correction needs a propagation sweep, and a sweep still left one behind. Resolved, not outstanding.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-10T08:01:40Z",
+      "added_by": "arh-implement/02-validate join",
+      "resolved_at": "2026-09-10T08:01:40Z",
+      "evidence": "fixed in-session 2026-09-10"
+    },
+    {
+      "item_id": "tc05-outcome-field-wording",
+      "kind": "finding",
+      "reason": "Validation finding: OVW-01-TC-05's expected_log_fields named `authorized` (bool) where the shipped field is `outcome: \"authorized\"|\"denied\"` (string enum, the pre-existing AUTH-03 rbac-checks convention). Manifest prose only — the T-06 test asserts the correct field and the requirement was always satisfied. FIXED 2026-09-10. Likely to recur in ARC-01/DEV-01/PMD-01/EMD-01, which consume the same org_access contract.",
+      "owner": "pawar.pratik0903@gmail.com",
+      "added_at": "2026-09-10T08:01:40Z",
+      "added_by": "arh-implement/02-validate join",
+      "resolved_at": "2026-09-10T08:01:40Z",
+      "evidence": "fixed in-session 2026-09-10"
+    }
+  ],
+  "tracker_plan": "pratikpawar009/Dashboard#273",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-10T07:16:52Z",
+    "rounds": 1,
+    "runner": "orchestrator-inline (subagents rate-limited; per 01-implement.md's sequential fallback)",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/typecheck.log",
+        "detail": "pnpm tsc --noEmit clean; mypy 0 issues across 121 source files"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/unit-tests.log",
+        "detail": "web vitest 24 files / 122 tests; api pytest 514 passed (507 BED-05 baseline + 7 OVW-01)"
+      },
+      "lint": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/lint.log",
+        "detail": "eslint clean; ruff 'All checks passed!'"
+      },
+      "runtime": {
+        "status": "PASS",
+        "flag_id": null,
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "log": "evidence/runtime-fastapi-2.log",
+            "detail": "uvicorn on canonical port 8000; /health 200 in 2s; boot-log scan 0 matches. GET /api/overview/summary returns 401 unauthenticated (auth correctly required) and the path is present in /openapi.json, so the new route is genuinely registered."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "log": "evidence/runtime-nextjs.log",
+            "detail": "pnpm dev on canonical port 3000; boot-log scan 0 matches. THE 404 IS FIXED: /overview compiled in 276ms and returned 307 -> /login (the expected auth bounce for a request with no dashboard_session cookie). Before this story /overview did not exist and the app root's redirect dead-ended on a 404 — verified during BED-05's own evidence pass. No /health route on this stack, so the root and the new route were smoked instead."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "flag_id": null,
+        "log": "evidence/compile.log",
+        "detail": "pnpm -C apps/web build exit 0; route table now lists 'f /overview' as a dynamic route. FastAPI has no compiled build step per project-commands.yaml."
+      },
+      "design_check": {
+        "status": "N/A",
+        "flag_id": "AF-07",
+        "log": null,
+        "detail": "design_check is empty in docs/config/project-commands.yaml — no a11y/console-scan/perf tool has been chosen or wired. Unlike BED-05 this story DOES ship UI, so this N/A is a real coverage gap rather than doubly-inapplicable."
+      }
+    }
+  },
+  "impl": "branch:feature/OVW-01",
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "inconsistency",
+      "summary_source": "orchestrator dispatch prose for T-08",
+      "task_id": "T-08",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "No code consequence: the worker verified against the repo, implemented from D-04 and the task notes (the authoritative sources), and the shipped component is correct. The component's own docstring already states it has no in-repo consumer. The flag is the paper trail for a false premise the orchestrator asserted, which is exactly what it should be."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "flaky-test",
+      "summary_source": "services/api/tests/perf/test_rollup_rebuild_perf.py",
+      "task_id": "T-01",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected — it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
+      "carry_forward_ref": "AF-02-carry"
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "stale-doc",
+      "summary_source": "docs/requirements/api.md#overview-summary-api; issues #264/#265/#270",
+      "task_id": "T-02",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "Every copy is already corrected: api.md by T-02, and #264/#265/#270 re-pushed from the corrected artefacts with explanatory comments. Nothing stale remains anywhere. The flag stands as the audit record of how far a PRD error propagated before being caught."
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "risky-pattern",
+      "summary_source": "services/api/app/api/overview.py (get_org_summary)",
+      "task_id": "T-04",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "The only shipped-code defect among the seven, and found independently by two workers. Making the accessor injectable removes the need for any monkeypatch and retires both divergent workarounds before ARC-01/DEV-01/PMD-01/EMD-01 add more consumers."
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "inconsistency",
+      "summary_source": "docs/features/OVW-01/DESIGN.md § Region 1",
+      "task_id": "T-10",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "The hand-authored spec omitted an element the mockup renders. Cheap to correct, and leaving it would let the next reader trust an incomplete spec — the precise failure DESIGN.md's own header warns about."
+    },
+    {
+      "flag_id": "AF-06",
+      "kind": "plan-drift",
+      "summary_source": "docs/features/OVW-01/tasks.json file_plan.F-05",
+      "task_id": "T-07",
+      "raised_at": "2026-09-10",
+      "raised_by": "implementation-agent",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "F-05 is already corrected to `modify`, but the durable mitigation belongs in the plan-validation rubric: stat each file_plan path and check the declared action against reality. That would have caught both this and BED-05's F-13. Recorded where a rubric revision would read it.",
+      "carry_forward_ref": "AF-06-carry"
+    },
+    {
+      "flag_id": "AF-07",
+      "kind": "evidence-na",
+      "summary_source": "docs/config/project-commands.yaml design_check",
+      "task_id": "evidence-pass",
+      "raised_at": "2026-09-10",
+      "raised_by": "evidence-pass",
+      "status": "defer",
+      "decision": "defer",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-10T07:23:14Z",
+      "rationale": "A genuine coverage gap rather than an inapplicable dimension: this story ships four components and a route, and nothing automated checked contrast, focus order or keyboard reachability against WCAG 2.2 AA. Choosing and wiring axe-playwright or pa11y-ci is a project-level decision that should not be invented mid-story. OVW-02/03/04 and the four persona pages are queued behind it.",
+      "carry_forward_ref": "AF-07-carry"
+    }
+  ],
+  "validation": "passed",
+  "validation_summary": "2026-09-10 P=8/8 in 1 round(s)",
+  "review": "PASS",
+  "review_report": "docs/features/OVW-01/REVIEW.md",
+  "validation_report": "docs/features/OVW-01/VALIDATION-20260910-0757.md",
+  "review_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 0
+  }
+}

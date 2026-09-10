@@ -1,0 +1,17 @@
+/*
+ * Content wrapper for the Adoption Overview page body (OVW-01, T-13).
+ *
+ * Layout only — the two regions carry their own card recipes in
+ * `OrgSummaryCards.module.css` and `AdoptionIndicator.module.css`. Values
+ * follow the decoded mockup's `<!-- CONTENT -->` region geometry; see
+ * `docs/design/tokens.md` and `docs/features/OVW-01/DESIGN.md`.
+ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 26px 34px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
