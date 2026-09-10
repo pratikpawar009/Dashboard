@@ -1,0 +1,102 @@
+.section {
+  background: #ffffff;
+  border: 1px solid #e6e9ef;
+  border-radius: 16px;
+  padding: 18px 19px;
+  box-shadow: 0 1px 2px rgba(15, 26, 46, 0.04);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #2a6fdb;
+  flex: none;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.headline {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1;
+  color: #0f1a2e;
+}
+
+.subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 7px;
+}
+
+.bar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 16px;
+}
+
+.barSegment {
+  height: 100%;
+}
+
+.barSegmentPlaceholder {
+  height: 100%;
+  width: 100%;
+  background: #f0f1f4;
+}
+
+.legend {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendEntry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendEntryPlaceholder {
+  width: 96px;
+  height: 12px;
+  border-radius: 6px;
+  background: #f0f1f4;
+}
+
+.legendSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.legendCount {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f1a2e;
+}
+
+.legendLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #7a828f;
+}

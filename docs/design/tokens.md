@@ -79,6 +79,19 @@ guessed hex here. It renders with `Migration`'s blue via `programStyle.ts`'s
 `?? PROGRAM_TYPE_COLORS["Migration"]` fallback, deliberately, until a real design token is
 supplied.
 
+### Adoption indicator colors
+
+Extracted 2026-09-10 (OVW-01, `DECISIONS.md` D-06) from the CIO Portfolio Dashboard mockup's
+embedded sample-data script (`adoptionLegend`/`adoptionBarNot`, ~L761–766). "Using AI SDLC" reuses
+the existing Primary/brand token above; "Not yet adopted" uses two *different* new hex values for
+its two roles — legend swatch vs. bar-segment background — matching the mockup's own script.
+
+| Role | Color |
+|---|---|
+| Using AI SDLC (bar segment + legend swatch) | `#2a6fdb` (existing Primary/brand) |
+| Not yet adopted — legend swatch | `#c3c9d2` |
+| Not yet adopted — bar segment background (also the zero-state flat-bar color) | `#dfe3e9` |
+
 ## Radius
 
 `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px` brand mark · `8px`

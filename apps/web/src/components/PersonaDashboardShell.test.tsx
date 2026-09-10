@@ -188,4 +188,63 @@ describe("PersonaDashboardShell (SHP-01-TC-02)", () => {
     // white text is a static CSS rule (D-06), never an inline declaration
     expect(avatar.style.color).toBe("");
   });
+
+  // OVW-01 D-04/T-08: `program` widened to optional for callers with no
+  // single-program concept (the org-level `/overview` page). This is the
+  // regression guard for the *existing* consumer's contract: a defined
+  // `persona` with `program` omitted must still suppress the header region
+  // entirely (no `ProgramContext` invocation with an undefined `program`),
+  // while every other persona-gated region (identity block) still renders
+  // normally, since `isLoading` derives only from `persona`.
+  it("OVW-01 D-04: suppresses the header region (PersonaHeader + ProgramContext) when program is omitted, even though persona is resolved", () => {
+    const { container } = render(
+      <PersonaDashboardShell signedInUser={undefined} persona="architect" />,
+    );
+
+    // header region entirely absent — no partial render with a missing program
+    expect(container.querySelector("header")).toBeNull();
+    expect(
+      container.getElementsByClassName(shellStyles.headerRegion),
+    ).toHaveLength(0);
+
+    // the persona-gated identity block still renders — `isLoading` only
+    // gates on `persona`, unaffected by `program` being omitted
+    expect(
+      container.getElementsByClassName(shellStyles.identity),
+    ).toHaveLength(1);
+  });
+
+  // OVW-01 D-04/T-08: existing (program-defined) callers are unaffected —
+  // the header region still renders exactly as before when `program` is
+  // provided, proving the widened optional type is backwards-compatible.
+  it("OVW-01 D-04: still renders the header region (PersonaHeader + ProgramContext) when program is provided, unchanged from before the widening", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="architect"
+        program={PROGRAM}
+      />,
+    );
+
+    expect(container.querySelector("header")).not.toBeNull();
+    expect(screen.getByText(PROGRAM.name).textContent).toBe(PROGRAM.name);
+    expect(screen.getByText(PROGRAM.description).textContent).toBe(
+      PROGRAM.description,
+    );
+  });
+
+  // OVW-01 D-04/T-08: new `children` slot renders after the brand bar,
+  // regardless of `persona`/`program` — `AdoptionOverview` (a later task)
+  // relies on this to host its own content beneath the shared chrome.
+  it("OVW-01 D-04: renders children after the brand bar", () => {
+    render(
+      <PersonaDashboardShell signedInUser={undefined} persona={undefined}>
+        <div data-testid="overview-content">Org summary content</div>
+      </PersonaDashboardShell>,
+    );
+
+    expect(screen.getByTestId("overview-content").textContent).toBe(
+      "Org summary content",
+    );
+  });
 });

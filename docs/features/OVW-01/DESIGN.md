@@ -28,15 +28,24 @@ leaderboard belong to OVW-02/03/04 — do not build them here.
 
 ### Literal copy — static, never bound
 
-| Element | Exact text |
+| Element | Exact text / form |
 |---|---|
+| Heading dot | `<span style="width:8px;height:8px;border-radius:2px;background:#2a6fdb">` — a small square dot **preceding** the heading |
 | Section heading | `Organization summary` |
 | Heading suffix | `— all programs · To date` |
 
-Both are static copy. The suffix mirrors PGD-01's `— to date`, which
+All three are static. The suffix mirrors PGD-01's `— to date`, which
 `apps/web/src/components/ProgramSummaryCards.tsx:19-21` records as "static copy … the heading never
 varies with props". **There is no range toggle and no as-of timestamp** here either — see § The
 freshness decision below.
+
+**The dot row was added 2026-09-10 (flag AF-05).** This table originally listed
+only the two text elements, and T-10 found the omission by decoding the mockup
+itself rather than trusting this file. It matches `ProgramSummaryCards.tsx`'s
+existing `.dot` precedent exactly, so the component kept it — correctly. Noted
+here because it is a worked example of this file's own header warning: a
+hand-authored spec is not a complete substitute for the mockup, and where they
+disagree the mockup wins.
 
 ### Repeat construct
 

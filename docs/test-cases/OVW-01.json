@@ -78,7 +78,25 @@
         "freshness-silent",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#265"
+      "tracker_test": "pratikpawar009/Dashboard#265",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 120,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 120,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_org_summary_populated_contract_no_inline_css_freshness_silent_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-02",
@@ -134,7 +152,25 @@
         "boundary",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#266"
+      "tracker_test": "pratikpawar009/Dashboard#266",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 140,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 140,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_org_summary_missing_rollup_all_zero_fallback_tc02 + ::test_org_summary_missing_rollup_adoption_percent_is_none_not_zero_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-03",
@@ -175,7 +211,25 @@
         "negative",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#267"
+      "tracker_test": "pratikpawar009/Dashboard#267",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_org_summary_missing_ingestion_row_raises_ingestion_not_run_tc03",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-04",
@@ -218,7 +272,25 @@
         "boundary",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#268"
+      "tracker_test": "pratikpawar009/Dashboard#268",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 110,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 110,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_org_summary_fully_fresh_database_still_raises_freshness_error_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-05",
@@ -249,7 +321,7 @@
         "expected_log_fields": [
           "user_id",
           "persona",
-          "authorized",
+          "outcome",
           "timestamp"
         ]
       },
@@ -265,7 +337,8 @@
         "Each non-CIO call returns 403 with no data body (no cards/programs_using_ai keys, error envelope only)",
         "Exactly 5 rbac_check_org_access log records were emitted, one per call",
         "Every record includes user_id, persona, authorized (bool), and timestamp",
-        "The CIO record has authorized=true; every non-CIO record has authorized=false"
+        "The CIO record has authorized=true; every non-CIO record has authorized=false",
+        "Log field is `outcome: \"authorized\"|\"denied\"` (a string enum, the pre-existing AUTH-03 rbac-checks convention), NOT a boolean named `authorized` — corrected 2026-09-10 after validation flagged the manifest prose diverging from the shipped contract. The requirement itself (both outcomes logged with user_id, persona, outcome, timestamp) was always satisfied."
       ],
       "tags": [
         "rbac",
@@ -275,7 +348,25 @@
         "structured-log",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#269"
+      "tracker_test": "pratikpawar009/Dashboard#269",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 180,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 180,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_overview.py::test_org_summary_cio_only_403_for_every_other_persona_with_audit_log_tc05",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-06",
@@ -354,7 +445,25 @@
         "accessibility",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#270"
+      "tracker_test": "pratikpawar009/Dashboard#270",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 55,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 55,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/AdoptionOverview.test.tsx (describe: 'AdoptionOverview — populated (OVW-01-TC-06)', 4 assertions)",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-07",
@@ -403,7 +512,25 @@
         "frontend",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#271"
+      "tracker_test": "pratikpawar009/Dashboard#271",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 11,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 11,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/AdoptionOverview.test.tsx (describe: 'AdoptionOverview — zero programs (OVW-01-TC-07)', 2 assertions)",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "OVW-01-TC-08",
@@ -444,7 +571,30 @@
         "single-row-read",
         "ovw-01"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#272"
+      "tracker_test": "pratikpawar009/Dashboard#272",
+      "last_run": {
+        "started_at": "2026-09-10T07:46:00Z",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 60,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "exactly 1 SELECT against org_summary_rollup (ORG_SUMMARY_QUERY_COUNT_BUDGET=1, no joins); handler duration < 500ms (ORG_SUMMARY_HANDLER_DURATION_BUDGET_MS, proxy for NFR-001's page-render <=3s budget)",
+          "measured": "PASS on both assertions in a live re-run against a freshly-migrated ephemeral DB (query count == 1, elapsed_ms < 500.0); pytest's default verbosity does not print the live figure (repo convention -- budget/assertion pass is itself the evidence, per project memory)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_overview_perf.py::test_org_summary_single_select_budget_and_query_count_invariant_under_growth_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     }
   ],
   "coverage_audit": {

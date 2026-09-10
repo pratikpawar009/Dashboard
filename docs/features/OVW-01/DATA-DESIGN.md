@@ -18,8 +18,19 @@ tables (BED-01/`db-schema`), both singleton-shaped.
 | `total_token_consumption` | BigInteger | required | — | card 2, via `format_number()` |
 | `lines_of_code_generated` | BigInteger | required | — | card 3, via `format_number()` |
 | `releases_using_harness` | Integer | required | — | card 4, via `format_number()` |
-| `repos_with_harness_installed` | Integer | required | — | card 5 ratio numerator, NOT `format_number()` |
-| `repos_total` | Integer | required | — | card 5 ratio denominator |
+| `repos_with_harness_installed` | Integer | required | — | card 5, via `format_number()` — a **plain count**, not a ratio |
+| `repos_total` | Integer | required | — | **not rendered.** No card reads it; kept for the `db-schema` contract's own shape |
+| `programs_using_ai_count` / `programs_total` | Integer | required | — | card **1**, rendered as the literal ratio `"{count} / {total}"`, exempt from `format_number()`; also drives `programs_using_ai` and card 1's `sub` |
+
+**Corrected 2026-09-10 (code-review finding F-1).** These rows described card 5 as a
+ratio over `repos_total` and card 1 as a `format_number()` count — the *pre-correction*
+design. `DECISIONS.md` D-02 reversed that on 2026-09-09 after extracting the mockup's
+embedded sample-data script: the ratio belongs to **card 1**, and card 5 is a plain
+count that never reads `repos_total`. The shipped schema, handler, `api.md`, `README.md`
+and every test already implement the corrected form; this file was the one artefact the
+propagation sweep missed. Recorded rather than silently overwritten, because the miss is
+the instructive part: flag AF-03's own lesson was that a post-approval correction needs a
+propagation sweep — and a sweep still left one behind.
 
 Row absent (fresh/never-ingested org, AC-2) → all-zero fallback envelope; no other
 `org_summary_rollup` column (`as_of_timestamp`, `created_at`, `updated_at`) is read by this story.

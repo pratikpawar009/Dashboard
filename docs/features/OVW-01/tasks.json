@@ -25,9 +25,9 @@
       "reason": "TC-01/TC-02 (T-04), TC-03/TC-04 (T-05), TC-05 (T-06) -- org-summary route tests added alongside the existing program-detail tests"
     },
     "F-05": {
-      "action": "create",
+      "action": "modify",
       "path": "services/api/tests/perf/test_overview_perf.py",
-      "reason": "TC-08: single-query budget + handler duration, matches tests/perf/* convention"
+      "reason": "TC-08: single-query budget + handler duration, matches tests/perf/* convention | CORRECTED 2026-09-10 (AF-06): action was 'create', but this file already existed as PGD-01's program-detail perf test (#203). TC-08 was appended as a delimited new section; the existing test was untouched."
     },
     "F-06": {
       "action": "modify",
@@ -140,10 +140,12 @@
       ],
       "risk_refs": [],
       "notes": "app/schemas/org_summary.py. OrgSummaryCard{glyph:str, value:str, label:str, sub:str|None=None}; ProgramsUsingAi{count:int, total:int, adoption_percent:float|None}; OrgSummaryResponse{cards:list[OrgSummaryCard], programs_using_ai:ProgramsUsingAi}. adoption_percent typed Optional -- Condition 2's null-not-zero requirement starts at the schema layer.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T02:56:25Z",
+      "files_touched": [
+        "services/api/app/schemas/org_summary.py"
+      ],
+      "reason": "OrgSummaryCard{glyph,value,label,sub}, ProgramsUsingAi{count,total,adoption_percent}, OrgSummaryResponse. Four-field card per the mockup's k.sub binding — deliberately NOT program-detail-api's three-field shape. Style follows program_detail.py (plain BaseModel, no ConfigDict/aliases, since every field name is already a snake_case wire name — unlike personal_usage.py which needs aliasing for iconBg/iconColor). adoption_percent: float | None = Field(...) — REQUIRED field of nullable type, so every construction site must pass None or a float explicitly rather than omitting it, making the nullability visible at each call site. sub: str | None = Field(default=None) — genuinely optional, matching the sc-if truthy guard, so cards 2-5 need not pass it. Both docstrings cite D-01/D-02 and the 2026-09-10 correction so the earlier wrong FR-1 revision cannot be reintroduced. ruff + mypy clean over 121 files."
     },
     {
       "task_id": "T-02",
@@ -160,10 +162,12 @@
       ],
       "risk_refs": [],
       "notes": "docs/requirements/api.md#overview-summary-api: replace the decomposition-time sketch with the concrete shape (response_model, cards/programs_using_ai fields, glyph/label literals per DECISIONS.md D-01, freshness ordering per FR-3, rbac, errors) -- per plan-authoring step 10 (produced_by OVW-01).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:03:17Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": "overview-summary-api filled with the concrete shipped shape from org_summary.py (T-01) + D-01/D-02: 4-field cards (explicitly contrasted with program-detail-api's 3-field card), the 5 D-01 glyph/label literals in mockup order, corrected per-card value/sub rules, all-zero fallback corrected to card 1 '0 / 0' + cards 2-5 '0', FR-3 freshness ordering, RBAC and errors. FOUND AND FIXED A STALE CLAIM: the prior text had D-02 backwards — card 1 using format_number() and card 5 as the ratio, plus \"sub is null on every card\". See AF-03. Scoped to the #overview-summary-api block only."
     },
     {
       "task_id": "T-03",
@@ -192,10 +196,12 @@
         "R-07"
       ],
       "notes": "app/api/overview.py, same router as program-detail (already registered in app.main -- no wiring edit needed there). Handler order, deliberate (FR-3): (1) await org_access(current_user) -- 403 no data body for non-cio, logs rbac_check_org_access (AC-3/AC-8); (2) await FreshnessAccessor().get_last_successful_run() -- constructed fresh per request (no app.state singleton, per freshness-api's own contract note; R-04 accepted, document the per-request-cache-miss limitation in this docstring); this call is UNCONDITIONED by the rollup lookup below -- its HTTPException(500, 'ingestion job may not have run yet') propagates even when the rollup row is absent too (AC-7, the fully-fresh-DB case); (3) select(OrgSummaryRollup).where(org_id=='org-1'); row is None -> all-zero OrgSummaryResponse (cards values '0 / 0'/'0'/'0'/'0'/'0' -- the ratio is card 1, programs_using_ai={count:0,total:0,adoption_percent:None}) (AC-2); row present -> compute_adoption_percent(row) (api-conventions) + _build_org_summary_cards(row, computed) using the 5 fixed (glyph,label) pairs from DECISIONS.md D-01, CORRECTED 2026-09-10 per D-02 -- the ratio is on card 1, not card 5: card 1 value=f'{programs_using_ai_count} / {programs_total}' exempt from format_number(), and card 1 sub=f'{round(adoption_percent)}% adoption' (null when programs_total==0, since adoption_percent is None then and the sc-if omits the element); cards 2-5 value=format_number() and sub=None -- card 5 is a PLAIN count, not a ratio. Module/route docstring notes (Documentation requirements): (a) no freshness timestamp renders anywhere on this page (AC-6 backend-only, guard against a future 'helpful' addition), (b) the freshness/rollup ordering independence (FR-3), (c) AUTH-03's open security review caveat (Condition 1) -- this docstring is what the PR body should quote/carry forward, not a merge blocker.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:11:38Z",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": "GET /api/overview/summary added to the already-registered overview router. Step order per FR-3, verified structurally by the orchestrator: org_access() gate, then a BARE top-level `await FreshnessAccessor().get_last_successful_run()` with no try/except and no branch, then the rollup select. Because that await is unwrapped and unconditioned, its HTTPException(500, \"ingestion job may not have run yet\") propagates before the AC-2 all-zero fallback code is reachable — so on a fully-fresh DB AC-7 beats AC-2 by construction, which is what TC-04 tests. Cards per D-02 as corrected: card 1 = literal ratio exempt from format_number() with sub = \"{round(pct)}% adoption\" (None when total==0); cards 2-5 = format_number(), sub=None; card 5 a PLAIN count. D-01 glyph/label tuple matches the mockup order. adoption_percent never re-derived — delegated to compute_adoption_percent (BED-02). Docstring carries the three required guards (no freshness timestamp renders, FR-3 ordering, AUTH-03 caveat). ruff + mypy clean over 121 files; 507/507 pytest, AF-02 flake not encountered."
     },
     {
       "task_id": "T-04",
@@ -220,10 +226,12 @@
         "R-07"
       ],
       "notes": "Extends test_overview.py's existing build_app/async_client_for/keycloak_mock/build_access_token/test_session scaffold (no persona-resolver override needed for the CIO-only happy path here -- see T-06 for the multi-persona case). TC-01: seed org_summary_rollup (programs_using_ai_count=7, programs_total=10, ...) + system_metadata key='ingestion'; call with a cio bearer token; assert cards is the exact 5-entry mockup-ordered list with format_number()-formatted values (card 5 the literal ratio, exempt), programs_using_ai=={count:7,total:10,adoption_percent:70.0}, no color/style key anywhere (FR-2), and a spy on FreshnessAccessor.get_last_successful_run() was called exactly once and did not raise, with nothing from it in the response body. TC-02: no org_summary_rollup row, system_metadata seeded (isolates this from the freshness-absent case, FR-3) -> 200, every card '0'/'0 / 0', programs_using_ai=={count:0,total:0,adoption_percent:None}. Required deliverable (research Condition 2): a DEDICATED assertion `assert body['programs_using_ai']['adoption_percent'] is None` (not `== 0` or `== 0.0`) -- a separate, explicitly-named test function, not folded silently into TC-02's broader body diff, so a future regression to `0.0` fails loudly and specifically.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:21:22Z",
+      "files_touched": [
+        "services/api/tests/unit/test_overview.py"
+      ],
+      "reason": "TC-01 + TC-02 only — the worker correctly declined the orchestrator's over-scoped brief, which had also asked for TC-03/TC-04; those are T-05, serialized on this same file via a predecessors:[T-03,T-04] edge. TC-02 isolates its precondition deliberately (system_metadata ingestion row PRESENT, org_summary_rollup absent) so the 200 all-zero path is reached only because freshness independently succeeded, never because the rollup-absent branch masked a freshness failure — leaving the AC-2/AC-7 collision entirely to T-05's TC-04. adoption_percent asserted `is None` (not == 0) in both the broad body diff and a dedicated narrowly-named test. Found and worked around a real testability gap in T-03's handler — see AF-04. ruff + mypy clean over 121 files; 5/5 in-file (2 pre-existing PGD-01 + 3 new)."
     },
     {
       "task_id": "T-05",
@@ -242,10 +250,12 @@
       ],
       "risk_refs": [],
       "notes": "Same file as T-04 (test_overview.py) -- serialized via this predecessors edge, not run in parallel. TC-03: org_summary_rollup seeded (any values), NO system_metadata 'ingestion' row -> 500, error body contains 'ingestion job may not have run yet', no partial cards/programs_using_ai payload alongside it. TC-04 (the sharpest case, FR-3's own explicit mandate): NEITHER org_summary_rollup NOR system_metadata rows exist (genuinely fresh DB) -> still 500 with the same error substring -- assert this is NOT the AC-2 all-zero 200 payload, and assert (via a spy) FreshnessAccessor.get_last_successful_run() was invoked despite the rollup lookup having no row to return, proving the call is unconditioned by the rollup result per T-03's ordering.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:34:17Z",
+      "files_touched": [
+        "services/api/tests/unit/test_overview.py"
+      ],
+      "reason": "TC-03 (rollup seeded, no ingestion row -> 500) and TC-04 (neither row -> still 500). TC-04 makes FR-3 permanent two ways: (a) a spy asserting len(freshness_calls) == 1, proving get_last_successful_run() actually ran even though the rollup lookup had no row to return — so the call is genuinely unconditioned rather than merely written first; (b) structural absence of the AC-2 payload via set(body.keys()) == {\"error\"} plus explicit \"cards\" not in body / \"programs_using_ai\" not in body, which rules out a hybrid/partial shape that a bare status_code == 500 assertion would miss. Reused T-04's _patch_freshness_accessor_onto_test_engine verbatim (AF-04) instead of adding a third workaround variant — it already returns the calls list TC-04's spy needs. ruff + mypy clean over 121 files; test_overview.py 7/7 (2 pre-existing PGD-01 + 3 T-04 + 2 new); full tests/unit 421 passed, no cross-test interference."
     },
     {
       "task_id": "T-06",
@@ -266,10 +276,12 @@
         "R-01"
       ],
       "notes": "Same file as T-04/T-05 -- serialized via this predecessors edge. No persona-resolver stub needed: services/api/config/persona_role_map.yaml's Tier-2 default already maps all 5 canonical role names to themselves (cio->cio, architect->architect, ...), so build_access_token(role=<persona>) resolves through the REAL PersonaResolver create_app() already constructs -- this is org_access's first exercise through a real HTTP route in this codebase (program-detail's program_visibility never resolves persona, so no existing route test covers this path). Seed org_summary_rollup (any populated values) so a 200 is reachable for the cio case. Call with 5 tokens (cio, architect, developer, product-manager, engineering-manager) against a captured logger (pytest caplog or a local capture handler, matching test_rbac.py's _capture_logger/_events shape): cio -> 200; every other persona -> 403 with no data body (no cards/programs_using_ai keys, error envelope only). Assert exactly 5 rbac_check_org_access log records, each carrying user_id/persona/authorized(bool)/timestamp, cio's record authorized=true, every other authorized=false.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T07:05:06Z",
+      "files_touched": [
+        "services/api/tests/unit/test_overview.py"
+      ],
+      "reason": "Orchestrator ran inline (subagents rate-limited). TC-05: cio -> 200 with a real 5-card payload (rollup + ingestion row seeded so the positive half proves something); architect/developer/product-manager/engineering-manager -> 403 each with set(body.keys()) == {\"error\"} so a denial leaks no data per security-baseline. AC-8 asserted on ALL FIVE calls including the success — app/core/rbac.py:95-97 emits denied/authorized respectively, so a denials-only test would leave half the criterion unverified. Each event checked individually for user_id, persona, outcome and timestamp. Used the REAL PersonaResolver (no stub): persona_role_map.yaml Tier-2 maps all five canonical roles to themselves, and stubbing would hollow out the integration this test exists to cover — it is org_access's FIRST exercise through a real HTTP route in this codebase, since program-detail uses program_visibility which never resolves a persona. Copied test_rbac.py's force-enable/depropagate log-capture idiom deliberately: this test depends on migrated_db, and Alembic env.py's fileConfig(disable_existing_loggers=True) disables every app.* logger process-wide, so a handler attached without resetting disabled/propagate would have made the AC-8 assertions fail for reasons unrelated to the code. Reused T-04's freshness helper rather than a third variant. 8/8 in-file; ruff + mypy clean."
     },
     {
       "task_id": "T-07",
@@ -288,10 +300,12 @@
         "R-03"
       ],
       "notes": "Matches tests/perf/test_overview_perf.py's/test_programs_perf.py's established pattern: plain time.perf_counter(), no dedicated benchmark tool. Seed org_summary_rollup + system_metadata so both reads succeed without confounding the timing. Query-count spy asserts exactly one SELECT against org_summary_rollup (no joins, no N+1); handler duration budget 500ms (proxy for NFR-001's 3s page-render budget -- frontend/network legs are out of a backend test's reach, matching TC-08's own objective note).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:26:01Z",
+      "files_touched": [
+        "services/api/tests/perf/test_overview_perf.py"
+      ],
+      "reason": "TC-08 appended to the EXISTING test_overview_perf.py — file_plan F-05 wrongly said action=create; the file already held PGD-01's program-detail perf test from #203 (see AF-06). Existing test left untouched; new section clearly delimited. Correctly overrode the orchestrator's suggested shape: used the sibling real-route pattern (build_app/async_client_for/keycloak_mock/before_cursor_execute spy) rather than test_range_pagination_perf.py's throwaway-route/percentile shape, on the reasoning that the latter is for a DB-free contract test while this is an end-to-end route measurement. Measured 29.84ms for a full call; budget kept at TC-08's own 500ms (~16.8x headroom) with an argument about WHY this endpoint tolerates contention better than BED-05 AF-02's rebuild — fixed per-request overhead vs row-scanning cost — rather than reasoning from the ratio alone. Query-count assertion avoids the BED-05 brittleness via two properties against a named constant: structural (no JOIN, WHERE org_id-scoped, regex verified non-vacuous against the real compiled SQL) and growth-invariance (count unchanged after seeding 50 unrelated program_summary rows — which is the regression that matters, since a per-program loop would grow the count while the singleton org_summary_rollup never gains rows). ruff + mypy clean; 2 passed in isolation."
     },
     {
       "task_id": "T-08",
@@ -307,10 +321,13 @@
         "R-05"
       ],
       "notes": "DECISIONS.md D-04. PersonaDashboardShell.tsx: change `program: ProgramContextData` to `program?: ProgramContextData`; change the header-region render guard from `{!isLoading && (...)}` to `{!isLoading && program !== undefined && (...)}` so an undefined program never reaches ProgramContext (which still requires a defined program itself -- unchanged); add `children?: React.ReactNode`, rendered as the last element in the returned Fragment (after the header-region block, always, regardless of isLoading). No other prop or render path changes. PersonaDashboardShell.test.tsx: add 2 cases -- (a) `program` omitted + `persona` defined -> header region does not render (new codepath, no existing test exercises `program===undefined`); (b) `children` passed -> renders after the brand bar. Every existing case (incl. SHP-01-TC-02's persona='cio' neutral-badge assertion, which always passes a defined `program`) is unaffected -- do not edit those assertions.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T02:54:35Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.tsx",
+        "apps/web/src/components/PersonaDashboardShell.test.tsx"
+      ],
+      "reason": "D-04 applied: program prop widened to optional, header-region render guarded on `program !== undefined` so an undefined program never reaches ProgramContext (which still requires a defined one); children slot added, rendered last and unconditionally. 3 test cases added, all 6 existing untouched — covering program-omitted, program-provided (explicit backwards-compat guard) and children. tsc/eslint clean; apps/web full suite 20 files / 102 tests pass, incl. the sibling PersonaDashboardShell.perf.test.tsx run separately. NOTE: the orchestrator dispatch wrongly claimed Program Detail was this shell's current consumer — it has none; see AF-01."
     },
     {
       "task_id": "T-09",
@@ -330,10 +347,13 @@
         "R-05"
       ],
       "notes": "types/overview.ts: OrgSummaryCardData{glyph,value,label,sub:string|null}; ProgramsUsingAiData{count,total,adoption_percent:number|null}; OverviewSummaryData{cards,programs_using_ai} (field names verbatim snake_case, matching ProgramSwitcherEntry.program_id's precedent -- no camelCase transform layer); OverviewSummaryResult = {status:'ok',data}|{status:'forbidden'}|{status:'unauthorized'}|{status:'error'} ('forbidden' is new -- AC-3's 403, distinct from the existing 'unauthorized'=401 vocabulary). lib/overviewApi.ts: fetchOverviewSummary(opts?:{accessToken?:string}) mirrors programDetailApi.ts's fetchProgramDetail -- GET `${getApiBaseUrl()}/api/overview/summary`, Authorization header only when accessToken present, FETCH_TIMEOUT_MS=5000, status mapping 403->forbidden (checked before the generic non-ok branch), 401->unauthorized, else ok/error (DECISIONS.md D-03: server-only, no client counterpart needed).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:15:24Z",
+      "files_touched": [
+        "apps/web/src/types/overview.ts",
+        "apps/web/src/lib/overviewApi.ts"
+      ],
+      "reason": "OrgSummaryCardData carries all FOUR fields (glyph/value/label/sub: string|null) — verified by the orchestrator against the sibling ProgramSummaryCardData, which is 3-field and correct for its own story. ProgramsUsingAiData.adoption_percent is number|null, never implicitly 0. fetchOverviewSummary mirrors programDetailApi.ts::fetchProgramDetail — server-only module hitting FastAPI via getApiBaseUrl(), Bearer attached only when a token is supplied, 5s AbortSignal.timeout, ordered status mapping (403->forbidden, 401->unauthorized, else ok/error). D-03's no-new-proxy-route rule verified rather than assumed: programs/[program_id]/page.tsx also calls FastAPI directly server-side via tokenStore.callWithAuth(), no /api/proxy/* on its initial load — so T-14 will wrap this the same way and AdoptionOverview stays a plain component. tsc + eslint clean; 102 tests unaffected."
     },
     {
       "task_id": "T-10",
@@ -352,10 +372,14 @@
       ],
       "risk_refs": [],
       "notes": "Mirrors ProgramSummaryCards.tsx's structure exactly, extended for the 4th field: props {state:'populated'|'loading', cards?:OrgSummaryCardData[]}. Populated: .map() over cards in backend order (never re-sorted), render glyph/value/label verbatim plus `sub` only when truthy (matches the mockup's own sc-if guard -- every card ships sub=null per FR-1/D-02, so no sub line renders today, but the component must not assume that permanently). Loading: LOADING_PLACEHOLDER_COUNT=5 (mockup's own hint-placeholder-count='5', a contract not a sample size, per PGD-01's established reading) placeholder cards, same geometry, text suppressed. Heading 'Organization summary' + static suffix '— all programs · To date' (DESIGN.md Region 1, static copy, no range toggle, no as-of timestamp -- matches ProgramSummaryCards' own '— to date' precedent). Test: renders 5 cards in mockup order, sub omitted when null, 5 loading placeholders.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:21:22Z",
+      "files_touched": [
+        "apps/web/src/components/OrgSummaryCards.tsx",
+        "apps/web/src/components/OrgSummaryCards.module.css",
+        "apps/web/src/components/OrgSummaryCards.test.tsx"
+      ],
+      "reason": "5-card grid on ProgramSummaryCards.tsx's house pattern (.map over backend order, verbatim glyph/value/label, no client-side formatting), extended for the 4th `sub` field. sub renders via `card.sub ? <div/> : null` so a falsy sub yields NO element rather than an empty one, matching the mockup's sc-if guard — asserted by a dedicated test (1 sub element for a 5-card fixture with one sub). LOADING_PLACEHOLDER_COUNT = 5 per hint-placeholder-count, with its own toHaveLength(5) test. Static heading \"Organization summary\" + \"— all programs · To date\"; no range toggle, no as-of timestamp. Used OrgSummaryCardData (4-field), NOT the 3-field ProgramSummaryCardData. Decoded the mockup directly to cross-check DESIGN.md and found an element DESIGN.md omitted — see AF-05. tsc + eslint clean; 21 files / 105 tests pass."
     },
     {
       "task_id": "T-11",
@@ -379,10 +403,15 @@
         "R-07"
       ],
       "notes": "Props {state:'populated'|'loading', data?:ProgramsUsingAiData}. Heading 'Adoption Level' (DESIGN.md Region 2 rendered text, not the 'PROGRAM ADOPTION HEALTH' section comment). Populated + total>0: headline `${count} / ${total}` (spaced, DECISIONS.md D-05), subtitle `programs using AI SDLC · ${Math.round(adoption_percent)}% of the org`, 2-segment bar (widths adoption_percent% / (100-adoption_percent)%, colors #2a6fdb / #dfe3e9), 2-entry legend (hint-placeholder-count=2 is a contract: 'Using AI SDLC' count=count color=#2a6fdb, 'Not yet adopted' count=total-count color=#c3c9d2) -- color always paired with legend label+count text, never the sole indicator (NFR-008 accessibility). Zero state (total===0, adoption_percent===null, FR-4): headline literal '0/0' (no spaces), subtitle 'programs using AI SDLC' (percent clause omitted -- no percent suffix, no NaN), bar is ONE flat #dfe3e9 segment (no adopted/not-adopted split), legend both entries count=0 with their normal colors unchanged. Loading: skeleton geometry, text suppressed, no legend placeholders beyond the fixed 2-entry shape. Add '#c3c9d2'/'#dfe3e9' to docs/design/tokens.md's Color table (DECISIONS.md D-06) in this same task. Test: populated render (bar widths, legend colors+counts), zero-state render (TC-07's assertions: exact '0/0', 1 bar segment, both legend counts 0).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:26:01Z",
+      "files_touched": [
+        "apps/web/src/components/AdoptionIndicator.tsx",
+        "apps/web/src/components/AdoptionIndicator.module.css",
+        "apps/web/src/components/AdoptionIndicator.test.tsx",
+        "docs/design/tokens.md"
+      ],
+      "reason": "Renders the literal `Adoption Level` (never the mockup's PROGRAM ADOPTION HEALTH section comment) — asserted, including that the comment text is absent from the DOM. null-vs-0 handled exactly as required: `data ?? {count:0,total:0,adoption_percent:null}` is an OBJECT-level default only, never a per-field ??/|| coalesce, then `if (adoption_percent === null)` type-narrows; Math.round() is called only in the else branch. The zero-state headline \"0/0\" and legend zeros are hardcoded literals per FR-4, not derived arithmetically, so a real 0 could never be misrendered as the null case or vice versa. D-05/D-06 followed verbatim — orchestrator independently verified D-06's #2a6fdb / #c3c9d2 against the mockup's adoptionLegend sample data: correct, extracted not invented. tsc + eslint clean; 22 files / 109 tests."
     },
     {
       "task_id": "T-12",
@@ -401,10 +430,14 @@
       ],
       "risk_refs": [],
       "notes": "DECISIONS.md D-07. Takes no props (or an optional status prop it ignores for copy purposes -- one message for forbidden/unauthorized/error alike): 'You don't have access to this view.', reusing ProgramDetailErrorPanel's card-recipe CSS (docs/design/tokens.md § Card recipe) as its own .module.css, not imported cross-component (mirrors ProgramDetailErrorPanel's own self-contained precedent). Test: renders the message for each of the 3 non-ok statuses.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:32:08Z",
+      "files_touched": [
+        "apps/web/src/components/OverviewErrorPanel.tsx",
+        "apps/web/src/components/OverviewErrorPanel.module.css",
+        "apps/web/src/components/OverviewErrorPanel.test.tsx"
+      ],
+      "reason": "D-07 single generic panel. Copy byte-identical (\"You don't have access to this view.\") across all three non-ok statuses AND the no-status case — one MESSAGE constant asserted in all four tests, with the test comment stating the repetition is deliberate proof of D-07's uniformity rather than accidental duplication. Optional status prop never branched on. Avoided an eslint suppression entirely: used `void props` with an explanatory comment instead of a disable directive for the intentionally-unused param. .module.css self-contained on the card recipe, mirroring ProgramDetailErrorPanel's own no-cross-import precedent. tsc + eslint clean; 23 files / 113 tests."
     },
     {
       "task_id": "T-13",
@@ -430,10 +463,14 @@
         "R-05"
       ],
       "notes": "Plain component (no 'use client', DECISIONS.md D-03), props {result:OverviewSummaryResult}. Renders `<PersonaDashboardShell>` with persona/program/signedInUser all omitted (D-04 -- keeps the shell's own isLoading branch: brand bar only, no PersonaHeader/ProgramContext invoked), children = a content wrapper containing: result.status==='ok' -> <OrgSummaryCards state='populated' cards={result.data.cards}/> + <AdoptionIndicator state='populated' data={result.data.programs_using_ai}/>; else -> <OverviewErrorPanel/>. Test (TC-06/TC-07): TC-06 renders with a populated fixture result (5 cards, programs_using_ai={count:7,total:10,adoption_percent:70.0}), asserts all 5 cards render icon/value/label, headline '7 / 10', subtitle mentioning '70%', bar segments ~70%/~30%, legend color+count+label pairing, and that no rendered style value traces to a fixture-supplied color field (the fixture carries none, FR-2). TC-07 renders with programs_using_ai={count:0,total:0,adoption_percent:null}, asserts headline exactly '0/0', 1 bar segment, both legend counts 0, no invented empty-state banner.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:49:20Z",
+      "files_touched": [
+        "apps/web/src/components/AdoptionOverview.tsx",
+        "apps/web/src/components/AdoptionOverview.module.css",
+        "apps/web/src/components/AdoptionOverview.test.tsx"
+      ],
+      "reason": "Orchestrator ran inline (subagents rate-limited; per 01-implement.md the sequential fallback). Plain component, no \"use client\" (D-03), props {result: OverviewSummaryResult}. PersonaDashboardShell rendered with persona/program/signedInUser all omitted so it stays in its own isLoading branch — brand bar only, neither PersonaHeader nor ProgramContext invoked (D-04). status===\"ok\" -> OrgSummaryCards + AdoptionIndicator; every non-ok status -> the one generic OverviewErrorPanel (D-07). adoption_percent passed through with no ??/|| coalesce, so null stays distinct from 0. TC-06/TC-07 plus a D-07 it.each over the 3 non-ok statuses. THREE self-inflicted failures fixed along the way, all pattern-consistency misses on my part: (1) used jest-dom toBeInTheDocument, which this project deliberately does not wire — rewrote to plain vitest matchers; (2) omitted afterEach(cleanup), which is mandatory here because vitest.config.ts declares no setupFiles, so renders accumulated and getBy* found duplicates; (3) asserted card values document-wide, which fails because card 1's \"7 / 10\" is ALSO the adoption headline — scoped to the cards and added an explicit assertion that the ratio appears exactly twice, since that duplication is FR-1's design intent. tsc + eslint clean; 24 files / 122 tests pass."
     },
     {
       "task_id": "T-14",
@@ -454,10 +491,12 @@
         "R-05"
       ],
       "notes": "apps/web/src/app/overview/page.tsx -- self-registering via Next.js App Router file convention (no separate wiring edit; ADOPTION_OVERVIEW_ROUTE in lib/routes.ts already points here and needs no change). Mirrors programs/[program_id]/page.tsx: `result = await callWithAuth((accessToken) => fetchOverviewSummary({accessToken}), (r) => r.status === 'unauthorized')`; catch SessionExpiredError -> redirect('/login') (placed in the catch block, not the try, per the established NEXT_REDIRECT-must-propagate rule); render `<AdoptionOverview result={result} />`. Replaces today's 404 and closes PGD-01's carried-forward `back-to-board-route-placeholder` item (its '<- Back to program board' link stops 404ing) -- resolve that item via `harness carry-forward resolve --for PGD-01 back-to-board-route-placeholder` at commit time, not a file edit in this plan.",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:58:13Z",
+      "files_touched": [
+        "apps/web/src/app/overview/page.tsx"
+      ],
+      "reason": "Orchestrator ran inline (subagents rate-limited). Server Component mirroring programs/[program_id]/page.tsx: callWithAuth(fetchOverviewSummary, r => r.status === \"unauthorized\"), SessionExpiredError -> redirect(\"/login\") placed in the CATCH not the try, because redirect() throws NEXT_REDIRECT and a try-side call would be swallowed by this function's own catch; everything else re-thrown. A surviving {status:\"unauthorized\"} deliberately falls through to AdoptionOverview's error panel rather than redirecting (D-07/D-10). No not-found.tsx/error.tsx and notFound() never called — non-ok outcomes are in-page states, same choice PGD-01 made. Self-registers via the App Router file convention; ADOPTION_OVERVIEW_ROUTE in lib/routes.ts already pointed here and needed no edit. REPLACES THE 404: the app root redirected to /overview, which did not exist. Verified by `pnpm build` — route table now lists \"ƒ /overview\". tsc + eslint clean; 24 files / 122 tests pass. NOTE: PGD-01 carry-forward `back-to-board-route-placeholder` is now resolvable — its \"<- Back to program board\" link stops 404ing; resolve via `harness carry-forward resolve` at commit time, not a file edit here."
     },
     {
       "task_id": "T-15",
@@ -472,10 +511,12 @@
       "ac_refs": [],
       "risk_refs": [],
       "notes": "Root README.md API table -- add a row for GET /api/overview/summary matching the existing /api/programs / /api/overview/program-detail/{program_id} row format: request (bearer token via the standard auth dependency), response shape ({cards, programs_using_ai}), 403 (non-cio, no data body), 500 (missing system_metadata row). Docs trigger T2 (new HTTP route) -- T1/T3/T4 do not fire (no new runnable surface, env var, or service/port).",
-      "status": "pending",
-      "completed_at": null,
-      "files_touched": [],
-      "reason": null
+      "status": "done",
+      "completed_at": "2026-09-10T06:15:24Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": "API table row for GET /api/overview/summary in the existing dense single-line-prose format, sourced from T-02's filled docs/requirements/api.md#overview-summary-api plus D-01/D-02. Cited as \"(DECISIONS.md D-01/D-02 shape)\" rather than an ADR number, since both record adr:— (no ADR promoted, unlike PGD-01's ADR-0007). Also extended the table's enumerating intro sentence — confirmed via `git log -p -- README.md` that every prior endpoint addition (AUTH-04, PGD-01, SHP-02, ING-10) updated that same sentence, so it is part of the same documentation unit rather than a neighbouring edit. Confirmed no README content was made inaccurate: the /overview Next.js route is not documented there today, and the feature adds no env var, service or port."
     }
   ]
 }

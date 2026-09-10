@@ -39,8 +39,17 @@ import styles from "./PersonaDashboardShell.module.css";
  *   resolver-error sentinel) is handed to `PersonaHeader`, which owns the
  *   valid/invalid split and its own neutral-badge rendering (FR-2/FR-5,
  *   D-03).
- * - `program: ProgramContextData` — resolved by the composing page before
- *   render (C-3); this component owns no loading/empty state for it.
+ * - `program?: ProgramContextData` — **OVW-01 D-04**: optional, for callers
+ *   with no single-program concept (e.g. the org-level `/overview` page,
+ *   which omits it entirely). When defined, resolved by the composing page
+ *   before render (C-3); this component owns no loading/empty state for it.
+ *   `undefined` never reaches `ProgramContext` (which still requires a
+ *   defined `program` itself, unchanged) — the header region's render guard
+ *   checks `program !== undefined` alongside `!isLoading`.
+ * - `children?: React.ReactNode` — **OVW-01 D-04**: rendered as the shell's
+ *   last element, always, regardless of `isLoading`. Lets a composing page
+ *   place its own content beneath the shared brand-bar chrome (e.g.
+ *   `AdoptionOverview`).
  *
  * FR-5 suppression semantics: while `isLoading`, only the brand bar's
  * static left half (logo tile + product name/tagline) renders. The
@@ -55,10 +64,12 @@ export function PersonaDashboardShell({
   signedInUser,
   persona,
   program,
+  children,
 }: {
   signedInUser?: SignedInUser;
   persona?: Persona;
-  program: ProgramContextData;
+  program?: ProgramContextData;
+  children?: React.ReactNode;
 }) {
   const isLoading = persona === undefined;
   // Computed once here rather than inline in the JSX: `persona` is narrowed to
@@ -108,12 +119,13 @@ export function PersonaDashboardShell({
           </div>
         )}
       </div>
-      {!isLoading && (
+      {!isLoading && program !== undefined && (
         <header className={styles.headerRegion}>
           <PersonaHeader persona={persona} />
           <ProgramContext program={program} />
         </header>
       )}
+      {children}
     </>
   );
 }
