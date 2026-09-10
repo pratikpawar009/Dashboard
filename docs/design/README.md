@@ -64,3 +64,25 @@ screen with a swapped label, not three designs.
 2. **The templates also bind presentation**, not just data — `c.barStyle`, `p.avBg`, `r.tagBg`,
    `prog.dotStyle`, `complianceScoreStyle`. Taken literally that puts CSS in API responses. Decide
    deliberately; do not copy the mockup here.
+
+## Recorded divergences — deliberate, not drift
+
+Where the shipped UI intentionally departs from a mockup literal, it is recorded here so a
+text or visual diff reads an explained decision instead of a defect to "fix" back. Everything
+not listed here should match.
+
+| Mockup | Literal | What ships | Why | Story |
+|---|---|---|---|---|
+| Architect Dashboard | `Principal Architect` | `Architect` | Nothing in the system carries a user's seniority — not the OIDC claims, not `program_roster`, not the persona resolver. Rendering the literal would assert a fact about a real person that no data supports, so a junior developer would read as senior. | OVW-05 |
+| Developer Dashboard | `Senior Developer` | `Developer` | Same reason. | OVW-05 |
+
+The rule generalises beyond job titles: when a mockup supplies a literal asserting an
+attribute the system has no source for — seniority, tenure, certification, team size — render
+the weaker true string rather than the stronger unverifiable one, and add a row above.
+
+The sample **names** (`Elena Vasquez`, `Devon Rao`, `Maya Chen`, `Aisha Bello`, `Noah Kim`) are
+placeholders in the same category. They are never shipped, not even as fallback copy: an
+unresolved name renders a neutral state instead.
+
+Not yet implemented — OVW-05 is the story that lands these; this table records the decision
+ahead of it so the reasoning is not rediscovered.
