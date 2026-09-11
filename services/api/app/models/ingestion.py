@@ -1,8 +1,11 @@
-"""SQLAlchemy 2.0 models for the `ingestion_auth_system` table group (5 tables):
-usage_events, ingest_tokens, system_metadata, persona_config, user_roles.
+"""SQLAlchemy 2.0 models for the `ingestion_auth_system` table group (6 tables):
+usage_events, ingest_tokens, system_metadata, persona_config, user_roles,
+persona_precedence.
 
 Per `docs/requirements/data.md` `db-schema` contract and BED-01 DECISIONS.md D-02
-(file grouping) / D-03 (JSONB for Json-typed columns, ADR-0003).
+(file grouping) / D-03 (JSONB for Json-typed columns, ADR-0003). `persona_precedence`
+added by AUTH-07 (DECISIONS.md D-05, ADR-0011) — kept in this file per the
+AUTH-07 PLAN.md module hierarchy, not split into its own module.
 """
 
 import uuid
@@ -120,3 +123,19 @@ class UserRole(Base):
     role: Mapped[str] = mapped_column(String, nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False, default="keycloak")
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PersonaPrecedence(Base):
+    """Ordered persona-precedence ranking (AUTH-07 FR-6, ADR-0011).
+
+    Tier-3 of the persona-precedence config mechanism: picks a single
+    deterministic winner when a token carries several mappable roles. A
+    single, global, org-wide ranking with no per-user/program/tenant scope
+    (same as `PersonaConfig`) — see ADR-0011 for why this is a new table
+    rather than a column on `persona_config`.
+    """
+
+    __tablename__ = "persona_precedence"
+
+    rank: Mapped[int] = mapped_column(Integer, primary_key=True)
+    persona: Mapped[str] = mapped_column(String, nullable=False)

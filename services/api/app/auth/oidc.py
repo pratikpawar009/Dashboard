@@ -43,6 +43,7 @@ from authlib.jose.errors import JoseError
 from authlib.jose.util import extract_header
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from app.auth.jwks import JwksCache, get_jwks_cache
@@ -59,6 +60,7 @@ _AUTHORIZE_PATH = "/protocol/openid-connect/auth"  # Keycloak realm-relative
 _TOKEN_PATH = "/protocol/openid-connect/token"  # Keycloak realm-relative; one
 # endpoint serves both the authorization_code exchange and the refresh_token
 # grant, distinguished only by the `grant_type` form field.
+_LOGOUT_PATH = "/protocol/openid-connect/logout"  # Keycloak realm-relative (D-01)
 
 # Outbound-call rules shared with app/auth/jwks.py (AUTH-01-NFR-performance,
 # DATA-DESIGN §8): explicit 5s timeout, 1 initial attempt + at most 2 retries
@@ -67,6 +69,15 @@ _TOKEN_PATH = "/protocol/openid-connect/token"  # Keycloak realm-relative; one
 _OUTBOUND_TIMEOUT_S = 5.0
 _RETRY_MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY_S = 0.25
+
+# Optional bearer for `GET /auth/logout` (D-08). `auto_error=False`: a
+# missing or malformed Authorization header must fall back to
+# `user_id="unknown"` in `_log_dashboard_logout`, never a 401 -- this route's
+# redirect must never be blocked by a decode failure. A local instance
+# rather than importing `app/core/auth.py`'s own `_http_bearer`: that name is
+# private to its module, and `_peek_kid` below is already duplicated here in
+# preference to importing across modules -- see its own docstring.
+_http_bearer = HTTPBearer(auto_error=False)
 
 
 class _RefreshRequest(BaseModel):
@@ -199,6 +210,40 @@ async def _log_dashboard_login(access_token: str, jwks_cache: JwksCache) -> None
     logger.info("dashboard_login", extra={"user_id": user_id})
 
 
+async def _log_dashboard_logout(
+    credentials: HTTPAuthorizationCredentials | None, jwks_cache: JwksCache
+) -> None:
+    """FR-4/D-08: emit `dashboard_logout` carrying only `user_id`, on every
+    completed (config-satisfied) redirect -- mirrors `_log_dashboard_login`'s
+    success-only convention; the 501 config-gate path never reaches this.
+
+    The frontend's `/logout` Route Handler reads the still-valid session
+    BEFORE clearing the `dashboard_session` cookie, then forwards that
+    pre-clear access token as `Authorization: Bearer <token>` on this request
+    (D-08) -- clearing the cookie client-side does not invalidate the token
+    value itself (AC-16). `credentials` is therefore OPTIONAL here (`_http_
+    bearer`'s `auto_error=False`): a missing header, or any decode failure,
+    falls back to `user_id="unknown"` and must never block the redirect --
+    the same never-500-on-logging contract `_log_dashboard_login` already
+    upholds, via the SAME JWKS-verified decode path (`_peek_kid` +
+    `jwks_cache.get_signing_key` + `jwt.decode().validate()`).
+    """
+    user_id = "unknown"
+    if credentials is not None:
+        try:
+            kid = _peek_kid(credentials.credentials)
+            if kid is not None:
+                signing_key = await jwks_cache.get_signing_key(kid)
+                claims = jwt.decode(credentials.credentials, signing_key)
+                claims.validate()
+                user_id = str(claims.get("sub", "unknown"))
+        except Exception:
+            # Same rationale as `_log_dashboard_login`: a decode failure must
+            # never block the redirect, only fall back to the sentinel.
+            pass
+    logger.info("dashboard_logout", extra={"user_id": user_id})
+
+
 @router.get("/login")
 async def oidc_login(
     request: Request,
@@ -322,6 +367,52 @@ async def oidc_callback(
     token_response = TokenResponse(**response.json())
     await _log_dashboard_login(token_response.access_token, jwks_cache)
     return token_response
+
+
+@router.get("/logout")
+async def oidc_logout(
+    settings: Settings = Depends(get_settings),
+    jwks_cache: JwksCache = Depends(get_jwks_cache),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer),
+) -> RedirectResponse:
+    """Redirect to Keycloak's end-session endpoint (AUTH-07-FR-4, D-01).
+
+    `frontend_login_url` folds into the SAME config-completeness gate
+    `_require_oidc_configured` already enforces for `/auth/login`/`/auth/
+    callback`/`/auth/refresh`, as a FOURTH required value for THIS route only
+    (AUTH-07-FR-3): the OIDC triple gates first via that shared helper
+    (unchanged, so the other three routes are unaffected), then an unset
+    `frontend_login_url` 501s through the identical envelope. No discovery
+    fetch, no server-side call to Keycloak -- the browser is redirected
+    directly, mirroring `/auth/login`'s shipped mechanism.
+
+    Carries only `client_id` and `post_logout_redirect_uri` -- never
+    `id_token_hint` (AC-10), since `/auth/callback` never returns an
+    `id_token` and never should (reopening it would reopen shipped AUTH-01).
+    `post_logout_redirect_uri` is `settings.frontend_login_url` verbatim
+    (AC-12), never derived from `oidc_redirect_uri` (a different route's
+    value).
+
+    `dashboard_logout` is emitted only once config is satisfied -- the 501
+    path never logs, mirroring `dashboard_login`'s success-only convention.
+    AC-13 (Keycloak actually ending the SSO session) and AC-16 (an
+    already-issued access token surviving until its own expiry) are both
+    accepted properties of this redirect-only, stateless-bearer design --
+    verified manually against a real Keycloak realm, not by this route's own
+    tests (see docs/features/AUTH-07/REQUIREMENTS.md).
+    """
+    client_id, _client_secret, issuer = _require_oidc_configured(settings)
+    if not settings.frontend_login_url:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="oidc_not_configured"
+        )
+    await _log_dashboard_logout(credentials, jwks_cache)
+    query = urlencode(
+        {"client_id": client_id, "post_logout_redirect_uri": settings.frontend_login_url}
+    )
+    return RedirectResponse(
+        url=f"{issuer}{_LOGOUT_PATH}?{query}", status_code=status.HTTP_302_FOUND
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)

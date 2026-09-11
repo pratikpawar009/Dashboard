@@ -29,6 +29,9 @@ The route-level 404 gating (AUTH-01-TC-08/09/22/23/37/38/39) belongs to the
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
@@ -66,6 +69,8 @@ _ENV_KEYS = (
     "OIDC_REDIRECT_URI",
     "OIDC_SCOPE",
     "CORS_ORIGINS",
+    "FRONTEND_LOGIN_URL",
+    "PERSONA_PRECEDENCE_ORDER",
 )
 
 
@@ -124,6 +129,24 @@ def test_oidc_redirect_uri_unset_does_not_affect_oidc_configured() -> None:
     )
     assert settings.oidc_redirect_uri is None
     assert settings.oidc_configured is True
+
+
+# AUTH-07-FR-3 — frontend origin for `GET /auth/logout`'s
+# `post_logout_redirect_uri`. Plain `str | None`, default unset, no `NoDecode`.
+def test_frontend_login_url_defaults_to_none() -> None:
+    settings = _build_settings()
+    assert settings.frontend_login_url is None
+
+
+def test_frontend_login_url_is_typed_str_or_none() -> None:
+    annotation = Settings.model_fields["frontend_login_url"].annotation
+    assert annotation == (str | None)
+
+
+def test_frontend_login_url_reads_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FRONTEND_LOGIN_URL", "https://dashboard.example.com/login")
+    settings = _build_settings()
+    assert settings.frontend_login_url == "https://dashboard.example.com/login"
 
 
 def test_non_production_environments_is_pinned_frozenset() -> None:
@@ -253,3 +276,109 @@ def test_configure_logging_accepts_a_lowercase_log_level() -> None:
     finally:
         root.setLevel(original_level)
         root.handlers = original_handlers
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-FR-6 (Tier-1) — `persona_precedence_order` fail-open JSON parse,
+# mirroring `_parse_persona_role_map` (AUTH-02-TC-08's own pattern in
+# tests/unit/test_persona_resolver.py). A `_RecordCapturingHandler` attached
+# directly to the real `app.core.config` logger, force-enabled and
+# depropagated, keeps the warning assertions immune to Alembic's
+# `fileConfig(disable_existing_loggers=True)` sweep (see that file's module
+# docstring) even though this file's own tests never touch Alembic directly.
+# -----------------------------------------------------------------------------
+
+
+class _RecordCapturingHandler(logging.Handler):
+    """Stores emitted LogRecord instances verbatim, without formatting them."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+@contextmanager
+def _capture_config_logger() -> Iterator[list[logging.LogRecord]]:
+    logger = logging.getLogger("app.core.config")
+    original_disabled, original_propagate, original_level = (
+        logger.disabled,
+        logger.propagate,
+        logger.level,
+    )
+    logger.disabled = False
+    logger.propagate = False
+    logger.setLevel(logging.WARNING)
+    handler = _RecordCapturingHandler()
+    logger.addHandler(handler)
+    try:
+        yield handler.records
+    finally:
+        logger.removeHandler(handler)
+        logger.disabled = original_disabled
+        logger.propagate = original_propagate
+        logger.setLevel(original_level)
+
+
+def _precedence_parse_warnings(records: list[logging.LogRecord]) -> list[logging.LogRecord]:
+    return [r for r in records if r.getMessage() == "persona_precedence_order_parse_error"]
+
+
+def test_persona_precedence_order_defaults_to_none() -> None:
+    settings = _build_settings()
+    assert settings.persona_precedence_order is None
+
+
+def test_persona_precedence_order_parses_valid_json_array_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "PERSONA_PRECEDENCE_ORDER",
+        '["cio","architect","product-manager","engineering-manager","developer"]',
+    )
+    with _capture_config_logger() as records:
+        settings = _build_settings()
+
+    assert settings.persona_precedence_order == [
+        "cio",
+        "architect",
+        "product-manager",
+        "engineering-manager",
+        "developer",
+    ]
+    assert _precedence_parse_warnings(records) == []
+
+
+def test_persona_precedence_order_invalid_json_logs_warning_and_falls_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERSONA_PRECEDENCE_ORDER", "[cio, architect")
+    with _capture_config_logger() as records:
+        settings = _build_settings()
+
+    assert settings.persona_precedence_order is None
+    assert len(_precedence_parse_warnings(records)) == 1
+
+
+def test_persona_precedence_order_non_array_json_logs_warning_and_falls_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERSONA_PRECEDENCE_ORDER", '{"cio": "cio"}')
+    with _capture_config_logger() as records:
+        settings = _build_settings()
+
+    assert settings.persona_precedence_order is None
+    assert len(_precedence_parse_warnings(records)) == 1
+
+
+def test_persona_precedence_order_non_string_element_logs_warning_and_falls_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PERSONA_PRECEDENCE_ORDER", '["cio", 1]')
+    with _capture_config_logger() as records:
+        settings = _build_settings()
+
+    assert settings.persona_precedence_order is None
+    assert len(_precedence_parse_warnings(records)) == 1

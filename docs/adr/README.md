@@ -12,3 +12,4 @@
 | [ADR-0008](0008-client-side-auth-route-handler-proxy.md) | Client-side authenticated FastAPI calls go through a same-origin Route Handler proxy — FastAPI is never reached directly from the browser | Accepted |
 | [ADR-0009](0009-personal-usage-api-response-shape.md) | `personal-usage-api` returns 5-field cards + a raw daily token series + a commands panel, server-owned presentation fields | Accepted |
 | [ADR-0010](0010-program-roster-new-table.md) | `program_roster` is a new, additive table — file-authoritative program membership, kept separate from `program_members` | Accepted |
+| [ADR-0011](0011-persona-precedence-new-table.md) | `persona_precedence` is a new, additive table — persona-precedence order rides AUTH-02's own 3-tier config mechanism, not `persona_config` | Accepted |

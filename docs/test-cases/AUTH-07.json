@@ -1,0 +1,358 @@
+{
+  "story_id": "AUTH-07",
+  "test_cases": [
+    {
+      "id": "AUTH-07-TC-01",
+      "title": "Case-insensitive multi-role token resolves deterministically to architect regardless of array order",
+      "type": "integration",
+      "category": "regression",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-07-AC-19",
+      "given": "a decoded bearer token's realm_access.roles = ['Architect', 'Developer', 'developer'] (the live 2026-09-10 case)",
+      "when": "CurrentUser is constructed and persona_resolver.resolve is invoked via GET /api/me",
+      "then": "persona resolves deterministically to 'architect' on every call, regardless of the roles' order in the token array, per default precedence cio > architect > product-manager > engineering-manager > developer",
+      "objective": "Verify that a multi-role token containing case-variant and duplicate role claims resolves deterministically to the correct persona per the configured precedence order, independent of the roles' array order in the token, reproducing the live 2026-09-10 regression.",
+      "preconditions": [
+        "Persona resolver Tier-2 YAML (services/api/config/persona_role_map.yaml) carries the shipped mapping architect: architect and developer: developer, casefolded at load time per AUTH-07-FR-7.",
+        "No Tier-1 PERSONA_PRECEDENCE_ORDER env var or Tier-2 precedence: override is set for this test \u2014 resolver falls back to the hardcoded default order [\"cio\", \"architect\", \"product-manager\", \"engineering-manager\", \"developer\"] per AUTH-07-FR-6.",
+        "A valid bearer token is issued (via /auth/dev-bypass or a signed test JWT) with realm_access.roles set per test_data.",
+        "Persona resolver's 300s per-role cache is cold at test start (fresh resolver instance or cache explicitly cleared) so the resolution path actually executes rather than serving a stale cached value."
+      ],
+      "test_data": {
+        "roles_order_a": [
+          "Architect",
+          "Developer",
+          "developer"
+        ],
+        "roles_order_b": [
+          "developer",
+          "Developer",
+          "Architect"
+        ],
+        "roles_order_c": [
+          "developer",
+          "Architect",
+          "Developer"
+        ],
+        "expected_persona": "architect",
+        "bearer_token": "<TEST_BEARER_TOKEN>"
+      },
+      "steps": [
+        "Issue a bearer token whose decoded realm_access.roles equals roles_order_a.",
+        "Call GET /api/me with the token in the Authorization: Bearer header; record the returned persona.",
+        "Repeat step 1-2 with roles_order_b in a fresh token/session (same underlying role set, different array order).",
+        "Repeat step 1-2 with roles_order_c.",
+        "Compare the persona value returned across all three calls."
+      ],
+      "expected_results": [
+        "All three calls return 200 {\"name\": ..., \"persona\": \"architect\"} \u2014 the response body's persona field equals expected_persona in every case.",
+        "The resolved persona does not vary with the token array's role order, confirming precedence-driven (not positional) selection.",
+        "current_user.role (the precedence-selected winner passed to persona_resolver.resolve) equals architect for all three token variants.",
+        "No PersonaResolutionError (ambiguous_case_collision) is raised, since Architect/architect differ only across the token's role list, not within a single config tier's key set."
+      ],
+      "tags": [
+        "regression-live-token-2026-09-10",
+        "persona-precedence",
+        "case-insensitive",
+        "research-risk-2",
+        "research-risk-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#281",
+      "last_run": {
+        "started_at": "2026-09-11T09:10:00Z",
+        "duration_ms": 460,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 460,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_me.py::test_case_insensitive_multi_role_token_resolves_deterministically_tc01, services/api/tests/unit/test_auth_jwt_validation.py::test_case_insensitive_multi_role_token_resolves_deterministically_tc01, services/api/tests/unit/test_persona_resolver.py::test_ac19_multirole_precedence_selects_architect_regardless_of_order_auth07_tc01 (10 parametrized cases total, re-confirmed gate round 3 2026-09-11 after the AF-01/AF-02 conftest.py + SKILL.md post-gate delta)",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "AUTH-07-TC-02",
+      "title": "All-tiers-miss role emits distinguishable persona_mapping_not_found event and still raises PersonaNotFoundError",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "AUTH-07-AC-25",
+      "given": "every surviving role on a token fails to resolve in any of the 3 tiers, after casefolding",
+      "when": "persona_resolver.resolve is attempted for that role",
+      "then": "PersonaNotFoundError is raised (fail-closed unchanged) AND a persona_mapping_not_found log event fires carrying the attempted role(s) and tiers consulted, with no user_id/email/name/groups, distinguishable from persona_mapping_loaded and rbac_check_org_access outcome=denied",
+      "objective": "Verify an all-tiers-miss role emits a grep-distinguishable persona_mapping_not_found log event (correct fields, no PII) and still fails closed with PersonaNotFoundError \u2014 using a handler attached directly to the resolver's own logger so the assertion cannot pass vacuously under Alembic's fileConfig logger sweep.",
+      "preconditions": [
+        "A _RecordCapturingHandler (per the existing precedent in services/api/tests/unit/test_persona_resolver.py) is instantiated and attached directly to the app.core.persona_resolver logger \u2014 the logger is force-enabled (logger.disabled = False, logger.setLevel(logging.INFO)) and de-propagated (logger.propagate = False) BEFORE the resolve call, because Alembic's fileConfig(disable_existing_loggers=True) disables every app.* logger process-wide and a caplog/capsys-based assertion would pass vacuously after any migrated_db test.",
+        "Tier-1 (PERSONA_ROLE_MAP / PERSONA_PRECEDENCE_ORDER), Tier-2 YAML, and Tier-3 persona_config / persona_precedence are all confirmed to hold no entry, under any casefolding, for the test role nonexistent-role.",
+        "Resolver's per-role cache is cold for nonexistent-role (fresh instance or cache cleared) so the miss actually traverses all 3 tiers rather than serving a cached result."
+      ],
+      "test_data": {
+        "attempted_role": "nonexistent-role",
+        "expected_tiers_consulted": [
+          "tier-1-env",
+          "tier-2-yaml",
+          "tier-3-postgres"
+        ],
+        "bearer_token": "<TEST_BEARER_TOKEN>"
+      },
+      "steps": [
+        "Attach the _RecordCapturingHandler directly to the app.core.persona_resolver logger; force-enable and de-propagate it.",
+        "Call persona_resolver.resolve(\"nonexistent-role\") directly (or via GET /api/me with a token whose sole surviving role is nonexistent-role).",
+        "Capture the raised exception and the handler's captured log records.",
+        "Inspect the captured records for an event named persona_mapping_not_found and its extra fields.",
+        "Inspect the same captured records to confirm no persona_mapping_loaded or rbac_check_org_access event was emitted for this call, and that no captured record carries user_id/email/name/groups."
+      ],
+      "expected_results": [
+        "persona_resolver.resolve(\"nonexistent-role\") raises PersonaNotFoundError (fail-closed unchanged); if invoked via GET /api/me, the endpoint returns 403.",
+        "Exactly one persona_mapping_not_found log record is captured, with extra[\"roles\"] containing nonexistent-role and extra[\"tiers_consulted\"] equal to expected_tiers_consulted in that order.",
+        "The captured persona_mapping_not_found record carries no user_id, email, name, or groups field.",
+        "No persona_mapping_loaded event is present in the captured records for this call, and no rbac_check_org_access outcome=denied event is present either \u2014 the event name alone is sufficient to distinguish an unmapped role from a matched-but-RBAC-denied role."
+      ],
+      "tags": [
+        "observability",
+        "fail-closed",
+        "pii-exclusion",
+        "logger-handler-precedent",
+        "research-risk-5"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#282",
+      "last_run": {
+        "started_at": "2026-09-11T09:10:00Z",
+        "duration_ms": 380,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 380,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_persona_resolver.py::test_persona_mapping_not_found_emitted_before_raise_on_single_role_miss_auth07_tc02 (re-confirmed gate round 3 2026-09-11 after the AF-01/AF-02 conftest.py + SKILL.md post-gate delta)",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "AUTH-07-AC-1",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-2",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-3",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-4",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-5",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-6",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-7",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-8",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-9",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-10",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-11",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-12",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-13",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-14",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-15",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-16",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-17",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-18",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-19",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-20",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-21",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-22",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-23",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-24",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-AC-25",
+        "covered_by": [
+          "AUTH-07-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-07-AC-26",
+        "covered_by": [
+          "AUTH-07-TC-01",
+          "AUTH-07-TC-02"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "AUTH-07-FR-1",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-FR-2",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-FR-3",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-FR-4",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-FR-5",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-FR-6",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-FR-7",
+        "covered_by": [
+          "AUTH-07-TC-01"
+        ]
+      },
+      {
+        "id": "AUTH-07-FR-8",
+        "covered_by": [
+          "AUTH-07-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "AUTH-07-NFR-performance",
+        "covered_by": []
+      },
+      {
+        "id": "AUTH-07-NFR-security",
+        "covered_by": [
+          "AUTH-07-TC-02"
+        ]
+      },
+      {
+        "id": "AUTH-07-NFR-observability",
+        "covered_by": [
+          "AUTH-07-TC-02"
+        ]
+      }
+    ],
+    "uncovered": [
+      "AUTH-07-AC-1",
+      "AUTH-07-AC-2",
+      "AUTH-07-AC-3",
+      "AUTH-07-AC-4",
+      "AUTH-07-AC-5",
+      "AUTH-07-AC-6",
+      "AUTH-07-AC-7",
+      "AUTH-07-AC-8",
+      "AUTH-07-AC-9",
+      "AUTH-07-AC-10",
+      "AUTH-07-AC-11",
+      "AUTH-07-AC-12",
+      "AUTH-07-AC-13",
+      "AUTH-07-AC-14",
+      "AUTH-07-AC-15",
+      "AUTH-07-AC-16",
+      "AUTH-07-AC-17",
+      "AUTH-07-AC-22",
+      "AUTH-07-AC-24",
+      "AUTH-07-FR-1",
+      "AUTH-07-FR-2",
+      "AUTH-07-FR-3",
+      "AUTH-07-FR-4",
+      "AUTH-07-FR-5",
+      "AUTH-07-NFR-performance"
+    ]
+  }
+}

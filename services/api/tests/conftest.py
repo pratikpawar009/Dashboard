@@ -783,6 +783,19 @@ _HERMETIC_SETTINGS_DEFAULTS: dict[str, Any] = {
     # — it just read as live config forever. Removed rather than left dead.
     "oidc_scope": Settings.model_fields["oidc_scope"].default,
     "cors_origins": [],
+    # AUTH-07 (T-01) added both fields; pinned here for the same reason the
+    # `oidc_redirect_uri` incident above documents. `frontend_login_url` is the
+    # fourth value `GET /auth/logout`'s completeness gate requires, so leaving
+    # it unpinned makes every "unset -> 501" assertion pass or fail on whether
+    # the developer happens to have `FRONTEND_LOGIN_URL` in their shell or
+    # `services/api/.env` — the identical failure mode, on an identical
+    # config-gate shape. `persona_precedence_order` is Tier-1 of the persona
+    # precedence order, so pinning it to None keeps the all-tiers-unset
+    # hardcoded-default branch (`_DEFAULT_PERSONA_PRECEDENCE`) the deterministic
+    # one under test. Both stay None; the tests that need a configured value
+    # override per-call, exactly as the two `oidc_redirect_uri` tests do.
+    "frontend_login_url": None,
+    "persona_precedence_order": None,
 }
 
 

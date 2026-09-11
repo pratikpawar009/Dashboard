@@ -9,10 +9,16 @@ non-dev-bypass path it is resolved from `program_roster` by the verified
 `email` claim (`app.core.program_roster_resolver`, AUTH-06-AC-1/FR-1).
 Stateless: no token or session state is persisted server-side
 (docs/requirements/auth.md § session).
+
+AUTH-07-D-02/D-06: `name` (a display-name fallback chain over OIDC profile
+claims, AC-2/AC-6) and `roles`/precedence-driven `role` selection among
+several surviving `realm_access.roles` entries (AC-19/AC-24) are additive
+extensions of the same claim-to-field mapping, added here rather than in a
+new module.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from authlib.jose import jwt
@@ -31,6 +37,11 @@ from app.auth.jwks import (
 )
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
+from app.core.persona_resolver import (
+    PersonaResolutionError,
+    PersonaResolver,
+    get_persona_resolver,
+)
 from app.core.program_roster_resolver import (
     ProgramRosterResolver,
     get_program_roster_resolver,
@@ -74,6 +85,19 @@ class CurrentUser:
     from the verified `email` claim (AUTH-06-AC-1/FR-1), or a dev-bypass
     token's own `programs` claim (AUTH-06-AC-4). Neither is ever taken from a
     client-supplied header (AUTH-01-NFR-security, TC-33).
+
+    `name` (AUTH-07-AC-2/AC-6/FR-2) is an additive, optional display name --
+    `claims.get("name")` → `given_name`+`family_name` → `preferred_username` →
+    `None` (DECISIONS.md D-02); never composed from `email`, never a
+    fabricated placeholder. `roles` (AUTH-07-AC-24) is a SEPARATE additive
+    list from `role`: every surviving `realm_access.roles` entry (system
+    roles filtered per D-09) in the token's ORIGINAL order, kept for audit
+    only and never sorted. `role` stays the single `str` every existing
+    resolver/`rbac-checks` call site already reads — the precedence-selected
+    winner among `roles` when there is more than one candidate (AC-19,
+    DECISIONS.md D-06), or the sole survivor otherwise. Both new fields
+    default so every existing direct `CurrentUser(...)` construction
+    elsewhere in the codebase keeps working unmodified (AC-6, additive only).
     """
 
     user_id: str
@@ -81,6 +105,8 @@ class CurrentUser:
     role: str
     groups: list[str]
     programs: list[str]
+    name: str | None = None
+    roles: list[str] = field(default_factory=list)
 
 
 def _peek_kid(token: str) -> str | None:
@@ -104,29 +130,34 @@ def _peek_kid(token: str) -> str | None:
     return kid if isinstance(kid, str) else None
 
 
-def _parse_role(claims: Mapping[str, Any]) -> str:
-    """Map Keycloak's `realm_access.roles` onto the single `role` field.
+def _parse_surviving_roles(claims: Mapping[str, Any]) -> list[str]:
+    """Map Keycloak's `realm_access.roles` onto the surviving-roles list
+    (AUTH-07-AC-24), in the token's ORIGINAL array order.
 
     `realm_access.roles` is a LIST (AUTH-01-FR-4 names it as "the realm/
     client role claim", but this task's pinned test data only ever populates
     `realm_access`, so that is the only source read here). A real Keycloak
     token carries system roles (`default-roles-<realm>`, `offline_access`,
     `uma_authorization`) alongside the user's actual role(s) — those are
-    dropped first (`_is_keycloak_system_role`, D-09), then the first
-    surviving entry, in original list order, becomes `role`. Absent/empty
-    `realm_access.roles`, or a list containing only system roles, yields
-    `""`, never an exception — the same fail-soft handling FR-5 requires for
-    `groups`/`programs`.
+    dropped (`_is_keycloak_system_role`, D-09); every other entry survives,
+    in the SAME order the token carried it, for `CurrentUser.roles` (audit
+    only — never sorted, never casefolded). Absent/empty `realm_access
+    .roles`, or a list containing only system roles, yields `[]`, never an
+    exception — the same fail-soft handling FR-5 requires for `groups`/
+    `programs`.
+
+    `get_current_user` derives `CurrentUser.role` from this list separately
+    (AUTH-07-D-06): the sole survivor when there is exactly one — the
+    ordinary case, including every `/auth/dev-bypass` token, whose
+    `realm_access.roles` is always a single-element list (`app.auth
+    .dev_bypass._DEFAULT_ROLE`) — or the precedence-selected winner via
+    `PersonaResolver.resolve_precedence` when there are two or more (AC-19).
     """
     realm_access = claims.get("realm_access")
     roles = realm_access.get("roles") if isinstance(realm_access, dict) else None
     if not isinstance(roles, list):
-        return ""
-    for role in roles:
-        role_str = str(role)
-        if not _is_keycloak_system_role(role_str):
-            return role_str
-    return ""
+        return []
+    return [str(role) for role in roles if not _is_keycloak_system_role(str(role))]
 
 
 def _claims_options(kid: str, settings: Settings) -> dict[str, Any]:
@@ -189,15 +220,17 @@ async def get_current_user(
     jwks_cache: JwksCache = Depends(get_jwks_cache),
     db: AsyncSession = Depends(get_db),
     program_roster_resolver: ProgramRosterResolver = Depends(get_program_roster_resolver),
+    persona_resolver: PersonaResolver = Depends(get_persona_resolver),
 ) -> CurrentUser:
     """Verify the bearer JWT and derive the caller's identity (AUTH-01-FR-4).
 
     Consumer-facing contract is unchanged — callers still write
     `Depends(get_current_user)`; every added parameter here is FastAPI-
     injected (D-07/AUTH-06-D-01), never a caller-supplied positional. That
-    now includes `db` and `program_roster_resolver`, which back the roster
-    lookup below. `role`/`groups` come exclusively from the claims verified
-    below, and `programs` from the roster keyed by the verified `email` claim
+    now includes `db`, `program_roster_resolver`, and (AUTH-07-D-06)
+    `persona_resolver`, which backs the precedence-driven `role` selection
+    below. `role`/`groups` come exclusively from the claims verified below,
+    and `programs` from the roster keyed by the verified `email` claim
     (AUTH-06-AC-1); no client-supplied header is ever consulted
     (AUTH-01-NFR-security, TC-33).
     """
@@ -230,6 +263,62 @@ async def get_current_user(
 
     email = str(claims.get("email", ""))
 
+    # AUTH-07-D-02/AC-2/AC-6: `name` fallback chain -- `claims.get(field)`
+    # with a default, then a type-check, the SAME idiom `groups` above (and
+    # `_parse_surviving_roles`) already use; no new claim-parsing helper.
+    # Never composed from `email`, never a fabricated placeholder. A
+    # `/auth/dev-bypass` token carries none of these four claims, so `name`
+    # is `None` there by construction, not a special case.
+    name_claim = claims.get("name")
+    if isinstance(name_claim, str) and name_claim:
+        name = name_claim
+    else:
+        given_name = claims.get("given_name")
+        family_name = claims.get("family_name")
+        if (
+            isinstance(given_name, str)
+            and given_name
+            and isinstance(family_name, str)
+            and family_name
+        ):
+            name = f"{given_name} {family_name}"
+        else:
+            preferred_username = claims.get("preferred_username")
+            if isinstance(preferred_username, str) and preferred_username:
+                name = preferred_username
+            else:
+                name = None
+
+    # AUTH-07-D-06/AC-19/AC-24: `roles` is every surviving `realm_access
+    # .roles` entry, filtered of Keycloak system roles, in the token's
+    # ORIGINAL order (audit only). `role` is the single precedence-selected
+    # winner: with zero or one survivor there is nothing to disambiguate, so
+    # `role` is that survivor (or `""`) directly, exactly as `_parse_role`
+    # always returned and every existing `rbac-checks` consumer already
+    # expects -- this is also the ONLY path a `/auth/dev-bypass` token
+    # (always a single-element `realm_access.roles`) ever takes, so it never
+    # touches `persona_resolver`. Two or more survivors are the genuinely
+    # ambiguous case AC-19 exists for: `resolve_precedence` maps every
+    # candidate to a persona and returns the casefolded role that wins by
+    # precedence order. A `PersonaResolutionError` there (no candidate's
+    # persona survived any tier, a same-tier case collision, or a Tier-3
+    # timeout) is handled fail-soft at THIS layer, same as `groups`/
+    # `programs` above -- falling back to the first surviving role in
+    # original order rather than 500ing the auth chokepoint itself; the hard
+    # failure still surfaces the next time a downstream consumer calls
+    # `persona_resolver.resolve(current_user.role)` (e.g. AC-4's `/api/me`
+    # 403, or an `rbac-checks` denial).
+    surviving_roles = _parse_surviving_roles(claims)
+    if len(surviving_roles) > 1:
+        try:
+            role = await persona_resolver.resolve_precedence(surviving_roles)
+        except PersonaResolutionError:
+            role = surviving_roles[0]
+    elif surviving_roles:
+        role = surviving_roles[0]
+    else:
+        role = ""
+
     # AUTH-06-FR-3 — `kid == DEV_BYPASS_KID` is the SOLE discriminator for
     # skipping the roster query. It is the same computed value
     # `_claims_options` already branches on above, and it only ever resolves to
@@ -256,7 +345,9 @@ async def get_current_user(
     return CurrentUser(
         user_id=str(claims.get("sub", "")),
         email=email,
-        role=_parse_role(claims),
+        role=role,
         groups=groups,
         programs=programs,
+        name=name,
+        roles=surviving_roles,
     )
