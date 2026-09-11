@@ -130,21 +130,24 @@ def _peek_kid(token: str) -> str | None:
     return kid if isinstance(kid, str) else None
 
 
-def _parse_surviving_roles(claims: Mapping[str, Any]) -> list[str]:
-    """Map Keycloak's `realm_access.roles` onto the surviving-roles list
+def _parse_surviving_roles(
+    claims: Mapping[str, Any], oidc_client_id: str | None = None
+) -> list[str]:
+    """Map Keycloak's role claims onto the surviving-roles list
     (AUTH-07-AC-24), in the token's ORIGINAL array order.
 
-    `realm_access.roles` is a LIST (AUTH-01-FR-4 names it as "the realm/
-    client role claim", but this task's pinned test data only ever populates
-    `realm_access`, so that is the only source read here). A real Keycloak
-    token carries system roles (`default-roles-<realm>`, `offline_access`,
-    `uma_authorization`) alongside the user's actual role(s) — those are
-    dropped (`_is_keycloak_system_role`, D-09); every other entry survives,
-    in the SAME order the token carried it, for `CurrentUser.roles` (audit
-    only — never sorted, never casefolded). Absent/empty `realm_access
-    .roles`, or a list containing only system roles, yields `[]`, never an
-    exception — the same fail-soft handling FR-5 requires for `groups`/
-    `programs`.
+    Reads `realm_access.roles` first, then — when `oidc_client_id` is set —
+    appends `resource_access[oidc_client_id].roles` so users assigned only
+    client roles on the API's own Keycloak client (e.g. `harness-dashboard`
+    → `cxo`/`arch`/`dev`/…) resolve like realm-role assignees. Both sources
+    are LISTs. A real Keycloak token carries system roles
+    (`default-roles-<realm>`, `offline_access`, `uma_authorization`)
+    alongside the user's actual role(s) — those are dropped
+    (`_is_keycloak_system_role`, D-09); every other entry survives, in the
+    SAME order the token carried it, for `CurrentUser.roles` (audit only —
+    never sorted, never casefolded). Absent/empty sources, or lists
+    containing only system roles, yield `[]`, never an exception — the
+    same fail-soft handling FR-5 requires for `groups`/`programs`.
 
     `get_current_user` derives `CurrentUser.role` from this list separately
     (AUTH-07-D-06): the sole survivor when there is exactly one — the
@@ -153,11 +156,27 @@ def _parse_surviving_roles(claims: Mapping[str, Any]) -> list[str]:
     .dev_bypass._DEFAULT_ROLE`) — or the precedence-selected winner via
     `PersonaResolver.resolve_precedence` when there are two or more (AC-19).
     """
+    survivors: list[str] = []
+
     realm_access = claims.get("realm_access")
-    roles = realm_access.get("roles") if isinstance(realm_access, dict) else None
-    if not isinstance(roles, list):
-        return []
-    return [str(role) for role in roles if not _is_keycloak_system_role(str(role))]
+    realm_roles = realm_access.get("roles") if isinstance(realm_access, dict) else None
+    if isinstance(realm_roles, list):
+        survivors.extend(
+            str(role) for role in realm_roles if not _is_keycloak_system_role(str(role))
+        )
+
+    if oidc_client_id:
+        resource_access = claims.get("resource_access")
+        client_entry = (
+            resource_access.get(oidc_client_id) if isinstance(resource_access, dict) else None
+        )
+        client_roles = client_entry.get("roles") if isinstance(client_entry, dict) else None
+        if isinstance(client_roles, list):
+            survivors.extend(
+                str(role) for role in client_roles if not _is_keycloak_system_role(str(role))
+            )
+
+    return survivors
 
 
 def _claims_options(kid: str, settings: Settings) -> dict[str, Any]:
@@ -308,7 +327,7 @@ async def get_current_user(
     # failure still surfaces the next time a downstream consumer calls
     # `persona_resolver.resolve(current_user.role)` (e.g. AC-4's `/api/me`
     # 403, or an `rbac-checks` denial).
-    surviving_roles = _parse_surviving_roles(claims)
+    surviving_roles = _parse_surviving_roles(claims, settings.oidc_client_id)
     if len(surviving_roles) > 1:
         try:
             role = await persona_resolver.resolve_precedence(surviving_roles)

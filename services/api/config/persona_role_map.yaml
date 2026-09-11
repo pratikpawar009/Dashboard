@@ -28,3 +28,13 @@ architect: architect
 developer: developer
 product-manager: product-manager
 engineering-manager: engineering-manager
+
+# Keycloak client-role slugs on the `harness-dashboard` client (matches the
+# roster-ingest slug map in app/core/role_map.py). `admin` is deliberately
+# omitted -- see the comment in role_map.py.
+arch: architect
+dev: developer
+pm: product-manager
+em: engineering-manager
+cxo: cio
+board_member: cio
