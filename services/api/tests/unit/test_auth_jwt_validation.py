@@ -49,18 +49,97 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import AsyncIterator, Callable
+from pathlib import Path
+from typing import cast
 
 import pytest
 import pytest_asyncio
 from fastapi import APIRouter, Depends, FastAPI
 from httpx import ASGITransport, AsyncClient, Response
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.jwks import JwksCache
 from app.core.auth import CurrentUser, get_current_user
 from app.core.config import Settings
 from app.core.errors import register_exception_handlers
+from app.core.persona_resolver import PersonaResolver
 from tests.conftest import TEST_OIDC_CLIENT_ID, TEST_OIDC_ISSUER, KeycloakMock, RSATestKeypair
+
+# AUTH-07-T-06/D-06: `get_current_user` now depends on `PersonaResolver` (for
+# precedence-driven `role` selection among 2+ surviving roles, AC-19). FastAPI
+# resolves EVERY declared dependency parameter eagerly regardless of which
+# branch of `get_current_user`'s body actually uses it (same reasoning as
+# `_StubProgramRosterResolver` below), so `app.state.persona_resolver` is
+# mandatory for every test in this file, not only the new precedence ones.
+#
+# A REAL `PersonaResolver` (not a stub) is built via `_build_persona_resolver`
+# so `resolve_precedence`'s actual tier-fallthrough/precedence-order logic is
+# exercised, not a hand-rolled approximation of it. Tier-1 (`persona_role_map`
+# / `persona_precedence_order`) covers every role/precedence value these
+# tests need; the `_NoRowsSessionFactory` stand-in below (mirrors
+# `test_persona_resolver.py::FakeSessionFactory`'s no-live-DB idiom) answers
+# every Tier-3 SQL call with zero rows, so a role absent from Tier-1 (e.g.
+# `qa` below) resolves as a clean Tier-3 miss WITHOUT touching a real
+# database — keeping this file's DB-free invariant (module docstring) true
+# regardless of which roles a test uses, not just the ones this file happens
+# to map today. `PersonaResolver.__init__` still unconditionally reads a
+# Tier-2 YAML file from disk, so a minimal empty-but-valid stub is written
+# under `tmp_path` — Tier-1 already covers every role/precedence these tests
+# need, so that file's contents never matter.
+_PERSONA_ROLE_MAP: dict[str, str] = {"architect": "architect", "developer": "developer"}
+_PERSONA_PRECEDENCE_ORDER: list[str] = [
+    "cio",
+    "architect",
+    "product-manager",
+    "engineering-manager",
+    "developer",
+]
+
+
+class _NoRowsSessionCtx:
+    async def __aenter__(self) -> _NoRowsSessionCtx:
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        return None
+
+    async def execute(self, _stmt: object) -> _NoRowsResult:
+        return _NoRowsResult()
+
+
+class _NoRowsResult:
+    def scalars(self) -> _NoRowsScalars:
+        return _NoRowsScalars()
+
+
+class _NoRowsScalars:
+    def all(self) -> list[object]:
+        return []
+
+
+def _no_rows_session_factory() -> _NoRowsSessionCtx:
+    """Tier-3 stand-in answering every query with zero rows — no live DB.
+
+    Structurally compatible with `async_sessionmaker[AsyncSession]` (a
+    callable returning an async context manager exposing `.execute()`),
+    exactly what `PersonaResolver._resolve_tier3`/`_resolve_tier3_precedence`
+    call — never literally subclassing it (mirrors
+    `test_persona_resolver.py::FakeSessionFactory`'s `cast` idiom below).
+    """
+    return _NoRowsSessionCtx()
+
+
+def _build_persona_resolver(tmp_path: Path) -> PersonaResolver:
+    tier2_path = tmp_path / "persona_role_map.yaml"
+    tier2_path.write_text("{}\n")
+    settings = Settings(
+        persona_role_map=_PERSONA_ROLE_MAP,
+        persona_config_file=tier2_path,
+        persona_precedence_order=_PERSONA_PRECEDENCE_ORDER,
+    )
+    return PersonaResolver(
+        settings, session_factory=cast(async_sessionmaker[AsyncSession], _no_rows_session_factory)
+    )
 
 # Every 401 in this module must render through the standard error envelope
 # (app/core/errors.py) with the SAME generic detail, regardless of which
@@ -97,7 +176,7 @@ class _StubProgramRosterResolver:
         return []
 
 
-def _build_app() -> FastAPI:
+def _build_app(tmp_path: Path) -> FastAPI:
     """Throwaway app: one route guarded by the real `get_current_user`.
 
     Sets `app.state.settings`/`app.state.jwks_cache` directly (D-07 /
@@ -111,11 +190,12 @@ def _build_app() -> FastAPI:
     so this activates real enforcement without changing any existing test's
     expected outcome.
 
-    `app.state.program_roster_resolver` is mandatory here, not optional
-    convenience: FastAPI resolves EVERY declared dependency parameter eagerly,
-    whichever branch of the function body actually uses it, so without this
-    attribute `get_program_roster_resolver` raises `AttributeError` on every
-    request — including ones that 401 before any claim is read.
+    `app.state.program_roster_resolver`/`app.state.persona_resolver` are
+    mandatory here, not optional convenience: FastAPI resolves EVERY declared
+    dependency parameter eagerly, whichever branch of the function body
+    actually uses it, so without either attribute the corresponding
+    `get_*_resolver` dependency raises `AttributeError` on every request —
+    including ones that 401 before any claim is read.
     """
     settings = Settings(oidc_issuer=TEST_OIDC_ISSUER, oidc_client_id=TEST_OIDC_CLIENT_ID)
     app = FastAPI()
@@ -123,6 +203,7 @@ def _build_app() -> FastAPI:
     app.state.settings = settings
     app.state.jwks_cache = JwksCache(settings)
     app.state.program_roster_resolver = _StubProgramRosterResolver()
+    app.state.persona_resolver = _build_persona_resolver(tmp_path)
 
     router = APIRouter()
 
@@ -131,7 +212,9 @@ def _build_app() -> FastAPI:
         return {
             "user_id": current_user.user_id,
             "email": current_user.email,
+            "name": current_user.name,
             "role": current_user.role,
+            "roles": current_user.roles,
             "groups": current_user.groups,
             "programs": current_user.programs,
         }
@@ -141,9 +224,9 @@ def _build_app() -> FastAPI:
 
 
 @pytest.fixture
-def app() -> FastAPI:
+def app(tmp_path: Path) -> FastAPI:
     """Fresh app (and therefore a fresh, empty `JwksCache`) per test."""
-    return _build_app()
+    return _build_app(tmp_path)
 
 
 @pytest_asyncio.fixture
@@ -175,19 +258,29 @@ def test_get_current_user_has_no_session_persistence_path() -> None:
     `program_roster`, so the dependency genuinely holds a `db` session (plus
     the resolver that reads through it). `db`/`program_roster_resolver`
     appearing here is the story landing, NOT a regression — do not delete them
-    to make the old invariant true again.
+    to make the old invariant true again. `persona_resolver` (AUTH-07-D-06)
+    is the same kind of addition: FastAPI-injected, never caller-supplied.
 
     What TC-04/TC-17 actually require survives intact, and is what this test
     still guards: the `db` seam is READ-ONLY on this path. `get_current_user`
     issues one `SELECT` against `program_roster` (`ProgramRosterResolver
-    ._query_roster`) and writes no row anywhere — no session table, no token
-    table; none exists (DATA-DESIGN §1/§2 defines no such entity and no
-    migration). Pinning the EXACT parameter set is what keeps that reviewable:
-    a future write-capable dependency cannot be added to the auth critical
-    path without failing here first and being justified.
+    ._query_roster`), at most one Tier-3 lookup per surviving role via
+    `persona_resolver` (no write path there either), and writes no row
+    anywhere — no session table, no token table; none exists (DATA-DESIGN
+    §1/§2 defines no such entity and no migration). Pinning the EXACT
+    parameter set is what keeps that reviewable: a future write-capable
+    dependency cannot be added to the auth critical path without failing here
+    first and being justified.
     """
     params = set(inspect.signature(get_current_user).parameters)
-    assert params == {"credentials", "settings", "jwks_cache", "db", "program_roster_resolver"}
+    assert params == {
+        "credentials",
+        "settings",
+        "jwks_cache",
+        "db",
+        "program_roster_resolver",
+        "persona_resolver",
+    }
 
 
 @pytest.mark.asyncio
@@ -374,14 +467,50 @@ async def test_first_surviving_role_in_original_order_wins(
     rsa_test_keypair: RSATestKeypair,
     build_access_token: Callable[..., str],
 ) -> None:
-    """D-09: among surviving (non-system) roles, the FIRST one in the
-    claim's original list order is selected — no sort, no alphabetic pick.
+    """D-09, UPDATED for AUTH-07-AC-19/D-06: before this story, among 2+
+    surviving (non-system) roles, the FIRST one in the claim's original list
+    order won — no sort, no alphabetic pick, no persona lookup at all. AC-19
+    deliberately supersedes that: 2+ survivors are now resolved via
+    `PersonaResolver.resolve_precedence`, and the winner is whichever
+    candidate's persona ranks highest in precedence order, not whichever
+    role appears first in the array. `qa` is first here and unmapped in
+    this file's Tier-1 map (`_PERSONA_ROLE_MAP`); `architect` is second and
+    IS mapped — `architect` wins, proving position no longer decides the
+    outcome on its own. (Still not an alphabetic pick either: `architect`
+    beats `qa` for outranking it in `_PERSONA_PRECEDENCE_ORDER`, not for
+    being earlier in the alphabet.) The single-survivor case below this one
+    is where "no sort, no lookup, positional" still holds unconditionally.
     """
     keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
     token = build_access_token(
         role=None,
         extra_claims={"realm_access": {"roles": ["qa", "architect"]}},
     )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["role"] == "architect"
+
+
+@pytest.mark.asyncio
+async def test_single_surviving_role_wins_directly_no_precedence_lookup(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-07-D-06: with exactly ONE surviving (non-system) role, `role` is
+    that survivor directly — no precedence lookup, regardless of whether the
+    role happens to be persona-mappable. `qa` is unmapped in this file's
+    Tier-1 map (see the test above, where it LOSES to `architect` once a
+    second candidate is present); alone, it still wins because there is
+    nothing to disambiguate — the degenerate single-candidate case (AC-19's
+    scope is disambiguation among 2+ candidates, not gatekeeping a lone
+    business role that has no persona mapping at all).
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(role="qa")
 
     resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
 
@@ -414,6 +543,183 @@ async def test_absent_or_empty_realm_access_yields_empty_role_no_exception(
     resp_empty = await client.get("/protected", headers={"Authorization": f"Bearer {token_empty}"})
     assert resp_empty.status_code == 200
     assert resp_empty.json()["role"] == ""
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-D-02 / AC-2 / AC-6 — `name` fallback chain.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_name_claim_used_verbatim_when_present(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-07-AC-2/D-02: a `name` claim wins over every other fallback,
+    verbatim — even when `given_name`/`family_name`/`preferred_username` are
+    ALSO present, `name` is not recomputed from them.
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(
+        extra_claims={
+            "name": "Ada Lovelace",
+            "given_name": "Ada",
+            "family_name": "Lovelace",
+            "preferred_username": "alovelace",
+        }
+    )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Ada Lovelace"
+
+
+@pytest.mark.asyncio
+async def test_name_composed_from_given_and_family_when_name_absent(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-07-AC-2/D-02: `name` absent, `given_name`+`family_name` both
+    present and non-empty — composed as `"<given_name> <family_name>"`.
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(
+        extra_claims={"given_name": "Grace", "family_name": "Hopper"},
+    )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Grace Hopper"
+
+
+@pytest.mark.parametrize(
+    "extra_claims",
+    [
+        pytest.param({"given_name": "Grace"}, id="given_name_only"),
+        pytest.param({"family_name": "Hopper"}, id="family_name_only"),
+        pytest.param({"given_name": "", "family_name": "Hopper"}, id="empty_given_name"),
+        pytest.param({"given_name": "Grace", "family_name": ""}, id="empty_family_name"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_name_falls_back_to_preferred_username_when_given_or_family_missing(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+    extra_claims: dict[str, str],
+) -> None:
+    """AUTH-07-AC-2/D-02: `given_name`+`family_name` must BOTH be present and
+    non-empty to compose — one missing/empty falls through to
+    `preferred_username`, never a half-composed name.
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(
+        extra_claims={**extra_claims, "preferred_username": "ghopper"},
+    )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "ghopper"
+
+
+@pytest.mark.asyncio
+async def test_name_is_none_when_no_profile_claims_present(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-07-AC-2/D-02: none of `name`/`given_name`+`family_name`/
+    `preferred_username` present — `name` is `None`, never a fabricated
+    placeholder and never composed from `email` (which IS present here,
+    proving it is not the source). This is exactly the claim shape a real
+    `/auth/dev-bypass` token carries (`app.auth.dev_bypass._issue_dev_token`
+    mints no profile claims at all).
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(email="dev-bypass@local")
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["name"] is None
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-D-06 / AC-19 / AC-24 — `roles` list + precedence-driven `role`.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "roles_order",
+    [
+        pytest.param(["Architect", "Developer", "developer"], id="roles_order_a"),
+        pytest.param(["developer", "Developer", "Architect"], id="roles_order_b"),
+        pytest.param(["developer", "Architect", "Developer"], id="roles_order_c"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_case_insensitive_multi_role_token_resolves_deterministically_tc01(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+    roles_order: list[str],
+) -> None:
+    """AUTH-07-TC-01/AC-19: a decoded token whose `realm_access.roles`
+    carries `['Architect', 'Developer', 'developer']` (the live 2026-09-10
+    regression) resolves `role` deterministically to `architect` regardless
+    of the roles' array order — `architect` outranks `developer` in the
+    default precedence `cio > architect > product-manager >
+    engineering-manager > developer` (`_PERSONA_PRECEDENCE_ORDER` above).
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(
+        role=None, extra_claims={"realm_access": {"roles": roles_order}}
+    )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["role"] == "architect"
+
+
+@pytest.mark.asyncio
+async def test_roles_field_preserves_original_order_after_system_role_filtering(
+    client: AsyncClient,
+    keycloak_mock: KeycloakMock,
+    rsa_test_keypair: RSATestKeypair,
+    build_access_token: Callable[..., str],
+) -> None:
+    """AUTH-07-AC-24: `roles` holds every surviving entry after
+    `_is_keycloak_system_role` filtering, in the token's ORIGINAL order —
+    never sorted, never casefolded, distinct from `role` (the
+    precedence-selected winner, AC-19).
+    """
+    keycloak_mock.jwks_success(rsa_test_keypair.jwks_document)
+    token = build_access_token(
+        role=None,
+        extra_claims={
+            "realm_access": {
+                "roles": ["default-roles-apexon", "developer", "offline_access", "architect"]
+            }
+        },
+    )
+
+    resp = await client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["roles"] == ["developer", "architect"]
+    assert body["role"] == "architect"
 
 
 # -----------------------------------------------------------------------------

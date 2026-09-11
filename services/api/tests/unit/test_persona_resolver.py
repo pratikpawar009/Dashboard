@@ -28,15 +28,24 @@ own `cast(sa.Table, ...)` precedent), since it is structurally compatible at
 runtime (callable -> async context manager exposing `.execute()`) without
 literally subclassing a concrete SQLAlchemy class.
 
-Hermetic `Settings` construction: `_build_settings` always passes both
-`persona_role_map` and `persona_config_file` explicitly (even when `None`).
-pydantic-settings' documented precedence (constructor kwargs > env > `.env`
-file > field default) makes that enough to keep every test immune to a
-stray `services/api/.env` or shell-exported `PERSONA_ROLE_MAP` /
-`PERSONA_CONFIG_FILE` -- no other `Settings` field affects persona
-resolution, so this file does not need `test_auth_config.py`'s fuller
-`_HermeticSettings`/`_clean_settings_env` ceremony (that file also asserts
-UNSET-field defaults, which no test here does).
+Hermetic `Settings` construction: `_build_settings` always passes
+`persona_role_map`, `persona_config_file`, and (AUTH-07-FR-6/AC-20)
+`persona_precedence_order` explicitly (even when `None`). pydantic-settings'
+documented precedence (constructor kwargs > env > `.env` file > field
+default) makes that enough to keep every test immune to a stray
+`services/api/.env` or shell-exported `PERSONA_ROLE_MAP` /
+`PERSONA_CONFIG_FILE` / `PERSONA_PRECEDENCE_ORDER` -- no other `Settings`
+field affects persona resolution, so this file does not need
+`test_auth_config.py`'s fuller `_HermeticSettings`/`_clean_settings_env`
+ceremony (that file also asserts UNSET-field defaults, which no test here
+does).
+
+AUTH-07-AC-20/FR-6 (T-04) tests exercise `PersonaResolver`'s private
+precedence-loading methods (`_resolve_precedence_order` and friends)
+directly, the same way T-01's own tests exercised
+`Settings.persona_precedence_order` before any resolver code consumed it --
+T-05 (DECISIONS.md D-06) is what wires a public `resolve_precedence` entry
+point on top of this loading mechanism.
 
 Log-capture idiom: a `_RecordCapturingHandler` attached directly to the real
 logger object (`app.core.persona_resolver` for `persona_mapping_loaded`,
@@ -66,10 +75,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.core import persona_resolver
 from app.core.config import Settings
 from app.core.logging import JSONFormatter
-from app.models.ingestion import PersonaConfig
+from app.models.ingestion import PersonaConfig, PersonaPrecedence
 from tests.conftest import AlembicRunner
 
 _PERSONA_CONFIG_RE = re.compile(r"\bpersona_config\b", re.IGNORECASE)
+_PERSONA_PRECEDENCE_RE = re.compile(r"\bpersona_precedence\b", re.IGNORECASE)
 
 
 # -----------------------------------------------------------------------------
@@ -78,7 +88,10 @@ _PERSONA_CONFIG_RE = re.compile(r"\bpersona_config\b", re.IGNORECASE)
 
 
 def _build_settings(
-    *, tier1_map: dict[str, str] | str | None = None, persona_config_file: Path
+    *,
+    tier1_map: dict[str, str] | str | None = None,
+    persona_config_file: Path,
+    precedence_order: list[str] | None = None,
 ) -> Settings:
     """See module docstring "Hermetic `Settings` construction". `tier1_map`
     accepts a raw `str` too (TC-08's invalid-JSON case): `persona_role_map`'s
@@ -90,6 +103,7 @@ def _build_settings(
     return Settings(
         persona_role_map=cast(dict[str, str] | None, tier1_map),
         persona_config_file=persona_config_file,
+        persona_precedence_order=precedence_order,
     )
 
 
@@ -98,6 +112,24 @@ def _write_tier2_yaml(tmp_path: Path, mapping: dict[str, str] | None = None) -> 
     omitted or `{}` produces D-02's "empty-but-valid `{}`" shape."""
     path = tmp_path / "persona_role_map.yaml"
     path.write_text(yaml.safe_dump(mapping or {}))
+    return path
+
+
+def _write_tier2_yaml_with_precedence(
+    tmp_path: Path, mapping: dict[str, str] | None = None, *, precedence: object
+) -> Path:
+    """Like `_write_tier2_yaml`, but also writes a root-level `precedence:`
+    key (AUTH-07-FR-6/AC-20) alongside the role map in the SAME document --
+    the real shape `PersonaResolver.__init__` must pop apart before
+    casefolding the role map. `precedence` accepts any YAML-serializable
+    value, including a deliberately malformed one (a bare string, a list of
+    non-strings), so callers can exercise
+    `_validate_tier2_precedence_order`'s startup-failure path as well as its
+    happy path."""
+    document: dict[str, object] = dict(mapping or {})
+    document["precedence"] = precedence
+    path = tmp_path / "persona_role_map.yaml"
+    path.write_text(yaml.safe_dump(document))
     return path
 
 
@@ -113,17 +145,31 @@ class _FakeRow:
         self.persona = persona
 
 
-class _FakeResult:
-    def __init__(self, row: _FakeRow | None) -> None:
-        self._row = row
+class _FakeScalars:
+    """Stands in for SQLAlchemy's `Result.scalars()` -- production code
+    (`PersonaResolver._resolve_tier3`) now calls `.scalars().all()` instead
+    of `.scalar_one_or_none()` so it can detect a same-tier Tier-3 collision
+    (>1 distinct persona for one casefolded role, AC-22), not just a single
+    hit/miss."""
 
-    def scalar_one_or_none(self) -> _FakeRow | None:
-        return self._row
+    def __init__(self, rows: list[_FakeRow]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[_FakeRow]:
+        return self._rows
+
+
+class _FakeResult:
+    def __init__(self, rows: list[_FakeRow]) -> None:
+        self._rows = rows
+
+    def scalars(self) -> _FakeScalars:
+        return _FakeScalars(self._rows)
 
 
 class _FakeSessionCtx:
-    def __init__(self, persona: str | None, delay_seconds: float) -> None:
-        self._persona = persona
+    def __init__(self, personas: list[str], delay_seconds: float) -> None:
+        self._personas = personas
         self._delay_seconds = delay_seconds
 
     async def __aenter__(self) -> _FakeSessionCtx:
@@ -140,24 +186,38 @@ class _FakeSessionCtx:
     async def execute(self, _stmt: Any) -> _FakeResult:
         if self._delay_seconds:
             await asyncio.sleep(self._delay_seconds)
-        row = _FakeRow(self._persona) if self._persona is not None else None
-        return _FakeResult(row)
+        return _FakeResult([_FakeRow(p) for p in self._personas])
 
 
 class FakeSessionFactory:
     """`call_count` records how many times Tier-3 was actually queried --
     every "Tier-3 not consulted" / "exactly one Tier-3 query" assertion in
     this file reads it directly rather than trusting that `resolve()`
-    merely returned the right value."""
+    merely returned the right value.
 
-    def __init__(self, persona: str | None = None, delay_seconds: float = 0.0) -> None:
+    `persona` is the single-row shape every pre-existing test uses.
+    `personas` (plural) is for AC-22's Tier-3 same-tier-collision case,
+    where the fake row set must carry more than one distinct persona for
+    the one casefolded role queried; it takes precedence over `persona`
+    when both are given."""
+
+    def __init__(
+        self,
+        persona: str | None = None,
+        personas: list[str] | None = None,
+        delay_seconds: float = 0.0,
+    ) -> None:
         self.persona = persona
+        self.personas = personas
         self.delay_seconds = delay_seconds
         self.call_count = 0
 
     def __call__(self) -> _FakeSessionCtx:
         self.call_count += 1
-        return _FakeSessionCtx(self.persona, self.delay_seconds)
+        rows = self.personas if self.personas is not None else (
+            [self.persona] if self.persona is not None else []
+        )
+        return _FakeSessionCtx(rows, self.delay_seconds)
 
 
 def _pure_mock_resolver(
@@ -238,6 +298,12 @@ def _mapping_events(records: list[logging.LogRecord]) -> list[logging.LogRecord]
     return [r for r in records if r.getMessage() == "persona_mapping_loaded"]
 
 
+def _not_found_events(records: list[logging.LogRecord]) -> list[logging.LogRecord]:
+    """AUTH-07-AC-25/FR-8 counterpart to `_mapping_events`, for the new
+    `persona_mapping_not_found` event (D-04)."""
+    return [r for r in records if r.getMessage() == "persona_mapping_not_found"]
+
+
 # -----------------------------------------------------------------------------
 # Live-DB Tier-3 query counter (TC-03, TC-14) -- mirrors
 # test_rollup_rebuild_query_plan.py's `_count_usage_events_selects`.
@@ -258,6 +324,28 @@ def _count_persona_config_selects(engine: AsyncEngine) -> Iterator[_SelectCounte
         conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
     ) -> None:
         if statement.strip().upper().startswith("SELECT") and _PERSONA_CONFIG_RE.search(statement):
+            counter.count += 1
+
+    event.listen(sync_engine, "before_cursor_execute", _before_cursor_execute)
+    try:
+        yield counter
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", _before_cursor_execute)
+
+
+@contextmanager
+def _count_persona_precedence_selects(engine: AsyncEngine) -> Iterator[_SelectCounter]:
+    """AUTH-07-AC-20/FR-6 counterpart to `_count_persona_config_selects`, for
+    the new `persona_precedence` Tier-3 query."""
+    counter = _SelectCounter()
+    sync_engine = engine.sync_engine
+
+    def _before_cursor_execute(
+        conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+    ) -> None:
+        if statement.strip().upper().startswith(
+            "SELECT"
+        ) and _PERSONA_PRECEDENCE_RE.search(statement):
             counter.count += 1
 
     event.listen(sync_engine, "before_cursor_execute", _before_cursor_execute)
@@ -702,3 +790,634 @@ async def test_warm_hit_reusing_tier3_omits_tier3_latency_ms_tc16(
     assert "tier3_latency_ms" in cold
     assert warm["tier"] == "tier-3-postgres"
     assert "tier3_latency_ms" not in warm
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-21 (T-03 task note) -- regression: today's shipped, exact-case
+# Tier-2 mappings (services/api/config/persona_role_map.yaml) still resolve
+# identically post-casefold change. Casefolding may only ADD matches, never
+# change or break an existing exact-case one.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ac21_shipped_exact_case_mappings_still_resolve_identically(
+    tmp_path: Path,
+) -> None:
+    shipped_mapping = {
+        "cio": "cio",
+        "architect": "architect",
+        "developer": "developer",
+        "product-manager": "product-manager",
+        "engineering-manager": "engineering-manager",
+    }
+    tier2_path = _write_tier2_yaml(tmp_path, shipped_mapping)
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    resolver = _pure_mock_resolver(settings, FakeSessionFactory())
+
+    for role, expected_persona in shipped_mapping.items():
+        assert await resolver.resolve(role) == expected_persona
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-18/FR-7 -- casefolded lookup matches a differently-cased role at
+# Tier-1 and Tier-2, without falling through to Tier-3.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ac18_tier1_casefold_matches_differently_cased_role(
+    tmp_path: Path, persona_logger_records: list[logging.LogRecord]
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map={"cio": "cio"}, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    persona = await resolver.resolve("CIO")
+
+    assert persona == "cio"
+    assert session_factory.call_count == 0
+    events = _mapping_events(persona_logger_records)
+    assert events[0].tier == "tier-1-env"  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_ac18_tier2_casefold_matches_differently_cased_role(
+    tmp_path: Path, persona_logger_records: list[logging.LogRecord]
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {"architect": "architect"})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    persona = await resolver.resolve("Architect")
+
+    assert persona == "architect"
+    assert session_factory.call_count == 0  # matched at Tier-2, never reached Tier-3
+    events = _mapping_events(persona_logger_records)
+    assert events[0].tier == "tier-2-yaml"  # type: ignore[attr-defined]
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-22/D-03 -- same-tier case collision. Tier-1/Tier-2 raise at
+# PersonaResolver construction; Tier-3 raises at resolve time (its data can
+# change without a restart).
+# -----------------------------------------------------------------------------
+
+
+def test_ac22_tier1_same_tier_case_collision_raises_at_construction(tmp_path: Path) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(
+        tier1_map={"Developer": "developer", "developer": "cio"},
+        persona_config_file=tier2_path,
+    )
+
+    with pytest.raises(persona_resolver.PersonaResolutionError) as exc_info:
+        _pure_mock_resolver(settings, FakeSessionFactory())
+
+    assert exc_info.value.reason == "ambiguous_case_collision"
+    assert exc_info.value.role == "developer"
+
+
+def test_ac22_tier2_same_tier_case_collision_raises_at_construction(tmp_path: Path) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {"Architect": "architect", "architect": "cio"})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+
+    with pytest.raises(persona_resolver.PersonaResolutionError) as exc_info:
+        _pure_mock_resolver(settings, FakeSessionFactory())
+
+    assert exc_info.value.reason == "ambiguous_case_collision"
+    assert exc_info.value.role == "architect"
+
+
+@pytest.mark.asyncio
+async def test_ac22_tier3_same_tier_case_collision_raises_at_resolve_time_pure_mock(
+    tmp_path: Path,
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(personas=["architect", "developer"])
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    with pytest.raises(persona_resolver.PersonaResolutionError) as exc_info:
+        await resolver.resolve("Architect")
+
+    assert exc_info.value.reason == "ambiguous_case_collision"
+    assert exc_info.value.role == "architect"  # the casefolded role, per D-03
+
+
+@pytest.mark.asyncio
+async def test_ac22_tier3_same_tier_case_collision_raises_at_resolve_time_live_db(
+    migrated_db: AlembicRunner,
+    test_engine: AsyncEngine,
+    test_session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    """Live-DB counterpart to the pure-mock case above: two distinct
+    `persona_config` primary keys (`Architect`, `architect`) that casefold
+    to the same lookup key, exercising the real `func.lower()` `WHERE`
+    clause rather than the fake session's in-memory dedupe."""
+    await test_session.execute(
+        sa.insert(PersonaConfig).values(role="Architect", persona="architect")
+    )
+    await test_session.execute(
+        sa.insert(PersonaConfig).values(role="architect", persona="developer")
+    )
+    await test_session.commit()
+
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    resolver = persona_resolver.PersonaResolver(
+        settings, session_factory=async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    )
+
+    with pytest.raises(persona_resolver.PersonaResolutionError) as exc_info:
+        await resolver.resolve("ARCHITECT")
+
+    assert exc_info.value.reason == "ambiguous_case_collision"
+    assert exc_info.value.role == "architect"
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-23/FR-7 -- the per-role cache key is the casefolded role string:
+# case variants of the same role share one entry, never alternating between
+# hit and miss on casing alone.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ac23_casefolded_cache_key_shared_across_case_variants(
+    tmp_path: Path,
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(persona="architect")
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    first = await resolver.resolve("Architect")
+    second = await resolver.resolve("architect")
+    third = await resolver.resolve("ARCHITECT")
+
+    assert first == second == third == "architect"
+    assert session_factory.call_count == 1  # one shared cache entry, not one per casing
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-20/FR-6 (T-04) -- persona-precedence order loading through the
+# SAME 3-tier fallthrough + hardcoded default + 300s cache the role-mapping
+# tiers already use. `resolver._resolve_precedence_order()` is exercised
+# directly -- T-05 (DECISIONS.md D-06) is what wires a public
+# `resolve_precedence` selection method on top of this loading mechanism.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ac20_tier1_precedence_order_used_without_consulting_tier2_or_tier3(
+    tmp_path: Path,
+) -> None:
+    """Tier-2 deliberately carries a DIFFERENT order, so a wrong fall-through
+    past Tier-1 would be visible as a mismatched result, not just a stray
+    Tier-3 query."""
+    tier2_path = _write_tier2_yaml_with_precedence(
+        tmp_path, precedence=["developer", "cio"]
+    )
+    settings = _build_settings(
+        tier1_map=None,
+        persona_config_file=tier2_path,
+        precedence_order=["architect", "cio"],
+    )
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    order = await resolver._resolve_precedence_order()
+
+    assert order == ["architect", "cio"]
+    assert session_factory.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_ac20_tier2_precedence_order_used_when_tier1_absent(tmp_path: Path) -> None:
+    tier2_path = _write_tier2_yaml_with_precedence(
+        tmp_path, precedence=["developer", "architect", "cio"]
+    )
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    order = await resolver._resolve_precedence_order()
+
+    assert order == ["developer", "architect", "cio"]
+    assert session_factory.call_count == 0  # Tier-3 not consulted
+
+    # The "precedence" key must never leak into the role map itself.
+    assert "precedence" not in resolver._tier2_map
+
+
+@pytest.mark.asyncio
+async def test_ac20_tier3_precedence_fallback_when_tier1_tier2_absent_pure_mock(
+    tmp_path: Path,
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(personas=["developer", "architect", "cio"])
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    order = await resolver._resolve_precedence_order()
+
+    assert order == ["developer", "architect", "cio"]
+    assert session_factory.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_ac20_tier3_persona_precedence_table_fallback_live_db(
+    migrated_db: AlembicRunner,
+    test_engine: AsyncEngine,
+    test_session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    """Live-DB counterpart: rows are inserted OUT of rank order, so a
+    passing assertion actually exercises the real `ORDER BY rank` clause
+    rather than merely echoing insertion order."""
+    await test_session.execute(sa.insert(PersonaPrecedence).values(rank=2, persona="cio"))
+    await test_session.execute(sa.insert(PersonaPrecedence).values(rank=0, persona="developer"))
+    await test_session.execute(sa.insert(PersonaPrecedence).values(rank=1, persona="architect"))
+    await test_session.commit()
+
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    resolver = persona_resolver.PersonaResolver(
+        settings, session_factory=async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    )
+
+    with _count_persona_precedence_selects(test_engine) as counter:
+        order = await resolver._resolve_precedence_order()
+
+    assert order == ["developer", "architect", "cio"]
+    assert counter.count == 1
+
+
+@pytest.mark.asyncio
+async def test_ac20_all_tiers_unset_falls_back_to_hardcoded_default_order(
+    tmp_path: Path,
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(personas=None)  # empty persona_precedence table
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    order = await resolver._resolve_precedence_order()
+
+    assert order == [
+        "cio",
+        "architect",
+        "product-manager",
+        "engineering-manager",
+        "developer",
+    ]
+    assert session_factory.call_count == 1  # Tier-3 WAS consulted (found nothing)
+
+
+def test_ac20_malformed_tier2_precedence_not_a_list_raises_value_error(tmp_path: Path) -> None:
+    tier2_path = _write_tier2_yaml_with_precedence(tmp_path, precedence="cio,architect")
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+
+    with pytest.raises(ValueError, match="precedence"):
+        _pure_mock_resolver(settings, FakeSessionFactory())
+
+
+def test_ac20_malformed_tier2_precedence_non_string_element_raises_value_error(
+    tmp_path: Path,
+) -> None:
+    tier2_path = _write_tier2_yaml_with_precedence(tmp_path, precedence=["cio", 7])
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+
+    with pytest.raises(ValueError, match="precedence"):
+        _pure_mock_resolver(settings, FakeSessionFactory())
+
+
+@pytest.mark.asyncio
+async def test_ac20_precedence_order_cached_within_ttl_then_rereads_after_expiry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(personas=["architect", "cio"])
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    clock = _FakeClock(start=1_000.0)
+    monkeypatch.setattr(persona_resolver.time, "monotonic", clock)
+
+    first = await resolver._resolve_precedence_order()
+    second = await resolver._resolve_precedence_order()  # warm, within TTL
+    assert first == second == ["architect", "cio"]
+    assert session_factory.call_count == 1
+
+    clock.advance(301.0)  # > 300s TTL
+    third = await resolver._resolve_precedence_order()
+
+    assert third == ["architect", "cio"]
+    assert session_factory.call_count == 2  # re-queried after expiry
+
+
+@pytest.mark.asyncio
+async def test_ac20_precedence_cache_key_never_collides_with_a_real_role_cache_entry(
+    tmp_path: Path,
+) -> None:
+    """The precedence order and a per-role resolution live in separate cache
+    structures (DATA-DESIGN.md AUTH-07 §6) -- resolving a role and loading
+    the precedence order in either sequence must not interfere with each
+    other's cached value or call count."""
+    tier2_path = _write_tier2_yaml_with_precedence(
+        tmp_path, mapping={"cio": "cio"}, precedence=["cio", "architect"]
+    )
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    persona = await resolver.resolve("cio")
+    order = await resolver._resolve_precedence_order()
+
+    assert persona == "cio"
+    assert order == ["cio", "architect"]
+    assert session_factory.call_count == 0  # both hit at Tier-2, Tier-3 untouched
+
+
+@pytest.mark.asyncio
+async def test_ac20_tier3_precedence_query_timeout_raises_persona_resolution_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(persona_resolver, "_TIER3_TIMEOUT_SECONDS", 0.05)
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(personas=["cio"], delay_seconds=0.2)
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    with pytest.raises(persona_resolver.PersonaResolutionError) as exc_info:
+        await resolver._resolve_precedence_order()
+
+    assert exc_info.value.role == "persona-precedence-order"
+    assert "Tier-3 precedence query timeout after 3.0s" in str(exc_info.value)
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-19/FR-6 (T-05) -- `resolve_precedence`: multi-role precedence
+# selection on top of T-04's precedence-order loader.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ac19_multirole_precedence_selects_architect_regardless_of_order_auth07_tc01(
+    tmp_path: Path,
+) -> None:
+    """AUTH-07-TC-01 (docs/test-cases/AUTH-07.json) at the resolver-unit
+    level -- the live 2026-09-10 regression: a token's
+    `realm_access.roles` carrying `architect` and `developer` (in any
+    order, any case) must resolve to `architect` on every call, since
+    `architect` outranks `developer` in the default precedence order. The
+    full end-to-end assertion (via `GET /api/me`) lives in
+    `tests/unit/test_me.py` per DECISIONS.md D-07; this test exercises
+    `PersonaResolver.resolve_precedence` directly.
+
+    Tier-2 carries BOTH the shipped role map and an explicit `precedence:`
+    override matching the hardcoded default order, so this is a pure Tier-2,
+    zero-I/O path end to end -- role mapping AND precedence order both
+    resolve from data already loaded into memory at `__init__`. This is the
+    task's own NFR-performance regression guard: ranking introduces no new
+    Tier-3 query on top of the tier lookups the roles already needed.
+    """
+    tier2_path = _write_tier2_yaml_with_precedence(
+        tmp_path,
+        mapping={"architect": "architect", "developer": "developer"},
+        precedence=["cio", "architect", "product-manager", "engineering-manager", "developer"],
+    )
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    for roles in (
+        ["Architect", "Developer", "developer"],
+        ["developer", "Developer", "Architect"],
+        ["developer", "Architect", "Developer"],
+    ):
+        winner = await resolver.resolve_precedence(roles)
+        assert winner == "architect"
+
+    assert session_factory.call_count == 0  # NFR-performance: no Tier-3 I/O at all
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_winner_by_precedence_order_not_token_position(
+    tmp_path: Path,
+) -> None:
+    """Distinguishes precedence-driven selection from "first surviving role
+    in token order wins" -- a materially different, wrong algorithm. `cio`
+    is LAST in the token array but FIRST in precedence order, so it must
+    still win."""
+    tier2_path = _write_tier2_yaml(tmp_path, {"cio": "cio", "developer": "developer"})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    winner = await resolver.resolve_precedence(["developer", "cio"])
+
+    assert winner == "cio"
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_no_candidate_in_precedence_order_raises_not_found(
+    tmp_path: Path,
+) -> None:
+    """AC-26 fail-closed edge case: a role DOES map to a persona at Tier-2,
+    but that persona is absent from the (operator-configured) precedence
+    order entirely -- there is no winner to pick, so this must still raise
+    `PersonaNotFoundError`, not silently return an unranked persona's
+    role."""
+    tier2_path = _write_tier2_yaml_with_precedence(
+        tmp_path, mapping={"developer": "developer"}, precedence=["cio", "architect"]
+    )
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory()
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    with pytest.raises(persona_resolver.PersonaNotFoundError):
+        await resolver.resolve_precedence(["developer"])
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_bounded_tier3_queries_live_db(
+    migrated_db: AlembicRunner,
+    test_engine: AsyncEngine,
+    test_session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    """AUTH-07-NFR-performance, SINGLE cold call: resolving several
+    candidate roles issues at most one Tier-3 `persona_config` SELECT per
+    role that actually needs it (never a query per precedence-order entry
+    -- ranking itself is in-process only), plus at most one Tier-3
+    `persona_precedence` SELECT for the order, regardless of how many
+    personas the default order lists.
+
+    This bounds the FIRST, cold-cache call only -- it does not by itself
+    prove a REPEATED call for the same roles is cheaper. That warm-cache
+    reuse guarantee (AUTH-07-AC-7) is
+    `test_resolve_precedence_repeated_call_reuses_warm_cache_auth07_ac07`,
+    directly below."""
+    await test_session.execute(
+        sa.insert(PersonaConfig).values(role="architect", persona="architect")
+    )
+    await test_session.commit()
+
+    tier2_path = _write_tier2_yaml(tmp_path, {})  # "qa" and "architect" both miss Tier-1/2
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    resolver = persona_resolver.PersonaResolver(
+        settings, session_factory=async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    )
+
+    with (
+        _count_persona_config_selects(test_engine) as role_counter,
+        _count_persona_precedence_selects(test_engine) as order_counter,
+    ):
+        winner = await resolver.resolve_precedence(["qa", "architect"])
+
+    assert winner == "architect"
+    assert role_counter.count == 2  # one per surviving role attempted ("qa", "architect")
+    assert order_counter.count == 1  # precedence order fetched exactly once, not per candidate
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_repeated_call_reuses_warm_cache_auth07_ac07(
+    migrated_db: AlembicRunner,
+    test_engine: AsyncEngine,
+    test_session: AsyncSession,
+    tmp_path: Path,
+) -> None:
+    """AUTH-07-AC-7 regression: `GET /api/me` called repeatedly for the same
+    session while the 300s cache is warm must issue NO additional
+    Tier-1/2/3 lookup. `resolve_precedence` previously bypassed
+    `PersonaResolver`'s per-role cache entirely (`_lookup_tiers` called
+    directly, `_cached_lookup` did not exist) -- a SECOND call for the
+    exact same candidate roles re-ran the full Tier-3 fallthrough for
+    every surviving role, live Postgres SELECT included. This is the
+    missing repeated-call coverage the validation + review findings both
+    named: a single-call query bound (see the test directly above) does
+    NOT prove a repeated call is cheap.
+
+    Both candidate roles resolve to a REAL persona here (unlike the test
+    above, whose "qa" is a permanent miss) -- AC-26 forbids caching a
+    miss, so a role that never maps to anything is re-queried on every
+    call by design and would not isolate the warm-cache guarantee this
+    test exists to prove. Two calls to `resolve_precedence` for the
+    identical `["qa", "architect"]` candidate set -- both now mapped --
+    sharing one query-counting context, must produce the SAME totals a
+    single cold call does (role_counter == 2, order_counter == 1) -- i.e.
+    the second call contributes ZERO additional Tier-3 queries of either
+    kind."""
+    await test_session.execute(
+        sa.insert(PersonaConfig).values(role="architect", persona="architect")
+    )
+    await test_session.execute(sa.insert(PersonaConfig).values(role="qa", persona="developer"))
+    await test_session.commit()
+
+    tier2_path = _write_tier2_yaml(tmp_path, {})  # "qa" and "architect" both miss Tier-1/2
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    resolver = persona_resolver.PersonaResolver(
+        settings, session_factory=async_sessionmaker(bind=test_engine, expire_on_commit=False)
+    )
+
+    with (
+        _count_persona_config_selects(test_engine) as role_counter,
+        _count_persona_precedence_selects(test_engine) as order_counter,
+    ):
+        first_winner = await resolver.resolve_precedence(["qa", "architect"])
+        second_winner = await resolver.resolve_precedence(["qa", "architect"])  # warm cache
+
+    # "architect" outranks "developer" in the default precedence order.
+    assert first_winner == second_winner == "architect"
+    # Same totals as the single-call bound above -- the second call added
+    # NOTHING: not a role-tier SELECT, not a precedence-order SELECT.
+    assert role_counter.count == 2  # NOT 4 -- warm cache, no re-query on the 2nd call
+    assert order_counter.count == 1  # NOT 2 -- precedence order stayed warm too
+
+
+# -----------------------------------------------------------------------------
+# AUTH-07-AC-25/AC-26/FR-8 (T-05) -- `persona_mapping_not_found` event, D-04.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_persona_mapping_not_found_emitted_before_raise_on_single_role_miss_auth07_tc02(
+    tmp_path: Path, persona_logger_records: list[logging.LogRecord]
+) -> None:
+    """AUTH-07-TC-02 (docs/test-cases/AUTH-07.json) -- D-04(a): the
+    single-role `resolve()` path (via `_resolve_uncached`'s own
+    all-3-tier-miss) emits `persona_mapping_not_found` before raising
+    `PersonaNotFoundError` (fail-closed unchanged). Uses the direct-attach
+    `_RecordCapturingHandler` idiom -- never `caplog`/`capsys`, which pass
+    vacuously after any `migrated_db` test under Alembic's
+    `fileConfig(disable_existing_loggers=True)` sweep."""
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(persona=None)  # Tier-3 miss too
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    with pytest.raises(persona_resolver.PersonaNotFoundError):
+        await resolver.resolve("nonexistent-role")
+
+    not_found = _not_found_events(persona_logger_records)
+    assert len(not_found) == 1
+    assert not_found[0].roles == ["nonexistent-role"]  # type: ignore[attr-defined]
+    assert not_found[0].tiers_consulted == [  # type: ignore[attr-defined]
+        "tier-1-env",
+        "tier-2-yaml",
+        "tier-3-postgres",
+    ]
+    # `LogRecord.name` is the LOGGER's own name (e.g. "app.core.persona_resolver"),
+    # a stdlib builtin attribute unrelated to this payload -- only check the
+    # genuine `extra` keys a PII leak would actually be injected through.
+    for field in ("user_id", "email", "groups"):
+        assert not hasattr(not_found[0], field)
+    assert not_found[0].name == "app.core.persona_resolver"
+    # Grep-distinguishable from a successful resolution -- the event NAME
+    # alone is sufficient (AC-25); no persona_mapping_loaded fired either.
+    assert _mapping_events(persona_logger_records) == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_all_candidates_miss_emits_one_aggregated_not_found_event(
+    tmp_path: Path, persona_logger_records: list[logging.LogRecord]
+) -> None:
+    """D-04(b): the multi-role path aggregates every surviving role
+    attempted into ONE `persona_mapping_not_found` event when none of them
+    produce a persona -- never one event per losing candidate."""
+    tier2_path = _write_tier2_yaml(tmp_path, {})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(persona=None)
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    with pytest.raises(persona_resolver.PersonaNotFoundError):
+        await resolver.resolve_precedence(["qa", "nonexistent-2"])
+
+    not_found = _not_found_events(persona_logger_records)
+    assert len(not_found) == 1
+    assert not_found[0].roles == ["qa", "nonexistent-2"]  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_resolve_precedence_one_surviving_candidate_never_logs_not_found(
+    tmp_path: Path, persona_logger_records: list[logging.LogRecord]
+) -> None:
+    """D-04's whole rationale for a dedicated multi-role emission point: a
+    token carrying one persona role (`architect`) plus an unrelated,
+    genuinely-unmapped business role (`qa`) must NOT spuriously log
+    `persona_mapping_not_found` for `qa` -- only an ALL-candidates miss
+    logs anything."""
+    tier2_path = _write_tier2_yaml(tmp_path, {"architect": "architect"})
+    settings = _build_settings(tier1_map=None, persona_config_file=tier2_path)
+    session_factory = FakeSessionFactory(persona=None)  # "qa" misses Tier-3 too
+    resolver = _pure_mock_resolver(settings, session_factory)
+
+    winner = await resolver.resolve_precedence(["qa", "architect"])
+
+    assert winner == "architect"
+    assert _not_found_events(persona_logger_records) == []

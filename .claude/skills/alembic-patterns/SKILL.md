@@ -55,6 +55,7 @@ allowed-tools: Read Write Edit Bash Grep Glob
 - Hand-editing `sqlalchemy.url` in `alembic.ini` expecting it to take effect — it's overridden by `env.py` from `Settings` every run (`alembic.ini:89-90`, `migrations/env.py:20`).
 - Writing a migration with an empty/no-op `downgrade()` when the `upgrade()` performs real schema changes — only leave it `pass` when the change is genuinely irreversible, and say so in the migration docstring.
 - Expecting `--autogenerate` to detect model changes today — it can't while `target_metadata = None` (`migrations/env.py:25`); until a models module lands, migrations are hand-written.
+- Anchoring a revision-isolation test to "head" instead of its own named revision. A test that asserts "the `migrated_db` fixture's initial upgrade-to-head lands on revision N" is true only while N *is* head, so it breaks the moment anyone appends revision N+1 — the failure surfaces in the new migration's PR and looks like that migration's fault. Anchor with an explicit `downgrade(REVISION_N)` instead. Observed twice: `test_index_present_at_004_and_absent_at_003` broke when `005_persona_precedence` landed (AUTH-07 T-02) and was repaired this way.
 
 ## Examples
 

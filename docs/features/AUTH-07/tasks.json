@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "story_id": "AUTH-07",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-10T00:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/core/config.py",
+      "reason": "add Settings.frontend_login_url (FRONTEND_LOGIN_URL) and Settings.persona_precedence_order (PERSONA_PRECEDENCE_ORDER), fail-open parse mirroring persona_role_map (FR-3, FR-6)"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_config.py",
+      "reason": "unit tests: frontend_login_url default/unset, persona_precedence_order fail-open JSON parse (invalid JSON, non-array, non-string element)"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/migrations/versions/005_persona_precedence.py",
+      "reason": "additive migration: new persona_precedence table (rank int PK, persona str not null) \u2014 ADR-0011"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/models/ingestion.py",
+      "reason": "add PersonaPrecedence ORM model, co-located with PersonaConfig (same Tier-3 domain)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/models/__init__.py",
+      "reason": "export PersonaPrecedence \u2014 wiring: makes the new model importable by persona_resolver.py (F-08) and discoverable by the fixture-driven schema tests"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/tests/fixtures/prd_8_4_schema.json",
+      "reason": "add persona_precedence fixture entry (field/constraint spec) so TestFixtureDrivenTableConstraints covers table #20"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/tests/test_migrations.py",
+      "reason": "add persona_precedence to EXPECTED_TABLES; rename the 19-tables assertion/docstring to 20"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/app/core/persona_resolver.py",
+      "reason": "casefolded tier lookup + same-tier collision detection + casefolded cache key (FR-7); 3-tier precedence config loading (FR-6); new resolve_precedence() multi-role method + persona_mapping_not_found event (FR-6/FR-8)"
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_persona_resolver.py",
+      "reason": "unit tests for AC-18,20,21,22,23,25,26, FR-6/7/8, and the NFR-performance call-count assertion"
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "services/api/app/core/auth.py",
+      "reason": "CurrentUser.name/.roles additive fields; name-claim fallback chain (FR-2); replace _parse_role with precedence-driven selection calling PersonaResolver.resolve_precedence (FR-6/AC-19/AC-24); get_current_user gains persona_resolver dependency"
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_auth_jwt_validation.py",
+      "reason": "unit tests for name fallback (AC-2/AC-6) and precedence-driven role selection + roles: list[str] ordering (AC-19/AC-24)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/app/schemas/me.py",
+      "reason": "MeResponse pydantic model, extra=forbid, {name, persona} exact shape (AC-1)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/app/api/me.py",
+      "reason": "GET /api/me route, mirrors app/api/programs.py dependency shape and error catch order"
+    },
+    "F-14": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "register me_router via app.include_router \u2014 wiring: the new route is unreachable without this"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_me.py",
+      "reason": "unit/integration tests for AC-1,3,4,5,7 and AUTH-07-TC-01 (case-insensitive precedence via GET /api/me)"
+    },
+    "F-16": {
+      "action": "modify",
+      "path": "services/api/app/auth/oidc.py",
+      "reason": "add _LOGOUT_PATH constant + GET /auth/logout route + _log_dashboard_logout helper (FR-4, D-01, D-08)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_auth_logout.py",
+      "reason": "unit tests for AC-10,11,12,16 and the dashboard_logout event (via _RecordCapturingHandler)"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/app/logout/route.ts",
+      "reason": "frontend GET /logout Route Handler: read session, clearSession(), forward bearer + relay 302 (FR-5, D-08)"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "apps/web/src/app/logout/route.test.ts",
+      "reason": "vitest tests for AC-8,9,14,15, mirrors login/route.test.ts idiom"
+    },
+    "F-20": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "API table rows for GET /api/me and GET /auth/logout; Environment variables rows for FRONTEND_LOGIN_URL/PERSONA_PRECEDENCE_ORDER; Keycloak client requirements bullet (Valid post logout redirect URIs, AC-17); add /logout to the existing Next.js-Route-Handlers-not-FastAPI-routes prose bullet alongside /login, /callback, /api/proxy/*"
+    },
+    "F-21": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "add FRONTEND_LOGIN_URL and PERSONA_PRECEDENCE_ORDER rows, default unset"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Settings: frontend_login_url + persona_precedence_order fields",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "AUTH-07-FR-3"
+      ],
+      "risk_refs": [
+        "R-1"
+      ],
+      "notes": "frontend_login_url: str | None, default None, no NoDecode needed (plain string). persona_precedence_order: Annotated[list[str] | None, NoDecode] with a mode=\"before\" field_validator mirroring _parse_persona_role_map's fail-open JSON parse (invalid JSON / non-array / non-string element -> logger.warning + None, never raises).",
+      "status": "done",
+      "completed_at": "2026-09-10T14:16:19Z",
+      "files_touched": [
+        "services/api/app/core/config.py",
+        "services/api/tests/unit/test_auth_config.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "persona_precedence Tier-3 schema: model + migration + fixture + expected-tables list",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-03",
+        "F-04",
+        "F-05",
+        "F-06",
+        "F-07"
+      ],
+      "ac_refs": [
+        "AUTH-07-FR-6"
+      ],
+      "risk_refs": [
+        "R-2"
+      ],
+      "notes": "Per alembic-patterns skill: migration + ORM model + fixture must land together or TestSchemaDiffGate/TestFixtureDrivenTableConstraints fail. PersonaPrecedence: __tablename__='persona_precedence', rank: Mapped[int] = mapped_column(Integer, primary_key=True), persona: Mapped[str] = mapped_column(String, nullable=False). Migration mirrors 003_program_roster.py's additive create_table/drop_table shape, down_revision='004_rollup_query_indexes'. ADR-0011 records the schema decision (D-05).",
+      "status": "done",
+      "completed_at": "2026-09-10T14:23:07Z",
+      "files_touched": [
+        "services/api/app/models/ingestion.py",
+        "services/api/app/models/__init__.py",
+        "services/api/migrations/versions/005_persona_precedence.py",
+        "services/api/tests/fixtures/prd_8_4_schema.json",
+        "services/api/tests/test_migrations.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "PersonaResolver: casefolded tier lookup + same-tier collision detection + casefolded cache key",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-08",
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-18",
+        "AUTH-07-AC-21",
+        "AUTH-07-AC-22",
+        "AUTH-07-AC-23",
+        "AUTH-07-FR-7"
+      ],
+      "risk_refs": [
+        "R-3",
+        "R-7"
+      ],
+      "notes": "In __init__: casefold Tier-1 (settings.persona_role_map) and Tier-2 (self._tier2_map) keys; if two distinct original keys in the SAME tier casefold identically, raise PersonaResolutionError(role=<casefolded key>, reason=\"ambiguous_case_collision\") at construction (uncaught, propagates through create_app() like a malformed Tier-2 YAML already does). _resolve_uncached's Tier-3 WHERE clause casefolds the incoming role and raises the same error at resolve time if the query returns >1 distinct persona for it. Cache key becomes casefold(role) throughout resolve()/the cache dict. Regression test: reproduce today's exact-case mappings (cio:cio, architect:architect, developer:developer, product-manager:product-manager, engineering-manager:engineering-manager) and assert each still resolves identically post-change (AC-21).",
+      "status": "done",
+      "completed_at": "2026-09-10T14:23:31Z",
+      "files_touched": [
+        "services/api/app/core/persona_resolver.py",
+        "services/api/tests/unit/test_persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "PersonaResolver: 3-tier persona precedence config loading",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-08",
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-20",
+        "AUTH-07-FR-6"
+      ],
+      "risk_refs": [
+        "R-2"
+      ],
+      "notes": "Tier-1: settings.persona_precedence_order (parsed at Settings load, T-01). Tier-2: new precedence: root key in persona_role_map.yaml, loaded at __init__ alongside self._tier2_map \u2014 malformed value (not a list of strings) is a startup error, uncaught. Tier-3: SELECT rank, persona FROM persona_precedence ORDER BY rank via the same injectable session_factory + 3.0s asyncio.wait_for timeout as _resolve_tier3; cache the resolved order in-process for 300s under a reserved sentinel cache key distinct from any role string (DATA-DESIGN.md \u00a76). All three empty/unset -> hardcoded default [\"cio\",\"architect\",\"product-manager\",\"engineering-manager\",\"developer\"]. Add services/api/config/persona_role_map.yaml's precedence: key (or leave absent to exercise the default) as part of this task's test fixtures, not the shipped file's runtime default.",
+      "status": "done",
+      "completed_at": "2026-09-10T15:05:15Z",
+      "files_touched": [
+        "services/api/app/core/persona_resolver.py",
+        "services/api/tests/unit/test_persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "PersonaResolver: multi-role precedence selection + persona_mapping_not_found event",
+      "complexity": "L",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-08",
+        "F-09"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-19",
+        "AUTH-07-AC-25",
+        "AUTH-07-AC-26",
+        "AUTH-07-FR-8",
+        "AUTH-07-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-5",
+        "R-6"
+      ],
+      "notes": "Add resolve_precedence(roles: list[str]) -> str (D-06): refactor _resolve_uncached's per-tier fallthrough into a shared, NON-raising helper returning persona|None so this method can try every surviving role without triggering a false-positive persona_mapping_not_found per losing candidate. Collect (role, persona) candidates in original token order; winner = first persona in precedence order (T-04) present among candidates; return casefold(winning role) (never the persona). If candidates is empty, emit logger.info(\"persona_mapping_not_found\", extra={roles: <full survivor list>, tiers_consulted: [\"tier-1-env\",\"tier-2-yaml\",\"tier-3-postgres\"], timestamp}) then raise PersonaNotFoundError. Also add the SAME event emission to the EXISTING single-role _resolve_uncached's own all-3-tier-miss branch (roles=[role]) so AUTH-07-TC-02's direct resolve(\"nonexistent-role\") call (and every existing rbac-checks consumer) also gets it \u2014 resolve()'s public signature/behavior is otherwise unchanged. Use the _RecordCapturingHandler pattern (attached directly to app.core.persona_resolver's logger, force-enabled, de-propagated) for every log assertion \u2014 Alembic's fileConfig(disable_existing_loggers=True) makes caplog/capsys pass vacuously after any migrated_db test (C-4). NFR-performance test: extend FakeSessionFactory-based test asserting call_count stays 0 for the ['Architect','Developer','developer'] regression case (all three resolve via Tier-2, confirming no new Tier-3 I/O is introduced by ranking).",
+      "status": "done",
+      "completed_at": "2026-09-10T15:16:06Z",
+      "files_touched": [
+        "services/api/app/core/persona_resolver.py",
+        "services/api/tests/unit/test_persona_resolver.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "auth.py: CurrentUser.name/.roles + precedence-driven role selection",
+      "complexity": "L",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-10",
+        "F-11"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-2",
+        "AUTH-07-AC-6",
+        "AUTH-07-AC-19",
+        "AUTH-07-AC-24",
+        "AUTH-07-FR-2"
+      ],
+      "risk_refs": [
+        "R-4"
+      ],
+      "notes": "CurrentUser gains name: str | None and roles: list[str] (both additive; all existing call sites already use keyword args, so field-order is not a compatibility concern). get_current_user gains persona_resolver: PersonaResolver = Depends(get_persona_resolver). Replace _parse_role with: filter system roles (unchanged _is_keycloak_system_role) -> roles = surviving list, original order -> role = await persona_resolver.resolve_precedence(roles) if roles else \"\" (preserves today's absent/empty-roles fail-soft \"\" behavior, never an exception at this layer). name populated per D-02's fallback chain. Regression test: realm_access.roles=['Architect','Developer','developer'] -> current_user.role == 'architect' regardless of list order (3 permutations, mirrors AUTH-07-TC-01). roles: list[str] ordering test: assert current_user.roles preserves the token's original order post-system-role-filtering, never sorted (AC-24).",
+      "status": "done",
+      "completed_at": "2026-09-10T15:40:04Z",
+      "files_touched": [
+        "services/api/app/core/auth.py",
+        "services/api/tests/unit/test_auth_jwt_validation.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "GET /api/me route + schema + wiring",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-12",
+        "F-13",
+        "F-14",
+        "F-15"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-1",
+        "AUTH-07-AC-3",
+        "AUTH-07-AC-4",
+        "AUTH-07-AC-5",
+        "AUTH-07-AC-7",
+        "AUTH-07-FR-1"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "MeResponse(BaseModel): model_config=ConfigDict(extra=\"forbid\"); name: str | None; persona: str. Route mirrors app/api/programs.py's Depends shape (current_user, persona_resolver); catches PersonaNotFoundError BEFORE PersonaResolutionError (both -> HTTPException(403)), matching programs.py:87-112's order. No route-owned cache (AC-7): every call re-invokes resolve(). app.main registers me_router alongside the existing router list (after personal_usage_router, before oidc_router, matching create_app()'s existing ordering comment style). test_me.py covers 200 shape w/ full claims / given+family only / preferred_username only / none; 403 on both resolver exceptions; 401 missing/invalid bearer; and AUTH-07-TC-01's full case-insensitive-precedence-via-route scenario (3 token variants, same current_user.role and persona every time).",
+      "status": "done",
+      "completed_at": "2026-09-10T15:47:49Z",
+      "files_touched": [
+        "services/api/app/schemas/me.py",
+        "services/api/app/api/me.py",
+        "services/api/app/main.py",
+        "services/api/tests/unit/test_me.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "GET /auth/logout route + dashboard_logout event",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-16",
+        "F-17"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-10",
+        "AUTH-07-AC-11",
+        "AUTH-07-AC-12",
+        "AUTH-07-AC-13",
+        "AUTH-07-AC-16",
+        "AUTH-07-FR-4"
+      ],
+      "risk_refs": [
+        "R-1"
+      ],
+      "notes": "_LOGOUT_PATH (D-01) added alongside _AUTHORIZE_PATH/_TOKEN_PATH. New route folds frontend_login_url into the SAME config_completeness_gate style check _require_oidc_configured already uses for the OIDC triple (unset frontend_login_url OR incomplete OIDC triple -> 501, same envelope). 302 to f\"{issuer}{_LOGOUT_PATH}?{urlencode({'client_id': client_id, 'post_logout_redirect_uri': frontend_login_url})}\" \u2014 never id_token_hint. Reads the optional incoming Authorization bearer header (D-08) and decodes it via the SAME _peek_kid + jwks_cache.get_signing_key + jwt.decode().validate() path _log_dashboard_login already uses, falling back to user_id=\"unknown\" on any decode failure or missing header \u2014 never blocks the redirect. Emits logger.info(\"dashboard_logout\", extra={user_id}) on every completed redirect (the 501 path does NOT emit \u2014 only a completed, config-satisfied end-session redirect logs, mirroring dashboard_login's success-only convention). AC-13's actual SSO-termination behavior is manual-verification-only (no local Keycloak) \u2014 this task's tests cover URL construction, the 501 gate, and the log event only.",
+      "status": "done",
+      "completed_at": "2026-09-10T15:01:57Z",
+      "files_touched": [
+        "services/api/app/auth/oidc.py",
+        "services/api/tests/unit/test_auth_logout.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Frontend GET /logout Route Handler",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-18",
+        "F-19"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-8",
+        "AUTH-07-AC-9",
+        "AUTH-07-AC-14",
+        "AUTH-07-AC-15",
+        "AUTH-07-FR-5"
+      ],
+      "risk_refs": [],
+      "notes": "Order (D-08): readSession() first (to capture the pre-clear accessToken) -> clearSession() -> fetch(`${getApiBaseUrl()}/auth/logout`, {headers: session ? {Authorization: `Bearer ${session.accessToken}`} : {}, redirect: \"manual\", signal: AbortSignal.timeout(5000)}) -> relay the 302's Location header via NextResponse.redirect, mirroring login/route.ts's uniform generic-502-on-any-failure handling (missing Location, non-3xx, thrown/timed-out fetch). No new UI anywhere (AC-15) \u2014 this file is the ENTIRE deliverable, no mockup/component touched. AC-14 is structural (dashboard_session is path:\"/\", single session for every route, already true) \u2014 test asserts this handler calls clearSession() unconditionally even when no prior session exists (idempotent) and never short-circuits the relay.",
+      "status": "done",
+      "completed_at": "2026-09-10T15:09:24Z",
+      "files_touched": [
+        "apps/web/src/app/logout/route.ts",
+        "apps/web/src/app/logout/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "docs(readme): API routes, env vars, Keycloak client requirement",
+      "complexity": "S",
+      "predecessors": [
+        "T-07",
+        "T-08"
+      ],
+      "files": [
+        "F-20",
+        "F-21"
+      ],
+      "ac_refs": [
+        "AUTH-07-AC-17"
+      ],
+      "risk_refs": [],
+      "notes": "README.md API table: GET /api/me row (request: bearer only; response: 200 {name,persona}, 403 on persona-resolution failure, 401 missing/invalid bearer) and GET /auth/logout row (request: none; response: 302 to {issuer}/protocol/openid-connect/logout carrying client_id/post_logout_redirect_uri, 501 if OIDC config or FRONTEND_LOGIN_URL incomplete). Environment variables table: FRONTEND_LOGIN_URL (default unset, required for /auth/logout to return anything but 501) and PERSONA_PRECEDENCE_ORDER (default unset -> hardcoded fallback order) rows, both services/api/.env.example. Keycloak client requirements: new bullet \u2014 frontend's /login route must be registered under Valid post logout redirect URIs, additive alongside the existing Valid Redirect URIs bullets (AC-17). Also append apps/web/src/app/logout/route.ts to the existing README prose bullet that lists /login, /callback, /api/proxy/programs, /api/proxy/program-detail/{program_id} as Next.js Route Handlers, not FastAPI routes. Do NOT write services/api/.env \u2014 hand the operator the two lines to paste themselves.",
+      "status": "done",
+      "completed_at": "2026-09-10T15:51:14Z",
+      "files_touched": [
+        "README.md",
+        "services/api/.env.example"
+      ],
+      "reason": null
+    }
+  ]
+}

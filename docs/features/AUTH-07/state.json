@@ -1,0 +1,123 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#275",
+  "tracker_research": "pratikpawar009/Dashboard#279",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/AUTH-07/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "plan-implementation",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-11T03:44:41Z",
+  "tracker_prd": "pratikpawar009/Dashboard#280",
+  "gate": "APPROVE",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/AUTH-07/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/AUTH-07/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/AUTH-07/tasks.json"
+  },
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#283",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-10T16:01:03Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-07/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-10T16:01:03Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit: (fallback test:)",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest -q",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-07/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-10T16:01:03Z",
+        "result_summary": "web: 128 passed (25 files); api: 589 passed, 0 failed (161.24s)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-07/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-10T16:01:03Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:/Docker: (fastapi-2, nextjs)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-10T16:01:03Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "cd services/api && uv run alembic upgrade head && uv run uvicorn app.main:app --port 8000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-07/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "checks": "GET /health -> 200; GET /docs -> 200; migration 004->005_persona_precedence applied cleanly before boot",
+            "deps_provisioned": "dashboard-dev5442 (postgres:16, port 5442) \u2014 already running, verified pg_isready"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/AUTH-07/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "checks": "GET / -> 307 -> /overview -> /login -> real Keycloak authorize endpoint (200, live IdP HTML); GET /logout -> 502 (expected: local .env missing FRONTEND_LOGIN_URL, verified via oidc.py:405-407 root cause, not an AUTH-07 code defect)",
+            "render_check": "unavailable",
+            "flag_id": "AF-06"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/AUTH-07/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-10T16:01:03Z",
+        "note": "services/api has no compiled build step (interpreted, runs via uvicorn) \u2014 build: covers the Next.js side only, per project-commands.yaml comment"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-07",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "PASS",
+  "review": "PASS",
+  "gate_rounds": 3,
+  "review_blocked_rounds": 1,
+  "gate_snapshot": "359cfbf1b4a4f8be"
+}

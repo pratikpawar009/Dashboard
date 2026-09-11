@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # `app/auth/oidc.py::_resolve_redirect_uri`). Deliberately NOT part of
     # `oidc_configured`'s completeness triple below.
     oidc_redirect_uri: str | None = None
+    # AUTH-07-FR-3: frontend origin for `GET /auth/logout`'s
+    # `post_logout_redirect_uri`. Optional, default None (unset) — the route
+    # folds this into its own config-completeness gate as a fourth required
+    # value alongside the OIDC triple, returning 501 while unset. Never
+    # derived from `oidc_redirect_uri`, which names a different route
+    # (`/callback`). Plain string, no `NoDecode` needed.
+    frontend_login_url: str | None = None
     # AUTH-06-AC-6: `groups` is no longer requested by default. Program
     # membership now comes from `program_roster` (see
     # `app/core/program_roster_resolver.py`), so the Keycloak `groups` client
@@ -80,6 +87,15 @@ class Settings(BaseSettings):
     # only so a future caller can override it explicitly. Deliberately NOT
     # given a `services/api/`-prefixed literal default (see D-05).
     persona_config_file: Path | None = None
+
+    # AUTH-07-FR-6: Tier-1 override for persona precedence order, parsed from
+    # a JSON-array env var. `NoDecode` opts this out of pydantic-settings'
+    # default JSON-decode-from-env behavior (would raise on invalid JSON
+    # before the validator below ever ran, defeating fail-open parsing); the
+    # validator below does the actual `json.loads()` and is fail-open on any
+    # parse error, mirroring `_parse_persona_role_map`. All three tiers unset
+    # falls back to the resolver's own hardcoded default order.
+    persona_precedence_order: Annotated[list[str] | None, NoDecode] = None
 
     @field_validator("environment", mode="after")
     @classmethod
@@ -141,6 +157,38 @@ class Settings(BaseSettings):
         ):
             logger.warning(
                 "persona_role_map_parse_error",
+                extra={"raw_value": _masked_excerpt(str(value))},
+            )
+            return None
+        return parsed
+
+    @field_validator("persona_precedence_order", mode="before")
+    @classmethod
+    def _parse_persona_precedence_order(cls, value: Any) -> Any:
+        """Fail-open JSON parse (AUTH-07-FR-6), mirroring `_parse_persona_role_map`.
+
+        Any parse failure -- invalid JSON, valid JSON that isn't an array, or
+        an array whose elements aren't all strings -- logs a warning and
+        resolves the field to `None` (Tier-1 is then treated as empty; the
+        resolver falls through to Tier-2/3, and ultimately the hardcoded
+        default order if all three tiers are unset). Never raises.
+        """
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "persona_precedence_order_parse_error",
+                    extra={"raw_value": _masked_excerpt(value)},
+                )
+                return None
+        else:
+            parsed = value
+        if not isinstance(parsed, list) or not all(isinstance(item, str) for item in parsed):
+            logger.warning(
+                "persona_precedence_order_parse_error",
                 extra={"raw_value": _masked_excerpt(str(value))},
             )
             return None

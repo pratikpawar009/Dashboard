@@ -286,6 +286,7 @@ def test_no_auth_route_declares_an_html_response_class(
         "/auth/callback",
         "/auth/refresh",
         "/auth/dev-bypass",
+        "/auth/logout",
     }
 
     for route in auth_routes:

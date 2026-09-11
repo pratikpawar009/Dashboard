@@ -143,6 +143,31 @@ def _db_override(session: AsyncSession) -> Callable[[], AsyncIterator[AsyncSessi
     return _get_db
 
 
+class _StubPersonaResolver:
+    """Minimal local stub -- no I/O, never actually consulted here.
+
+    Mirrors `tests/perf/test_programs_perf.py::_StubPersonaResolver`, the same
+    precedent `_StubProgramRosterResolver` follows. Exists only to satisfy
+    `get_persona_resolver`'s `app.state` read: AUTH-07 T-06/D-06 gave
+    `get_current_user` a `Depends(get_persona_resolver)` parameter, and FastAPI
+    resolves every declared dependency eagerly regardless of which branch of the
+    body runs -- so the attribute must be present or EVERY request raises
+    `AttributeError: 'State' object has no attribute 'persona_resolver'`.
+
+    Neither method is reachable from this file: `get_current_user` only calls
+    `resolve_precedence` when a token carries 2+ surviving roles, and every
+    token built here goes through `build_access_token`'s `role=` parameter,
+    which writes `realm_access.roles` as a single-element list. Only the
+    attribute's existence matters.
+    """
+
+    async def resolve(self, role: str) -> str:
+        raise AssertionError("unreachable: no test in this file resolves a persona")
+
+    async def resolve_precedence(self, roles: list[str]) -> str:
+        raise AssertionError("unreachable: every token here carries a single role")
+
+
 def _build_app(settings: Settings, test_session: AsyncSession) -> FastAPI:
     """Throwaway app wired per D-07, without `create_app`.
 
@@ -167,6 +192,7 @@ def _build_app(settings: Settings, test_session: AsyncSession) -> FastAPI:
     app.state.settings = settings
     app.state.jwks_cache = JwksCache(settings)
     app.state.program_roster_resolver = ProgramRosterResolver()
+    app.state.persona_resolver = _StubPersonaResolver()
     app.dependency_overrides[get_db] = _db_override(test_session)
     app.include_router(router)
     return app

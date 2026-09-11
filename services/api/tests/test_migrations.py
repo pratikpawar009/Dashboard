@@ -67,6 +67,7 @@ EXPECTED_TABLES = frozenset(
         "persona_config",
         "user_roles",
         "program_roster",
+        "persona_precedence",
     }
 )
 
@@ -143,10 +144,10 @@ def _load_migration_001_module() -> types.ModuleType:
 
 
 class TestFullSchemaCreation:
-    """BED-01-TC-01: `alembic upgrade head` creates all 19 tables."""
+    """BED-01-TC-01: `alembic upgrade head` creates all 20 tables."""
 
     @pytest.mark.asyncio
-    async def test_upgrade_head_creates_all_19_tables(
+    async def test_upgrade_head_creates_all_20_tables(
         self, migrated_db: AlembicRunner, test_engine: AsyncEngine
     ) -> None:
         async with test_engine.connect() as conn:
@@ -446,7 +447,7 @@ class TestObservability:
         back rather than being caught and continued) — so nothing in this
         repo today logs an `alembic upgrade` failure itself; the exception
         just propagates to the caller. This test forces a genuine failure
-        (a real `DuplicateTable` from pre-creating one of the 19 tables via
+        (a real `DuplicateTable` from pre-creating one of the 20 tables via
         raw SQL before any migration has run, standing in for TC-19's own
         example trigger of a duplicate-object collision), catches the
         propagated exception the way an operator's invocation wrapper would,
@@ -536,8 +537,16 @@ class TestRollupQueryIndexRevision:
     async def test_index_present_at_004_and_absent_at_003(
         self, migrated_db: AlembicRunner, test_engine: AsyncEngine
     ) -> None:
+        # `migrated_db` upgrades to "head" before the test body runs. Head is
+        # no longer 004 -- AUTH-07's 005_persona_precedence (DECISIONS.md
+        # D-05, ADR-0011) is now the current head -- so land on 004
+        # explicitly via `downgrade` rather than assuming "head" resolves
+        # there, matching the same isolation this test already performs a
+        # few lines below for 003.
+        migrated_db.downgrade(self.REVISION_004)
+
         async with test_engine.connect() as conn:
-            at_head = await conn.run_sync(self._usage_event_index_names)
+            at_004 = await conn.run_sync(self._usage_event_index_names)
             revision = (
                 await conn.execute(text("SELECT version_num FROM alembic_version"))
             ).scalar_one()
@@ -546,7 +555,7 @@ class TestRollupQueryIndexRevision:
         # index name fails here rather than passing vacuously on the absence
         # check below.
         assert revision == self.REVISION_004
-        assert self.INDEX_NAME in at_head
+        assert self.INDEX_NAME in at_004
 
         # And it is really the covering index D-06 describes, not just some
         # object that happens to carry the name.
@@ -576,7 +585,7 @@ class TestRollupQueryIndexRevision:
 
         # Index-only: downgrading 004 removes exactly that one index and
         # nothing else on the table.
-        assert at_head - at_003 == {self.INDEX_NAME}
-        assert at_003 - at_head == set()
+        assert at_004 - at_003 == {self.INDEX_NAME}
+        assert at_003 - at_004 == set()
 
         migrated_db.upgrade("head")

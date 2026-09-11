@@ -1,7 +1,7 @@
 {
   "_meta": {
     "source": "docs/requirements/data.md#db-schema",
-    "note": "Authoritative field-level spec (db-schema contract). Table count is 19 as of ING-10 (the original 18 = 10 rollup + 3 governance + 5 ingestion/auth/system, per the contract's own acceptance_spec note, plus program_roster added by ING-10 migration 003 / ADR-0010). Some PRD prose elsewhere says 17, which is stale; do not reconcile to 17. program_roster was added here 2026-09-08 per AF-05 -- without it, test_models.py (which iterates only fixture-declared tables) silently skipped the new model, leaving ProgramRoster the one model with no field/constraint verification.",
+    "note": "Authoritative field-level spec (db-schema contract). Table count is 20 as of AUTH-07 (19 as of ING-10 = 10 rollup + 3 governance + 5 ingestion/auth/system, per the contract's own acceptance_spec note, plus program_roster added by ING-10 migration 003 / ADR-0010; plus persona_precedence added by AUTH-07 migration 005 / ADR-0011). Some PRD prose elsewhere says 17, which is stale; do not reconcile to 17. program_roster was added here 2026-09-08 per AF-05 -- without it, test_models.py (which iterates only fixture-declared tables) silently skipped the new model, leaving ProgramRoster the one model with no field/constraint verification. persona_precedence added here 2026-09-10 for the same reason (AUTH-07 T-02).",
     "type_mapping": {
       "Prisma BigInt": "sqlalchemy.BigInteger",
       "Prisma Json": "sqlalchemy.dialects.postgresql.JSONB",
@@ -1281,6 +1281,27 @@
         "unique(program_id, email)",
         "index(email)"
       ]
+    },
+    "persona_precedence": {
+      "primary_key": "rank",
+      "columns": [
+        {
+          "name": "rank",
+          "type": "Integer",
+          "nullable": false,
+          "default": null,
+          "unique": false,
+          "note": "literal primary key; 0 = highest priority"
+        },
+        {
+          "name": "persona",
+          "type": "String",
+          "nullable": false,
+          "default": null,
+          "unique": false
+        }
+      ],
+      "constraints": []
     }
   }
 }
