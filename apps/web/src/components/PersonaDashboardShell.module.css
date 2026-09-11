@@ -112,3 +112,91 @@
   top: 0;
   z-index: 5;
 }
+
+/* Org-header variant (D-05): the CIO mockup's HEADER region pads
+ * `20px 34px`, 2px less on top than the shipped `.headerRegion` rule above,
+ * which the program variant still needs unchanged — hence a modifier class
+ * applied alongside `.headerRegion`, not an edit to it. */
+.headerRegionOrg {
+  padding: 20px 34px;
+}
+
+.orgTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pageTitle {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* Geometry identical to PersonaHeader.module.css's shipped `.pill` rule —
+ * same four declarations, no new pill (DESIGN.md § Region 2). Its colour
+ * pair crosses as a `style` prop (D-06); this CSS module cannot import a
+ * class from PersonaHeader's own module, so the geometry is duplicated. */
+.orgPill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+}
+
+/* Neutral error badge for the org header's unresolvable-persona path
+ * (D-04) — same shared --neutral-unresolved-* pair as .avatarUnknownPersona
+ * above and PersonaHeader.module.css's .pillNeutral. */
+.orgPillNeutral {
+  color: var(--neutral-unresolved-fg);
+  background: var(--neutral-unresolved-bg);
+}
+
+.orgSubtitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 2px;
+}
+
+/* Visually hidden but announced by assistive tech — clip, not display:none
+ * (screen readers skip display:none) and not visibility:hidden. Mirrors
+ * PersonaHeader.module.css's .visuallyHidden (D-04, second occurrence). */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Sign-out control (recorded deviation A) — reset UA button chrome so it
+ * reads as the text control the design specifies. Rest colour deliberately
+ * NOT the adjacent .jobTitle/.headerRegion greys (#8a93a1/#7a828f), which
+ * fail AA (3.10/3.88) — a new interactive control must not inherit a
+ * known-failing pair. These are also the first :focus rules in the
+ * codebase (no house convention exists yet to follow instead). */
+.signOutButton {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b6472;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.signOutButton:hover,
+.signOutButton:focus {
+  color: #2a6fdb;
+}
+
+.signOutButton:focus {
+  outline: 2px solid #2a6fdb;
+  outline-offset: 2px;
+}

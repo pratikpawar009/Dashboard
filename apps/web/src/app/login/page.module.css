@@ -1,0 +1,94 @@
+/* /login — branded sign-in card (OVW-05, DESIGN.md § Recorded deviation B).
+ * Static values only, byte-exact from the shipped brand bar
+ * (PersonaDashboardShell.module.css) and docs/design/tokens.md's Card
+ * recipe — nothing here is a new visual idea (AC-19). Card width is
+ * DECISIONS.md D-06 (no mockup/token settles it). */
+
+.page {
+  background: #f5f6f8;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  border: 1px solid #e6e9ef;
+  border-radius: 16px;
+  padding: 18px 19px;
+  box-shadow: 0 1px 2px rgba(15, 26, 46, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Byte-exact from PersonaDashboardShell.module.css .logoTile/.logoInner. */
+.logoTile {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #2a6fdb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.logoInner {
+  width: 13px;
+  height: 13px;
+  border: 2.4px solid #fff;
+  border-radius: 4px;
+  transform: rotate(45deg);
+}
+
+.brandText {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.productName {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.tagline {
+  font-size: 10.5px;
+  color: #8a93a1;
+  font-weight: 600;
+  margin-top: 1px;
+  letter-spacing: 0.2px;
+}
+
+.form {
+  width: 100%;
+}
+
+.ssoButton {
+  width: 100%;
+  background: #2a6fdb;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.ssoButton:focus-visible {
+  outline: 2px solid #2a6fdb;
+  outline-offset: 2px;
+}

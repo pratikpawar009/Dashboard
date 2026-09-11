@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { getApiBaseUrl } from "@/lib/apiConfig";
-import { GET as loginGET } from "@/app/login/route";
+import { GET as loginGET } from "@/app/login/start/route";
 import { GET as callbackGET } from "@/app/callback/route";
 import { GET as programsProxyGET } from "@/app/api/proxy/programs/route";
 import { GET as programDetailProxyGET } from "@/app/api/proxy/program-detail/[program_id]/route";

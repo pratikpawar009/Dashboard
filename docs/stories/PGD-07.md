@@ -4,7 +4,7 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-09-10
+**Updated**: 2026-09-11
 **Tracker**: pratikpawar009/Dashboard#277 (https://github.com/pratikpawar009/Dashboard/issues/277)
 
 ## User story
@@ -20,6 +20,8 @@ As a signed-in dashboard user viewing Program Detail (any persona, not only the 
 5. Given `GET /api/me` returns `403` (persona-resolution failure) or an otherwise-unrecognized persona value reaches the shell, then the neutral gray "Persona unavailable" badge renders in place of the persona tag, plus a visually-hidden `aria-live="assertive"` announcement reading "Unable to load your dashboard view." (sourced, `persona-shell` `states.error`, `session-identity-api` `errors`).
 6. Given `signedInUser.name` is `null` (fallback chain exhausted — e.g. a dev-bypass session), when the identity block renders, then it shows the shell's existing neutral fallback (plain gray circle, no initials, `aria-hidden`), never blank or broken text (sourced, `persona-shell` `states.populated`).
 7. Given `GET /api/me` returns `401` (missing/invalid bearer), then the existing unauthorized handling for this route applies — no new auth state is invented for this fetch (per `session-identity-api` `errors`; consistent with `page.tsx`'s existing `SessionExpiredError` → `/login` redirect for the program-detail fetch).
+8. Given the identity block renders on Program Detail (AC-3), when a signed-in user views the brand bar, then the **sign-out control** specified by `OVW-05` (AC-12/AC-13) renders here too and behaves identically — Program Detail must not be the only page a user cannot sign out from, which is the same "stops being the only page missing that region" rationale this story already exists to satisfy.
+9. Given the sign-out control renders here, when it is implemented, then it is the **same** `PersonaDashboardShell` control `OVW-05` adds — not a Program-Detail-specific copy. This story composes the shell; it does not fork it.
 
 ## Non-functional requirements
 
@@ -42,6 +44,7 @@ As a signed-in dashboard user viewing Program Detail (any persona, not only the 
 ## Clarifications
 
 ## Decision log
+- 2026-09-11 **Sign-out control inherited, not re-implemented.** Added per the same user direction that put the control in `OVW-05` (see that story's Decision log for the mockup-deviation rationale). Because this story composes `PersonaDashboardShell` rather than owning it, the requirement here is an assertion that the control renders on Program Detail — the implementation lives in `OVW-05`. Recorded so a reader does not build a second, divergent control.
 
 - 2026-09-10 One `GET /api/me` call per Program Detail render, none on switcher reload (NFR/Performance): assumption — extends `session-identity-api`'s per-page-render perf note to this consumer; the contract doesn't state a per-consumer call count.
 - 2026-09-10 Accessibility target WCAG AA (NFR): assumption — no story-specific target given; mirrors the project's other persona-shell-consuming stories (e.g. SHP-01).

@@ -10,8 +10,8 @@ const FETCH_TIMEOUT_MS = 5000;
 /**
  * `GET /login` -- server-to-server relay to FastAPI `GET /auth/login`
  * (AUTH-05-AC-2, DATA-DESIGN.md § 9). Top-level `/login`, not nested under
- * `/api/auth/` (REQUIREMENTS.md FR-3): `OIDC_REDIRECT_URI` must exact-match
- * this path.
+ * `/api/auth/` (REQUIREMENTS.md FR-3). `OIDC_REDIRECT_URI` must exact-match
+ * `/callback`, not this path (AUTH-05-FR-3).
  *
  * The browser must end up on Keycloak's own authorization URL, never on a
  * FastAPI origin (AC-2) -- so `redirect: "manual"` is required here: without

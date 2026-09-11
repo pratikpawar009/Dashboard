@@ -1,0 +1,524 @@
+{
+  "schema_version": 1,
+  "story_id": "OVW-05",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-11T06:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "apps/web/src/types/persona.ts",
+      "reason": "Add 'cio' as a fifth VALID_PERSONAS entry (AC-1); drop the SignedInUser PROVISIONAL/AUTH-01-amendment docstring framing (AC-11)"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "apps/web/src/lib/formatPersonaTag.ts",
+      "reason": "Add jobTitle field to PersonaDisplay + all 5 PERSONA_DISPLAY entries incl. new cio entry (AC-2/AC-3); rewrite PersonaTagError/formatPersonaTag docstrings to admit cio as valid (AC-4); add VALID_PERSONAS<->persona_resolver sync-obligation comment on the PERSONA_DISPLAY header (research condition 3)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "apps/web/src/lib/formatPersonaTag.test.ts",
+      "reason": "cio moves from the invalid-throws case to a valid it.each row (tag 'CIO / CXO', jobTitle 'Chief Information Officer'); 'unknown-persona' remains the sole throw case"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "apps/web/src/components/PersonaDashboardShell.tsx",
+      "reason": "Add optional pageTitle prop + org-header variant (AC-8/AC-9/AC-10); add sign-out control as a sibling of the signedInUser ternary (AC-12..15/AC-19); drop signedInUser/SignedInUser PROVISIONAL docstring framing (AC-11)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "apps/web/src/components/PersonaDashboardShell.module.css",
+      "reason": "New classes: .headerRegionOrg (padding modifier, D-05), .orgTitleRow/.pageTitle/.orgPill/.orgSubtitle (org header geometry), .signOutButton (rest #5b6472, hover/focus #2a6fdb, focus ring)"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "apps/web/src/components/PersonaDashboardShell.test.tsx",
+      "reason": "Replace the stale 'persona=cio renders neutral badge' test (D-03 no longer applies to cio) with a 'cio renders normally' case; add org-header variant tests (AC-8/9/10, mutual exclusivity, loading suppression) and sign-out control tests incl. the AC-12 both-branches placement guard"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "apps/web/src/types/me.ts",
+      "reason": "MeData {name: string|null; persona: string} + MeResult discriminated union, mirrors types/overview.ts (DECISIONS.md D-01)"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "apps/web/src/lib/meApi.ts",
+      "reason": "fetchMe() \u2014 GET /api/me, mirrors overviewApi.ts::fetchOverviewSummary's status-mapping/timeout (OVW-05-FR-3, D-01)"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/lib/meApi.test.ts",
+      "reason": "fetchMe() status-mapping coverage: ok/forbidden(403)/unauthorized(401)/error(network+non-ok)"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/lib/composeSignedInUser.ts",
+      "reason": "Pure composition: signedInUser = name ? {name, jobTitle: formatPersonaTag(persona).jobTitle} : undefined (AC-6/AC-7, D-03); never reads jobTitle off the wire (research risk #2/condition 1)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/lib/composeSignedInUser.test.ts",
+      "reason": "Unit backstop for OVW-05-TC-01: jobTitle composed from PERSONA_DISPLAY, decoy jobTitle-shaped key on the input ignored"
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "apps/web/src/app/overview/page.tsx",
+      "reason": "Wire GET /api/me (meApi.ts) alongside GET /api/overview/summary via Promise.all (D-02); compose persona/signedInUser (composeSignedInUser.ts, D-03 sentinel on non-ok); pass pageTitle='Adoption Overview' to AdoptionOverview. MUST NOT alter the existing line-56 redirect(\"/login\") (condition 2a)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "apps/web/src/app/overview/page.test.tsx",
+      "reason": "Page-level composition test (OVW-05-TC-01 harness): mocked GET /api/me -> AdoptionOverview -> PersonaDashboardShell; AC-5/AC-9; regression-asserts the existing redirect(\"/login\") on SessionExpiredError still fires (condition 2a)"
+    },
+    "F-14": {
+      "action": "modify",
+      "path": "apps/web/src/components/AdoptionOverview.tsx",
+      "reason": "Accept persona?/signedInUser?/pageTitle? props, forward unchanged to PersonaDashboardShell (OVW-05-FR-3, AC-9); AdoptionOverview performs no fetching of its own"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "apps/web/src/components/AdoptionOverview.test.tsx",
+      "reason": "Assert persona/signedInUser/pageTitle are forwarded to PersonaDashboardShell unchanged"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/src/app/login/start/route.ts",
+      "reason": "Relocated verbatim from apps/web/src/app/login/route.ts (deleted in this same task) -- body byte-identical; only the docstring's false OIDC_REDIRECT_URI exact-match-this-path claim is corrected to name /callback (AUTH-05-FR-3, OVW-05-FR-2, condition 2b)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/src/app/login/start/route.test.ts",
+      "reason": "Relocated verbatim from apps/web/src/app/login/route.test.ts (deleted in this same task), assertions unchanged"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/app/login/page.tsx",
+      "reason": "Branded sign-in page (AC-16/17/19): logo tile + 'AgentRise Harness' + 'AI SDLC Governance' + single SSO form (action=/login/start); server-side readSession() pass-through redirect to /overview when already authenticated (AC-18, OVW-05-FR-1)"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "apps/web/src/app/login/page.module.css",
+      "reason": "Page ground/card/logo-tile/SSO-button styles per DESIGN.md deviation B table; card width per D-06 (400px); org/sign-out focus-ring pattern reused for the SSO button"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "apps/web/src/app/login/page.test.tsx",
+      "reason": "AC-16/17/18/19 + OVW-05-TC-02 (already-authenticated pass-through to /overview, no sign-in markup)"
+    },
+    "F-21": {
+      "action": "create",
+      "path": "apps/web/src/app/login/redirectCallSites.test.ts",
+      "reason": "Source-scan regression test enumerating the verified existing redirect/window.location.href -> /login call sites (condition 2a) -- see T-13 notes for the exact 5 verified sites"
+    },
+    "F-22": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Split the API table's Route-Handler paragraph: /login is now the branded page; the OAuth relay moved to /login/start (Documentation requirements, OVW-05-FR-2)"
+    },
+    "F-23": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "persona-shell contract (# 60-86): add pageTitle prop + sign_out_control shape as new additive keys, following this file's own established supersede-don't-rewrite precedent (cio_persona_note et al.)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Admit 'cio' as a fifth persona (types + PERSONA_DISPLAY + jobTitle field)",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02",
+        "F-03"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-1",
+        "OVW-05-AC-2",
+        "OVW-05-AC-3",
+        "OVW-05-AC-4"
+      ],
+      "risk_refs": [
+        "R-8"
+      ],
+      "notes": "VALID_PERSONAS +cio; PersonaDisplay gains jobTitle (all 5 entries: cio 'Chief Information Officer', architect 'Architect', developer 'Developer', product-manager 'Product Manager', engineering-manager 'Engineering Manager'); rewrite PersonaTagError/formatPersonaTag docstrings (remove the 'cio is an invariant violation' premise); add the sync-obligation comment (research condition 3, addressed here). Update formatPersonaTag.test.ts's it.each so cio is a valid case, not a throw case.",
+      "status": "done",
+      "completed_at": "2026-09-11T05:52:16Z",
+      "files_touched": [
+        "apps/web/src/types/persona.ts",
+        "apps/web/src/lib/formatPersonaTag.ts",
+        "apps/web/src/lib/formatPersonaTag.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "PersonaDashboardShell: org-header variant + sign-out control + CSS",
+      "complexity": "L",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-04",
+        "F-05"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-8",
+        "OVW-05-AC-9",
+        "OVW-05-AC-10",
+        "OVW-05-AC-11",
+        "OVW-05-AC-12",
+        "OVW-05-AC-13",
+        "OVW-05-AC-14",
+        "OVW-05-AC-15",
+        "OVW-05-AC-19"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "Org-header variant selected purely by prop presence (pageTitle !== undefined && program === undefined && !isLoading), mutually exclusive with the program variant -- no persona-literal conditional anywhere in this file. Duplicate the neutral-badge catch inline (D-04, do not touch PersonaHeader.tsx). Apply .headerRegionOrg modifier for the 20px 34px padding (D-05). Sign-out control: zero-JS <form action=\"/logout\" method=\"get\"><button type=\"submit\" aria-label=\"Sign out\">Sign out</button></form>, placed as the last child of .identity, a SIBLING of the signedInUser ternary gated only by !isLoading -- renders in BOTH the populated and D-05 neutral-fallback branches (this is the AC-12 defect the story flags as shipping untested today; get the placement right here, guarded by T-03).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:07:52Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.tsx",
+        "apps/web/src/components/PersonaDashboardShell.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "PersonaDashboardShell tests: fix stale cio-invalid case, add org-header + sign-out coverage",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-8",
+        "OVW-05-AC-9",
+        "OVW-05-AC-10",
+        "OVW-05-AC-12",
+        "OVW-05-AC-13",
+        "OVW-05-AC-14",
+        "OVW-05-AC-15"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "The existing 'shows the identical neutral badge ... for persona=cio' test is now FALSE (cio is valid) -- replace it with an assertion that persona='cio' renders the normal identity/org-header path. Add: org-header populated/loading/persona-unresolvable states (AC-8/9/10); sign-out control present with BOTH signedInUser defined AND undefined (the AC-12 branch-placement guard this story explicitly flags as shipping untested); sign-out absent while isLoading (AC-14); accessible name 'Sign out' matches visible text.",
+      "status": "done",
+      "completed_at": "2026-09-11T07:13:41Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "meApi: GET /api/me fetch module + types",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-07",
+        "F-08",
+        "F-09"
+      ],
+      "ac_refs": [
+        "OVW-05-FR-3"
+      ],
+      "risk_refs": [
+        "R-1",
+        "R-7"
+      ],
+      "notes": "fetchMe(opts?: {accessToken?}) -> Promise<MeResult>, status mapping mirrors overviewApi.ts exactly (403->forbidden checked before 401->unauthorized before generic !ok->error; 5000ms AbortSignal.timeout; network throw->error). Building this against the live, frozen {name, persona} shape is where research risk #1 (stale-docs risk) is put to rest in code.",
+      "status": "done",
+      "completed_at": "2026-09-11T05:53:27Z",
+      "files_touched": [
+        "apps/web/src/types/me.ts",
+        "apps/web/src/lib/meApi.ts",
+        "apps/web/src/lib/meApi.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "composeSignedInUser: pure jobTitle-composition helper (OVW-05-TC-01 backstop)",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-04"
+      ],
+      "files": [
+        "F-10",
+        "F-11"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-6",
+        "OVW-05-AC-7"
+      ],
+      "risk_refs": [
+        "R-2"
+      ],
+      "notes": "name === null -> undefined (AC-7); else {name, jobTitle: formatPersonaTag(persona).jobTitle} (AC-6) -- jobTitle NEVER read off the MeData argument itself, only derived via formatPersonaTag. Catches PersonaTagError -> undefined for an unresolvable persona with a known name (do not throw). Test must include a decoy jobTitle-shaped key on the input fixture and assert it is never read (proves composition, not pass-through -- research risk #2, the sole HIGH).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:07:52Z",
+      "files_touched": [
+        "apps/web/src/lib/composeSignedInUser.ts",
+        "apps/web/src/lib/composeSignedInUser.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "AdoptionOverview: accept + forward persona/signedInUser/pageTitle",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-9"
+      ],
+      "risk_refs": [],
+      "notes": "Widen AdoptionOverview's props to {result, persona?, signedInUser?, pageTitle?}; forward all three unchanged to PersonaDashboardShell. AdoptionOverview performs no fetching -- values arrive fully resolved from page.tsx (T-08).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:09:47Z",
+      "files_touched": [
+        "apps/web/src/components/AdoptionOverview.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "AdoptionOverview tests: props forwarded unchanged",
+      "complexity": "S",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-9"
+      ],
+      "risk_refs": [],
+      "notes": "Render AdoptionOverview with persona/signedInUser/pageTitle set; assert PersonaDashboardShell receives them unchanged (identity block + org header visible), and that omitting all three preserves today's suppressed-identity behavior (regression).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:15:21Z",
+      "files_touched": [
+        "apps/web/src/components/AdoptionOverview.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "overview/page.tsx: wire GET /api/me, Promise.all, persona sentinel",
+      "complexity": "L",
+      "predecessors": [
+        "T-04",
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-5",
+        "OVW-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-3",
+        "R-7"
+      ],
+      "notes": "Promise.all([callWithAuth(fetchOverviewSummary,...), callWithAuth(fetchMe,...)]) inside the SAME existing try/catch (D-02); either SessionExpiredError -> the EXISTING redirect(\"/login\") at line 56 -- DO NOT EDIT THAT LINE (condition 2a, non-negotiable). On meResult.status !== 'ok', pass persona=PERSONA_RESOLUTION_ERROR ('persona-resolution-error', D-03) and signedInUser=undefined. On 'ok', persona=meResult.data.persona, signedInUser=composeSignedInUser(meResult.data). Pass pageTitle='Adoption Overview' always. Never hardcode persona='cio' (NFR-Security).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:12:44Z",
+      "files_touched": [
+        "apps/web/src/app/overview/page.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "overview/page.tsx tests (OVW-05-TC-01 page-level harness + redirect regression)",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-5",
+        "OVW-05-AC-9"
+      ],
+      "risk_refs": [
+        "R-2"
+      ],
+      "notes": "Mock tokenStore.callWithAuth/getValidAccessToken, overviewApi.fetchOverviewSummary, meApi.fetchMe, and next/navigation's redirect. Render `await Page()`. OVW-05-TC-01: mock GET /api/me with a decoy jobTitle-shaped key on the response and assert the rendered job title is 'Chief Information Officer', never the decoy. Regression (condition 2a): a SessionExpiredError from EITHER call still triggers redirect(\"/login\").",
+      "status": "done",
+      "completed_at": "2026-09-11T07:21:26Z",
+      "files_touched": [
+        "apps/web/src/app/overview/page.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Relocate the OAuth relay: login/route.ts -> login/start/route.ts",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-16",
+        "F-17"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-17"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "notes": "Body byte-identical (OVW-05-FR-2) -- only the docstring changes: correct the false 'OIDC_REDIRECT_URI must exact-match this path' claim to name /callback (AUTH-05-FR-3). Delete the old apps/web/src/app/login/route.ts and apps/web/src/app/login/route.test.ts in this same task (this IS the move, not a separate create+delete). No call-site edits anywhere else.",
+      "status": "done",
+      "completed_at": "2026-09-11T05:54:01Z",
+      "files_touched": [
+        "apps/web/src/app/login/start/route.ts",
+        "apps/web/src/app/login/start/route.test.ts",
+        "apps/web/src/app/login/route.ts (deleted)",
+        "apps/web/src/app/login/route.test.ts (deleted)"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "login/page.tsx: branded sign-in page + already-authenticated pass-through",
+      "complexity": "M",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-18",
+        "F-19"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-16",
+        "OVW-05-AC-17",
+        "OVW-05-AC-18",
+        "OVW-05-AC-19"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "notes": "Server Component. readSession() (apps/web/src/lib/tokenStore.ts) first; valid session -> redirect(ADOPTION_OVERVIEW_ROUTE) before any markup (AC-18). Otherwise render: logo tile + 'AgentRise Harness' + 'AI SDLC Governance' + <form action=\"/login/start\" method=\"get\"><button type=\"submit\">Sign in with SSO</button></form> (no aria-label -- visible text is the accessible name). Card max-width 400px (D-06). Do NOT render PersonaDashboardShell here (DESIGN.md explicitly rejects it).",
+      "status": "done",
+      "completed_at": "2026-09-11T07:07:52Z",
+      "files_touched": [
+        "apps/web/src/app/login/page.tsx",
+        "apps/web/src/app/login/page.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "login/page.tsx tests (AC-16..19 + OVW-05-TC-02)",
+      "complexity": "M",
+      "predecessors": [
+        "T-11"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-16",
+        "OVW-05-AC-17",
+        "OVW-05-AC-18",
+        "OVW-05-AC-19"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "notes": "Mock tokenStore.readSession + next/navigation redirect. OVW-05-TC-02: valid session -> redirect to /overview called before any sign-in markup renders, 'Sign in with SSO' never shown. No session -> card renders with SSO action targeting /login/start.",
+      "status": "done",
+      "completed_at": "2026-09-11T07:13:26Z",
+      "files_touched": [
+        "apps/web/src/app/login/page.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Regression guard: existing redirect(\"/login\") call sites stay unchanged",
+      "complexity": "S",
+      "predecessors": [
+        "T-10",
+        "T-11"
+      ],
+      "files": [
+        "F-21"
+      ],
+      "ac_refs": [
+        "OVW-05-FR-2"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "notes": "Source-scan (fs.readFileSync) test enumerating the 5 literal call sites verified present on 2026-09-11 (grep audit -- the story/research prose says '7'; only 5 were found in shipped, non-test, non-comment source and this test asserts exactly those 5, noting the discrepancy rather than inventing 2 more): apps/web/src/app/programs/[program_id]/page.tsx:56 redirect(\"/login\"); apps/web/src/app/overview/page.tsx:56 redirect(\"/login\"); apps/web/src/app/callback/route.ts:60 and :68 NextResponse.redirect(new URL(\"/login\", ...)); apps/web/src/components/ProgramDetailView.tsx:129 window.location.href = \"/login\". None of these files is in this story's file_plan -- this test is the mechanical 'assert it' for condition 2a.",
+      "status": "done",
+      "completed_at": "2026-09-11T07:11:28Z",
+      "files_touched": [
+        "apps/web/src/app/login/redirectCallSites.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "docs(readme): split the /login route-table entry",
+      "complexity": "S",
+      "predecessors": [
+        "T-10",
+        "T-11"
+      ],
+      "files": [
+        "F-22"
+      ],
+      "ac_refs": [
+        "OVW-05-FR-2"
+      ],
+      "risk_refs": [],
+      "notes": "Update README.md's Route-Handler paragraph (currently documents /login as solely the OAuth relay): /login is now the branded page.tsx sign-in screen; the relay is /login/start. /callback, /api/proxy/*, /logout rows are otherwise unchanged.",
+      "status": "done",
+      "completed_at": "2026-09-11T07:14:18Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "docs(contract): fill persona-shell's pageTitle prop + sign_out_control shape",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-23"
+      ],
+      "ac_refs": [
+        "OVW-05-AC-8",
+        "OVW-05-AC-12"
+      ],
+      "risk_refs": [],
+      "notes": "Additive only, per this file's own supersede-don't-rewrite precedent (cio_persona_note et al.): add a `page_title_prop` key describing the pageTitle?: string prop + its selection rule, and a `sign_out_control` key describing the zero-JS form/button shape -- PGD-07 (a persona-shell consumer) needs both to retrofit the Program Detail brand bar.",
+      "status": "done",
+      "completed_at": "2026-09-11T07:13:26Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    }
+  ]
+}

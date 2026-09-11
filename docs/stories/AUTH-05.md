@@ -4,7 +4,7 @@
 **Status**: Validated
 **Priority**: P1
 **Owner**: —
-**Updated**: 2026-09-04
+**Updated**: 2026-09-11
 **Tracker**: pratikpawar009/Dashboard#204 (https://github.com/pratikpawar009/Dashboard/issues/204)
 **Tracker Research**: pratikpawar009/Dashboard#205 (https://github.com/pratikpawar009/Dashboard/issues/205)
 **Tracker Plan Requirements**: pratikpawar009/Dashboard#206 (https://github.com/pratikpawar009/Dashboard/issues/206)
@@ -53,7 +53,7 @@ As a signed-in dashboard user, I want the frontend to hold my Keycloak-issued to
 None open.
 
 ## Decision log
-
+- 2026-09-11 **Branded sign-in page was briefly added here, then MOVED to `OVW-05` — this story keeps no sign-in-page scope.** The page was first placed here because this story owns the `/login` surface and the frontend session/token layer. It was moved on the same day, per user direction, because this story is already at `phase: review` with its code shipped: hosting new UI scope here would reopen a completed story for another implementation round, whereas `OVW-05` is still `story-validated` and is the story actually queued to run. Nothing in this story's shipped behaviour changes — `/login`'s authorization-code flow, PKCE/`state` mechanics, `/callback` hand-off and server-side token store remain exactly as implemented, and `OVW-05` wraps them rather than altering them.
 - 2026-09-04 Frontend hand-off mechanism (`/login` + `/callback` Route Handlers, server-to-server relay to FastAPI's existing `/auth/login`/`/auth/callback`): per RTM Decisions 2026-09-04 (RESOLVED, supersedes the earlier open question) — CONFIRMED by user.
 - 2026-09-04 `OIDC_REDIRECT_URI` is a config value only, no `services/api` code change (`_resolve_redirect_uri` already reads it verbatim when set): per RTM Decisions 2026-09-04 / session contract `frontend_ownership_note`.
 - 2026-09-04 Token storage resolved to httpOnly cookie scoped to the frontend's own origin, not in-memory: per RTM Decisions 2026-09-04 (RESOLVED) Token storage / session contract `frontend_ownership_note`.
