@@ -1,0 +1,185 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 77,
+  "research_open_clarifications": 0,
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/OVW-05/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "tracker_story": "pratikpawar009/Dashboard#276",
+  "tracker_research": "pratikpawar009/Dashboard#285",
+  "phase": "review",
+  "last_updated": "2026-09-11T08:00:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#286",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/OVW-05/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/OVW-05/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/OVW-05/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "pending_carry_forward": [
+    {
+      "item_id": "DQA-1-preauth-contrast",
+      "kind": "risk",
+      "reason": "#8a93a1 tagline/job-title grey at 3.10:1 fails WCAG AA \u2014 now renders on /login, the first pre-auth surface carrying this inherited SHP-01 contrast failure. Accepted, not fixed: darkening the token has blast radius across all six dashboards (DESIGN.md \u00a7 Design QA).",
+      "owner": "design system (unowned \u2014 no dedicated owner declared)",
+      "added_at": "2026-09-11T07:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "D-04-catch-duplication",
+      "kind": "risk",
+      "reason": "Org-header's neutral PersonaTagError-catch JSX is duplicated inline in PersonaDashboardShell.tsx rather than extracted, since it is only the 2nd occurrence (PersonaHeader.tsx is the 1st) \u2014 extraction bar is the 3rd, per .claude/rules/reusability-baseline.md (DECISIONS.md D-04). Revisit if a 3rd occurrence appears.",
+      "owner": "frontend (apps/web)",
+      "added_at": "2026-09-11T07:00:00Z",
+      "added_by": "plan-implementation/03-tasks (risk accepted)",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-02-personaheader-stale-docstring",
+      "kind": "tech-debt",
+      "reason": "apps/web/src/components/PersonaHeader.tsx docstring still calls a 'cio' value an invariant violation and says 'not one of the 4 valid personas'. Stale since T-01 admitted cio as a fifth persona. Comment text only, no behavioural defect. Out of file_plan and DECISIONS.md D-04 bars this story from editing the file. Accepted by the user 2026-09-11.",
+      "owner": "frontend (apps/web)",
+      "added_at": "2026-09-11T08:00:00Z",
+      "added_by": "arh-implement/02-validate gate join",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-03-design-check-na",
+      "kind": "risk",
+      "reason": "design_check is empty in docs/config/project-commands.yaml \u2014 no a11y/visual tool wired for the html-mockup provider, so the evidence dimension is N/A rather than PASS. Project-level gap. Sharper here because OVW-05 ships the codebase's first :focus rules on two new controls. Accepted by the user 2026-09-11.",
+      "owner": "project (unowned \u2014 no tool chosen)",
+      "added_at": "2026-09-11T08:00:00Z",
+      "added_by": "arh-implement/02-validate gate join",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "AF-04-runtime-proves-boot-not-render",
+      "kind": "risk",
+      "reason": "Runtime evidence covers boot + route status (/login 200, /login/start 307, /overview 307->/login) but not that the DOM mounted DESIGN.md's elements \u2014 no E2E/browser tool installed (test_e2e empty, ADR-0001 declares none). Vitest covers this at unit level only. Recommend a human eyeball of /overview's identity block, org header and sign-out control before merge. Accepted by the user 2026-09-11.",
+      "owner": "QA / human reviewer",
+      "added_at": "2026-09-11T08:00:00Z",
+      "added_by": "arh-implement/02-validate gate join",
+      "resolved_at": null,
+      "evidence": null
+    },
+    {
+      "item_id": "OVW-05-coverage-exception",
+      "kind": "risk",
+      "reason": "Test-case manifest carries 2 cases covering 2/26 requirement ids (7.7%) under a user-directed hard cap recorded in docs/test-cases/OVW-05.json and approved at the Product Gate. The implementation's own unit suite covers far more, but the traceable TC manifest does not. Recorded exception, not a validation failure.",
+      "owner": "product",
+      "added_at": "2026-09-11T08:00:00Z",
+      "added_by": "arh-implement/02-validate gate join",
+      "resolved_at": null,
+      "evidence": null
+    }
+  ],
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#289",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-11T12:58:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-05/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-11T12:52:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-05/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-11T12:55:00Z",
+        "detail": "web: 167/167 passed across 30 files (vitest). api: 590 passed, 0 failed, 0 skipped, 356 warnings (pytest, 165.62s) \u2014 includes live-DB migration/model tests against the pre-existing local Postgres container."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-05/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-11T12:54:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": "2026-09-11T12:58:00Z",
+        "stacks": [
+          {
+            "stack": "api (fastapi-2)",
+            "status": "PASS",
+            "command": "cd services/api && uv run uvicorn app.main:app --port 8000",
+            "evidence_path": "docs/features/OVW-05/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "checks": "GET /health -> 200 {\"status\":\"ok\"}; GET /auth/login -> 302 to the real Keycloak authorize endpoint (OIDC fully configured in this dev env)",
+            "deps_note": "Deps: line (docker run dashboard-postgres:5432) not re-provisioned \u2014 a pre-existing local Postgres container (dashboard-dev5442, up 3 days, mapped 5442->5432) already satisfies it; reachability already proven this session by the api unit_tests run (590 passed incl. live-DB migration/model tests). Not required for boot itself: app.main has no startup-time DB check, /health does not touch the DB."
+          },
+          {
+            "stack": "web (nextjs)",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "evidence_path": "docs/features/OVW-05/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "checks": "GET /login -> 200 (branded page, not a redirect loop); GET /login/start -> 307 relay to Keycloak (matches api log); GET /overview -> 307 to /login (no session, expected); GET / -> 307 to /overview",
+            "render_check": "unavailable \u2014 no E2E/browser-automation tool installed (project-commands.yaml test_e2e: \"\", per ADR-0001 no Playwright/Cypress declared); verdict is boot+route-status only, not an assertion that mounted DOM content matches DESIGN.md. See flag AF-04."
+          }
+        ],
+        "note": "Both stale processes already holding :8000/:3000 (started 2026-09-11 09:44/09:46, predating this session) were killed before a fresh boot, per instruction to run on canonical ports rather than picking alternates. Both servers were stopped again after evidence capture."
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-05/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-11T12:55:00Z",
+        "detail": "next build --turbopack: compiled successfully, 11/11 static pages generated; /login and /login/start both present as distinct routes. FastAPI backend has no compiled build step (runs directly via uvicorn) \u2014 legitimately outside this dimension's single build: command, not a gap."
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-03",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "passed",
+  "validation_summary": "2026-09-11 P=2/2 in 1 round(s)",
+  "validation_report": "docs/features/OVW-05/VALIDATION-20260911-0740.md",
+  "review": "PASS",
+  "review_report": "docs/features/OVW-05/REVIEW.md"
+}

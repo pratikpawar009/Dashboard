@@ -1,0 +1,148 @@
+{
+  "story_id": "OVW-05",
+  "_note": "HARD CAP: this manifest intentionally contains only 2 test cases per an explicit user directive on this run, not the full AC-derived set a 19-AC story would normally require. See coverage_audit.uncovered for the resulting gap — do not treat this file as complete coverage.",
+  "test_cases": [
+    {
+      "id": "OVW-05-TC-01",
+      "title": "jobTitle is composed frontend-side from PERSONA_DISPLAY, never passed through from GET /api/me",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "tracker_test": "pratikpawar009/Dashboard#287",
+      "requirement_id": "OVW-05-AC-6",
+      "given": "GET /api/me returns a non-null name for a cio-resolved session, with the mocked response carrying an out-of-contract jobTitle-shaped key",
+      "when": "AdoptionOverview composes the shell's signedInUser prop from that response",
+      "then": "the rendered jobTitle equals PERSONA_DISPLAY['cio'].jobTitle ('Chief Information Officer'), never the mocked response's own decoy value",
+      "objective": "Verify AdoptionOverview/PersonaDashboardShell renders jobTitle strictly from PERSONA_DISPLAY[persona].jobTitle and never from any field on the GET /api/me response — the HIGH-severity composition-not-pass-through invariant (research risk #2, PRD condition 1, OVW-05-FR-3).",
+      "preconditions": [
+        "cio is present in VALID_PERSONAS and PERSONA_DISPLAY with jobTitle: 'Chief Information Officer' (AC-1..3)",
+        "Test harness mocks the GET /api/me call (tokenStore.callWithAuth()) to resolve with {name: 'Elena Vasquez', persona: 'cio'} plus a decoy jobTitle-shaped field not on the real, extra=\"forbid\" MeResponse contract, to prove the frontend cannot read it even if a bug reintroduced it",
+        "/overview's page-level composition (page.tsx -> AdoptionOverview -> PersonaDashboardShell) is rendered under test"
+      ],
+      "test_data": {
+        "me_response_name": "Elena Vasquez",
+        "me_response_persona": "cio",
+        "me_response_decoy_job_title_key": "jobTitle",
+        "me_response_decoy_job_title_value": "Chief Backend Engineer",
+        "expected_job_title": "Chief Information Officer"
+      },
+      "steps": [
+        "Mock GET /api/me to resolve with {name: 'Elena Vasquez', persona: 'cio', jobTitle: 'Chief Backend Engineer'} — the extra key simulates a hypothetical pass-through bug; the real endpoint's extra=\"forbid\" model would never emit it",
+        "Render the page-level composition (page.tsx -> AdoptionOverview -> PersonaDashboardShell) with that mocked response",
+        "Read the composed signedInUser object passed into PersonaDashboardShell",
+        "Read the rendered identity block's job-title text node"
+      ],
+      "expected_results": [
+        "signedInUser passed to PersonaDashboardShell is {name: 'Elena Vasquez', jobTitle: 'Chief Information Officer'} — sourced from PERSONA_DISPLAY.cio.jobTitle, not the mocked decoy value",
+        "Rendered job-title text reads 'Chief Information Officer', never 'Chief Backend Engineer'",
+        "No code path in AdoptionOverview/page.tsx reads a jobTitle field off the GET /api/me response object"
+      ],
+      "tags": ["risk-2", "high-risk", "composition-not-passthrough", "persona-shell"],
+      "last_run": {
+        "started_at": "2026-09-11T13:08:24Z",
+        "duration_ms": 35,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 35, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-05-TC-02",
+      "title": "Already-authenticated visitor at /login is redirected server-side to /overview without seeing the sign-in action",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "tracker_test": "pratikpawar009/Dashboard#288",
+      "requirement_id": "OVW-05-AC-18",
+      "given": "a visitor holds a valid dashboard_session",
+      "when": "they navigate to /login",
+      "then": "login/page.tsx's server-side session check redirects them to /overview before any sign-in markup renders, and the 'Sign in with SSO' action is never shown",
+      "objective": "Verify login/page.tsx's already-authenticated pass-through (AC-18) bypasses the branded sign-in page via the existing readSession() helper, redirecting to ADOPTION_OVERVIEW_ROUTE before render — the residual routing-split obligation from research risk #5 (OVW-05-FR-1), on the same /login segment split that AC-16/AC-17 also depend on.",
+      "preconditions": [
+        "login/start/route.ts exists at apps/web/src/app/login/start/route.ts as the relocated OAuth relay (body byte-identical to the former login/route.ts)",
+        "login/page.tsx exists at apps/web/src/app/login/page.tsx and calls the existing readSession() helper (apps/web/src/lib/tokenStore.ts) — the same helper GET /logout already calls",
+        "Test harness seeds a valid dashboard_session recognized by readSession()"
+      ],
+      "test_data": {
+        "session_state": "valid",
+        "route_under_test": "/login",
+        "expected_redirect_target": "/overview"
+      },
+      "steps": [
+        "Seed a valid dashboard_session for the test visitor",
+        "Request /login (render login/page.tsx)",
+        "Inspect the response/render output produced before any sign-in markup would paint"
+      ],
+      "expected_results": [
+        "readSession() resolves a valid session and login/page.tsx calls redirect() to /overview (ADOPTION_OVERVIEW_ROUTE) before rendering sign-in markup",
+        "The 'Sign in with SSO' action is never rendered for this visitor",
+        "The flow short-circuits before invoking login/start/route.ts's relay logic, since the SSO action that would target /login/start is never reached"
+      ],
+      "tags": ["risk-5-residual", "login-routing-split", "auth-05-pass-through"],
+      "last_run": {
+        "started_at": "2026-09-11T13:08:28Z",
+        "duration_ms": 8,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 8, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {"id": "OVW-05-AC-1", "covered_by": []},
+      {"id": "OVW-05-AC-2", "covered_by": []},
+      {"id": "OVW-05-AC-3", "covered_by": []},
+      {"id": "OVW-05-AC-4", "covered_by": []},
+      {"id": "OVW-05-AC-5", "covered_by": []},
+      {"id": "OVW-05-AC-6", "covered_by": ["OVW-05-TC-01"]},
+      {"id": "OVW-05-AC-7", "covered_by": []},
+      {"id": "OVW-05-AC-8", "covered_by": []},
+      {"id": "OVW-05-AC-9", "covered_by": []},
+      {"id": "OVW-05-AC-10", "covered_by": []},
+      {"id": "OVW-05-AC-11", "covered_by": []},
+      {"id": "OVW-05-AC-12", "covered_by": []},
+      {"id": "OVW-05-AC-13", "covered_by": []},
+      {"id": "OVW-05-AC-14", "covered_by": []},
+      {"id": "OVW-05-AC-15", "covered_by": []},
+      {"id": "OVW-05-AC-16", "covered_by": []},
+      {"id": "OVW-05-AC-17", "covered_by": []},
+      {"id": "OVW-05-AC-18", "covered_by": ["OVW-05-TC-02"]},
+      {"id": "OVW-05-AC-19", "covered_by": []}
+    ],
+    "functional_requirements": [
+      {"id": "OVW-05-FR-1", "covered_by": []},
+      {"id": "OVW-05-FR-2", "covered_by": []},
+      {"id": "OVW-05-FR-3", "covered_by": []}
+    ],
+    "non_functional_requirements": [
+      {"id": "OVW-05-NFR-performance", "covered_by": []},
+      {"id": "OVW-05-NFR-security", "covered_by": []},
+      {"id": "OVW-05-NFR-accessibility", "covered_by": []},
+      {"id": "OVW-05-NFR-observability", "covered_by": []}
+    ],
+    "uncovered": [
+      "OVW-05-AC-1", "OVW-05-AC-2", "OVW-05-AC-3", "OVW-05-AC-4", "OVW-05-AC-5",
+      "OVW-05-AC-7", "OVW-05-AC-8", "OVW-05-AC-9", "OVW-05-AC-10", "OVW-05-AC-11",
+      "OVW-05-AC-12", "OVW-05-AC-13", "OVW-05-AC-14", "OVW-05-AC-15", "OVW-05-AC-16",
+      "OVW-05-AC-17", "OVW-05-AC-19",
+      "OVW-05-FR-1", "OVW-05-FR-2", "OVW-05-FR-3",
+      "OVW-05-NFR-performance", "OVW-05-NFR-security", "OVW-05-NFR-accessibility", "OVW-05-NFR-observability"
+    ],
+    "note": "User-directed hard cap of 2 test cases on this run (not the schema's coverage minimum). Deliberately prioritized: (1) research risk #2 (HIGH) — jobTitle frontend-only composition, never GET /api/me pass-through; (2) the /login routing-split's AC-18 already-authenticated pass-through. Coverage: AC 2/19 (10.5%); FR 0/3 (0%); NFR 0/4 (0%); combined requirement-id obligation 2/26 (7.7%). This gap is intentional per user directive, not a self-correction failure — no self-correct round was run because exceeding 2 test cases was explicitly disallowed."
+  }
+}

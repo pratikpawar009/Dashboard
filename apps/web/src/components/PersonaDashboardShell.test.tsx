@@ -102,7 +102,13 @@ describe("PersonaDashboardShell (SHP-01-TC-02)", () => {
     expectNeutralErrorBadge();
   });
 
-  it("shows the identical neutral badge + aria-live announcement for persona='cio' (D-03 — one path, not two)", () => {
+  // OVW-05 AC-1/AC-2: `cio` is now a fifth valid, renderable persona —
+  // `formatPersonaTag("cio")` no longer throws `PersonaTagError`, so this
+  // used to assert the neutral badge (D-03) no longer holds for `cio`. This
+  // replaces that stale assertion with proof the admission actually took
+  // effect: the real tag/subtitle render through the existing program-header
+  // path, not the neutral fallback.
+  it("renders the normal identity/header path for persona='cio' — no longer the neutral badge (OVW-05 AC-1/AC-2)", () => {
     render(
       <PersonaDashboardShell
         signedInUser={undefined}
@@ -111,7 +117,20 @@ describe("PersonaDashboardShell (SHP-01-TC-02)", () => {
       />,
     );
 
-    expectNeutralErrorBadge();
+    expect(screen.getByText("CIO / CXO").textContent).toBe("CIO / CXO");
+    // The subtitle is a bare text sibling of the pill <span> inside
+    // PersonaHeader's shared wrapper div (not its own dedicated element), so
+    // `.textContent` on the matched node would include the pill's text too —
+    // existence (getByText throws if not found) is the correct assertion here.
+    expect(
+      screen.getByText(
+        "Organization-wide AI-in-SDLC adoption, spend & impact",
+      ),
+    ).not.toBeNull();
+    expect(screen.queryByText("Persona unavailable")).toBeNull();
+    expect(
+      screen.queryByText("Unable to load your dashboard view."),
+    ).toBeNull();
   });
 
   it("falls back to the neutral identity circle when signedInUser is undefined, with no name/jobTitle text", () => {
@@ -246,5 +265,173 @@ describe("PersonaDashboardShell (SHP-01-TC-02)", () => {
     expect(screen.getByTestId("overview-content").textContent).toBe(
       "Org summary content",
     );
+  });
+});
+
+// OVW-05 AC-8/AC-9/AC-10 — the org-header variant, selected purely by prop
+// presence (`pageTitle !== undefined && program === undefined`), mutually
+// exclusive with the shipped program variant.
+describe("PersonaDashboardShell — org-header variant (OVW-05 AC-8/AC-9/AC-10)", () => {
+  it("renders the page title, persona pill, and subtitle when pageTitle is set and program is omitted (AC-8/AC-9)", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="cio"
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    expect(screen.getByText("Adoption Overview").textContent).toBe(
+      "Adoption Overview",
+    );
+    expect(screen.getByText("CIO / CXO").textContent).toBe("CIO / CXO");
+    expect(
+      screen.getByText(
+        "Organization-wide AI-in-SDLC adoption, spend & impact",
+      ).textContent,
+    ).toBe("Organization-wide AI-in-SDLC adoption, spend & impact");
+  });
+
+  it("selects the org-header variant, not the program variant, when program is omitted (mutual exclusivity)", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="architect"
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    expect(container.querySelectorAll("header")).toHaveLength(1);
+    expect(
+      container.getElementsByClassName(shellStyles.pageTitle),
+    ).toHaveLength(1);
+    // never the program variant's ProgramContext content
+    expect(screen.queryByText(PROGRAM.name)).toBeNull();
+  });
+
+  it("selects the program variant, not the org-header variant, when program is defined even alongside pageTitle (mutual exclusivity)", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="architect"
+        program={PROGRAM}
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    expect(container.querySelectorAll("header")).toHaveLength(1);
+    expect(
+      container.getElementsByClassName(shellStyles.pageTitle),
+    ).toHaveLength(0);
+    expect(screen.getByText(PROGRAM.name).textContent).toBe(PROGRAM.name);
+  });
+
+  it("suppresses the org header entirely while persona is unresolved, no skeleton (AC-10)", () => {
+    const { container } = render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona={undefined}
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    expect(container.querySelector("header")).toBeNull();
+    expect(screen.queryByText("Adoption Overview")).toBeNull();
+    expect(
+      container.getElementsByClassName(shellStyles.identity),
+    ).toHaveLength(0);
+    expect(findSkeletonMarkup(container)).toHaveLength(0);
+
+    // brand bar's static left half still renders
+    expect(screen.getByText("AgentRise Harness").textContent).toBe(
+      "AgentRise Harness",
+    );
+    expect(screen.getByText("AI SDLC Governance").textContent).toBe(
+      "AI SDLC Governance",
+    );
+  });
+
+  it("degrades the pill to the neutral badge when persona is unresolvable, while the page title still renders", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="persona-resolution-error"
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    expect(screen.getByText("Adoption Overview").textContent).toBe(
+      "Adoption Overview",
+    );
+
+    const badge = screen.getByText("Persona unavailable");
+    expect(badge.textContent).toBe("Persona unavailable");
+
+    const announcement = screen.getByText(
+      "Unable to load your dashboard view.",
+    );
+    expect(announcement.getAttribute("aria-live")).toBe("assertive");
+  });
+});
+
+// OVW-05 AC-12/AC-13/AC-14/AC-15 — the sign-out control. AC-12's own text
+// flags this as shipping untested today: the control is a SIBLING of the
+// `signedInUser` ternary, gated only by `!isLoading`, so it must render in
+// BOTH the populated and the D-05 neutral-fallback branch. A regression that
+// nests it inside either branch would pass one of the next two cases and
+// fail the other — both are asserted explicitly, not just one.
+describe("PersonaDashboardShell — sign-out control (OVW-05 AC-12/AC-13/AC-14/AC-15)", () => {
+  it("renders with signedInUser defined, with an accessible name matching its visible text 'Sign out'", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={{ name: "Devon Rao", jobTitle: "Principal Architect" }}
+        persona="architect"
+        program={PROGRAM}
+      />,
+    );
+
+    const signOut = screen.getByRole("button", { name: "Sign out" });
+    expect(signOut.textContent).toBe("Sign out");
+  });
+
+  it("renders with signedInUser undefined (D-05 neutral-fallback branch) — the AC-12 branch-placement guard", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="architect"
+        program={PROGRAM}
+      />,
+    );
+
+    const signOut = screen.getByRole("button", { name: "Sign out" });
+    expect(signOut.textContent).toBe("Sign out");
+  });
+
+  it("does not render while persona is unresolved (AC-14)", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona={undefined}
+        program={PROGRAM}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+  });
+
+  it("targets the existing GET /logout Route Handler via a plain form submit — no new logout logic (AC-13)", () => {
+    render(
+      <PersonaDashboardShell
+        signedInUser={{ name: "Devon Rao", jobTitle: "Principal Architect" }}
+        persona="architect"
+        program={PROGRAM}
+      />,
+    );
+
+    const signOut = screen.getByRole("button", { name: "Sign out" });
+    const form = signOut.closest("form");
+    expect(form).not.toBeNull();
+    expect(form?.getAttribute("action")).toBe("/logout");
+    expect(form?.getAttribute("method")).toBe("get");
   });
 });

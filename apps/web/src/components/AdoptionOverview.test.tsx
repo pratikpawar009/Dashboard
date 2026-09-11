@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import { AdoptionOverview } from "./AdoptionOverview";
+import shellStyles from "./PersonaDashboardShell.module.css";
 import type { OrgSummaryCardData, OverviewSummaryResult } from "@/types/overview";
+import type { SignedInUser } from "@/types/persona";
 
 /**
  * OVW-01-TC-06 / OVW-01-TC-07 — the Adoption Overview page body.
@@ -170,4 +172,86 @@ describe("AdoptionOverview — non-ok statuses (OVW-01-AC-3, D-07)", () => {
       expect(screen.queryByTestId("adoption-headline")).toBeNull();
     },
   );
+});
+
+/**
+ * OVW-05-AC-9 — `AdoptionOverview` forwards `persona`/`signedInUser`/
+ * `pageTitle` to `PersonaDashboardShell` unchanged. `AdoptionOverview`
+ * performs no composition or transformation of its own (T-06); asserted
+ * through rendered output rather than a mocked shell, matching this file's
+ * existing convention of rendering the real component tree.
+ */
+describe("AdoptionOverview — persona/signedInUser/pageTitle forwarding (OVW-05-AC-9)", () => {
+  const SIGNED_IN_USER: SignedInUser = {
+    name: "Elena Vasquez",
+    jobTitle: "Chief Information Officer",
+  };
+
+  it("forwards persona, signedInUser and pageTitle to PersonaDashboardShell unchanged", () => {
+    render(
+      <AdoptionOverview
+        result={POPULATED}
+        persona="cio"
+        signedInUser={SIGNED_IN_USER}
+        pageTitle="Adoption Overview"
+      />,
+    );
+
+    // Identity block: name + job title + initials avatar -- proves
+    // `signedInUser` reached the shell unchanged, not dropped or defaulted.
+    expect(screen.getByText("Elena Vasquez").textContent).toBe(
+      "Elena Vasquez",
+    );
+    expect(screen.getByText("Chief Information Officer").textContent).toBe(
+      "Chief Information Officer",
+    );
+    expect(screen.getByText("EV").textContent).toBe("EV");
+
+    // Org header: page title + persona pill + persona subtitle -- proves
+    // `pageTitle` and `persona` both reached the shell unchanged.
+    expect(screen.getByText("Adoption Overview").textContent).toBe(
+      "Adoption Overview",
+    );
+    expect(screen.getByText("CIO / CXO").textContent).toBe("CIO / CXO");
+    expect(
+      screen.getByText(
+        "Organization-wide AI-in-SDLC adoption, spend & impact",
+      ).textContent,
+    ).toBe("Organization-wide AI-in-SDLC adoption, spend & impact");
+  });
+});
+
+/**
+ * Regression guard: omitting all three preserves OVW-01's shipped behaviour
+ * unchanged. Before T-06 widened `AdoptionOverview`'s props, the shell
+ * always received `persona={undefined}`, which keeps it in its
+ * brand-bar-only `isLoading` branch (no identity block, no header of either
+ * variant, no sign-out control). Widening the props to optional must not
+ * regress the zero-args call shape.
+ */
+describe("AdoptionOverview — persona/signedInUser/pageTitle omitted (regression, OVW-01 behaviour)", () => {
+  it("keeps the shell in its brand-bar-only isLoading branch when all three are omitted", () => {
+    const { container } = render(<AdoptionOverview result={POPULATED} />);
+
+    // Brand bar's static left half still renders.
+    expect(screen.getByText("AgentRise Harness").textContent).toBe(
+      "AgentRise Harness",
+    );
+    expect(screen.getByText("AI SDLC Governance").textContent).toBe(
+      "AI SDLC Governance",
+    );
+
+    // No identity block, no sign-out control, no header of either variant --
+    // `persona === undefined` keeps the shell's isLoading gate closed.
+    expect(
+      container.getElementsByClassName(shellStyles.identity),
+    ).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+    expect(container.querySelector("header")).toBeNull();
+    expect(screen.queryByText("Adoption Overview")).toBeNull();
+    expect(screen.queryByText("CIO / CXO")).toBeNull();
+
+    // The page's own content beneath the shell is unaffected.
+    expect(screen.getAllByTestId("org-summary-card")).toHaveLength(5);
+  });
 });

@@ -166,7 +166,7 @@ describe("AUTH-05-TC-03: no token leak in logs; dashboard_session cookie is Http
   });
 
   it("zero token leakage across a full dev-bypass login, a proactive (60s-skew) refresh, a reactive-401 refresh, and every failure branch of login/route.ts and callback/route.ts", async () => {
-    const { GET: loginGet } = await import("@/app/login/route");
+    const { GET: loginGet } = await import("@/app/login/start/route");
     const { GET: callbackGet } = await import("@/app/callback/route");
     const tokenStore = await import("@/lib/tokenStore");
 
@@ -353,7 +353,7 @@ describe("AUTH-05-TC-03: no token leak in logs; dashboard_session cookie is Http
   });
 
   it("no token value is ever written to localStorage or sessionStorage across login, callback, and a proactive refresh", async () => {
-    const { GET: loginGet } = await import("@/app/login/route");
+    const { GET: loginGet } = await import("@/app/login/start/route");
     const { GET: callbackGet } = await import("@/app/callback/route");
     const tokenStore = await import("@/lib/tokenStore");
 

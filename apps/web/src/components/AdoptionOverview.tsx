@@ -4,6 +4,7 @@ import { OrgSummaryCards } from "./OrgSummaryCards";
 import { OverviewErrorPanel } from "./OverviewErrorPanel";
 import { PersonaDashboardShell } from "./PersonaDashboardShell";
 import type { OverviewSummaryResult } from "@/types/overview";
+import type { Persona, SignedInUser } from "@/types/persona";
 
 /**
  * Adoption Overview page body (OVW-01, AC-3/AC-4/AC-5) — composes the two
@@ -18,21 +19,36 @@ import type { OverviewSummaryResult } from "@/types/overview";
  * what keeps the access token off the client per
  * `docs/adr/0008-client-side-auth-route-handler-proxy.md`.
  *
- * `PersonaDashboardShell` is rendered with `signedInUser`/`persona`/`program`
- * **all omitted** (D-04). That is intentional, not an oversight: the shell
- * derives `isLoading` from `persona === undefined`, so omitting it keeps the
- * shell in its brand-bar-only branch and neither `PersonaHeader` nor
- * `ProgramContext` is invoked. This is an org-wide view — there is no single
- * program to name, which is exactly why T-08 widened `program` to optional.
+ * `persona`/`signedInUser`/`pageTitle` arrive from the composing page
+ * (`overview/page.tsx`, OVW-05) fully resolved and are forwarded to
+ * `PersonaDashboardShell` unchanged — this component performs no fetching
+ * and no composition of its own (`GET /api/me` is called server-side by the
+ * page, not here). `program` stays omitted, unchanged from before this
+ * story: this is an org-wide view — there is no single program to name,
+ * which is exactly why T-08 widened `program` to optional.
  *
  * Every non-`ok` status renders the same `OverviewErrorPanel` (D-07) — one
  * message for `forbidden`, `unauthorized` and `error` alike, so the copy
  * never reveals whether the resource exists or whether the session is at
  * fault.
  */
-export function AdoptionOverview({ result }: { result: OverviewSummaryResult }) {
+export function AdoptionOverview({
+  result,
+  persona,
+  signedInUser,
+  pageTitle,
+}: {
+  result: OverviewSummaryResult;
+  persona?: Persona;
+  signedInUser?: SignedInUser;
+  pageTitle?: string;
+}) {
   return (
-    <PersonaDashboardShell>
+    <PersonaDashboardShell
+      persona={persona}
+      signedInUser={signedInUser}
+      pageTitle={pageTitle}
+    >
       <div className={styles.content}>
         {result.status === "ok" ? (
           <>

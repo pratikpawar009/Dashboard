@@ -8,8 +8,11 @@
  */
 
 /**
- * PROVISIONAL — pending the AUTH-01 session-contract amendment (SHP-01
- * Constraints/C-1); only this file and PersonaDashboardShell.tsx reference
+ * Resolved without a rename: `name` arrives from `session-identity-api`
+ * (`GET /api/me`) under that exact field name; `jobTitle` is composed
+ * frontend-side from `PERSONA_DISPLAY[persona].jobTitle`, never read off the
+ * wire. The SHP-01 D-01 field-name isolation adapter above is left intact,
+ * not exercised — only this file and PersonaDashboardShell.tsx reference
  * these field names directly.
  */
 export interface SignedInUser {
@@ -31,6 +34,7 @@ export const VALID_PERSONAS = [
   "developer",
   "product-manager",
   "engineering-manager",
+  "cio",
 ] as const;
 
 export type ValidPersona = (typeof VALID_PERSONAS)[number];
