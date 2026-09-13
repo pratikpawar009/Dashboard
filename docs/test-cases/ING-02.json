@@ -1,0 +1,197 @@
+{
+  "story_id": "ING-02",
+  "test_cases": [
+    {
+      "id": "ING-02-TC-01",
+      "title": "Idempotent activity ingest — happy path, intra-batch dedup, chunked upsert, program-scope rebuild only",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-02-AC-1",
+      "tracker_test": "pratikpawar009/Dashboard#293",
+      "given": "a valid bearer token scoped to program P1, an empty usage_events table, and a 5000-row activity batch whose last row duplicates the composite key (program_id, session_id, cmd_ts) of the first row",
+      "when": "the same payload is POSTed to /api/ingest/files twice in succession",
+      "then": "both requests return 200; first inserts 4999 unique rows and reports one intra_batch_duplicate reject; second reports 4999 updates and zero inserts; usage_events row count stays at 4999; program-scope rollup snapshots are byte-identical across the two runs; rebuild_org_rollups is never invoked in the request path; each request emits exactly one ingest_write_completed log with the allowlist fields only",
+      "objective": "Verify that a happy-path activity batch is validated, dedup'd, chunked-upserted, and program-rebuilt within the request path with correct counters + rollup summaries (AC-1), that re-POSTing the same payload produces no duplicate usage_events rows and identical rollups (AC-6), that org rebuild is scheduled out-of-band (FR-1 / C-9), that chunking respects the ≤2978 rows-per-INSERT ceiling (FR-2 / C-1), that intra-batch duplicates land in rejected[] with reason intra_batch_duplicate (FR-3 / C-2), and that the completion log obeys the PII allowlist (FR-8 / C-7).",
+      "preconditions": [
+        "Fresh test database with usage_events table migrated (including additive source + copilot_credits columns from FR-4 migration)",
+        "One ingest_token row exists: token_hash=<HASH(TOKEN_P1)>, allowed_program_ids=[\"P1\"], not revoked, not expired",
+        "Program row program_id=\"P1\" exists",
+        "No pre-existing usage_events rows for program_id=\"P1\"",
+        "Test harness spies on app/services/rollup_rebuild.rebuild_org_rollups and structlog capture is enabled",
+        "Test harness can count SQL INSERT statements issued during the request (for chunk-count assertion)"
+      ],
+      "test_data": {
+        "bearer_token": "<TOKEN_P1>",
+        "program_id": "P1",
+        "kind": "activity",
+        "row_count": 5000,
+        "duplicate_pair": {
+          "row_index_original": 0,
+          "row_index_duplicate": 4999,
+          "shared_composite_key": {"program_id": "P1", "session_id": "S-0000", "cmd_ts": "2026-09-11T12:00:00Z"}
+        },
+        "expected_chunk_ceiling": 2978,
+        "expected_max_chunks_for_5000_rows": 2,
+        "expected_first_response_counters": {
+          "received": 5000,
+          "valid": 4999,
+          "inserted": 4999,
+          "updated": 0,
+          "rejected": [{"index": 4999, "reason": "intra_batch_duplicate"}]
+        },
+        "expected_second_response_counters": {
+          "received": 5000,
+          "valid": 4999,
+          "inserted": 0,
+          "updated": 4999,
+          "rejected": [{"index": 4999, "reason": "intra_batch_duplicate"}]
+        },
+        "expected_log_event": "ingest_write_completed",
+        "expected_log_allowlist": ["event", "program_id", "rows_received", "rows_inserted", "rows_updated", "rows_rejected", "duration_ms"]
+      },
+      "steps": [
+        "Build the 5000-row activity payload described in test_data (row[4999] duplicates row[0]'s composite key; all other rows have distinct session_id + cmd_ts)",
+        "POST /api/ingest/files with header Authorization: Bearer <TOKEN_P1> and JSON body {program_id: \"P1\", kind: \"activity\", rows: <5000-row array>}",
+        "Capture response A: HTTP status, JSON body, structlog records emitted during the request, and the count of INSERT statements executed against usage_events",
+        "Query SELECT COUNT(*) FROM usage_events WHERE program_id = 'P1' → store as count_after_first",
+        "Snapshot the program_rollup rows for program_id = 'P1' → store as rollup_snapshot_A (ordered, canonicalised)",
+        "Assert rebuild_org_rollups spy was called zero times during request A",
+        "POST the identical payload a second time with the same Authorization header",
+        "Capture response B and the structlog records + INSERT count for request B",
+        "Query SELECT COUNT(*) FROM usage_events WHERE program_id = 'P1' → store as count_after_second",
+        "Snapshot program_rollup rows for program_id = 'P1' → store as rollup_snapshot_B",
+        "Assert rebuild_org_rollups spy was called zero times during request B"
+      ],
+      "expected_results": [
+        "Response A: HTTP 200; body matches expected_first_response_counters exactly (received=5000, valid=4999, inserted=4999, updated=0, rejected=[{index:4999, reason:\"intra_batch_duplicate\"}])",
+        "Response A: body.rollup_summaries contains a program-scope entry keyed by program_id \"P1\" and NO org-scope entry (FR-1)",
+        "count_after_first == 4999 (dedup applied before upsert)",
+        "INSERT-statement count for request A ≤ ceil(4999 / 2978) = 2 (chunking honours _MAX_ROWS_PER_INSERT ≤ 2978)",
+        "Exactly one structlog record with event=\"ingest_write_completed\" is emitted for request A; its key set equals expected_log_allowlist exactly (no user, command, feature, or row content); rows_rejected == 1",
+        "rebuild_org_rollups was not invoked during request A (C-9)",
+        "Response B: HTTP 200; body matches expected_second_response_counters exactly (received=5000, valid=4999, inserted=0, updated=4999)",
+        "count_after_second == 4999 (idempotence — no duplicate physical rows created by the second POST)",
+        "rollup_snapshot_B is byte-identical to rollup_snapshot_A (idempotent rollup — AC-6 / NFR-012)",
+        "Exactly one ingest_write_completed record for request B with rows_inserted=0, rows_updated=4999; keys still equal expected_log_allowlist exactly",
+        "rebuild_org_rollups was not invoked during request B"
+      ],
+      "tags": ["happy-path", "idempotence", "dedup", "chunking", "observability", "org-rebuild-out-of-band"]
+    },
+    {
+      "id": "ING-02-TC-02",
+      "title": "Auth/authz denial + request-level validation abort + row-level rejection enumeration",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-02-AC-2",
+      "tracker_test": "pratikpawar009/Dashboard#294",
+      "given": "usage_events is empty; program P1 has a valid token T1 scoped to [\"P1\"]; a second program P2 has a valid token T2 scoped to [\"OTHER\"]; no program \"UNKNOWN\" exists; the endpoint's request-level validators are wired per FR-5 (mirroring manifest.py) and FR-7 (envelope kind)",
+      "when": "a sequence of denied and malformed requests is issued against /api/ingest/files, followed by one request whose envelope is valid but which contains a mix of malformed rows",
+      "then": "no-token → 401; wrong-scope token → 403; unknown program_id → 404; envelope kind != \"activity\" → 400; rows.length > 5000 → 413; all five reject-all responses write zero rows to usage_events; the mixed-row request returns 200 and enumerates one entry per bad row in rejected[] with reasons drawn from the FR-3 enum {malformed_iso_date, missing_required_field, intra_batch_duplicate}, while valid rows in the same batch commit; every rejection entry carries row index + reason only, never row content",
+      "objective": "Verify the auth/authz denial matrix routed through the mirrored get_ingest_token(...) wiring (AC-2 / AC-3 / FR-5), the request-level validation abort tier for envelope kind and row-cap (AC-4 / FR-7), the row-level rejection enumeration (AC-5 / FR-3), and the PII discipline of rejection response entries (C-7 / FR-8). Split into a hermetic auth-only module so token fixtures don't leak into the happy-path integration file.",
+      "preconditions": [
+        "Fresh test database with usage_events table migrated",
+        "ingest_token row 1: token_hash=<HASH(TOKEN_P1)>, allowed_program_ids=[\"P1\"], not revoked, not expired",
+        "ingest_token row 2: token_hash=<HASH(TOKEN_P2)>, allowed_program_ids=[\"OTHER\"], not revoked, not expired",
+        "ingest_token row 3: token_hash=<HASH(TOKEN_REVOKED)>, allowed_program_ids=[\"P1\"], revoked_at=<past timestamp>",
+        "Program rows exist for program_id in {\"P1\", \"OTHER\"}; no row exists for program_id=\"UNKNOWN\"",
+        "usage_events is empty at test start; harness re-checks emptiness after each reject-all sub-step"
+      ],
+      "test_data": {
+        "bearer_token_valid_P1": "<TOKEN_P1>",
+        "bearer_token_wrong_scope": "<TOKEN_P2>",
+        "bearer_token_revoked": "<TOKEN_REVOKED>",
+        "valid_row_template": {"program_id": "P1", "session_id": "S-0001", "cmd_ts": "2026-09-11T12:00:00Z", "kind": "chat", "user": "dev@example.com"},
+        "over_cap_row_count": 5001,
+        "mixed_row_batch": [
+          {"pos": 0, "defect": "cmd_ts = \"not-a-date\"", "expected_reason": "malformed_iso_date"},
+          {"pos": 1, "defect": "session_id field omitted", "expected_reason": "missing_required_field"},
+          {"pos": 2, "defect": "duplicates row at pos 3 on (program_id, session_id, cmd_ts)", "expected_reason": "intra_batch_duplicate"},
+          {"pos": 3, "defect": "none — valid row A", "expected_reason": null},
+          {"pos": 4, "defect": "none — valid row B (unknown top-level field \"vendor_tag\" present, must be dropped silently per FR-4)", "expected_reason": null}
+        ],
+        "expected_mixed_batch_counters": {
+          "received": 5,
+          "valid": 2,
+          "inserted": 2,
+          "updated": 0,
+          "rejected": [
+            {"index": 0, "reason": "malformed_iso_date"},
+            {"index": 1, "reason": "missing_required_field"},
+            {"index": 2, "reason": "intra_batch_duplicate"}
+          ]
+        },
+        "forbidden_pii_keys_in_response": ["user", "command", "feature", "session_id", "cmd_ts", "row"]
+      },
+      "steps": [
+        "POST /api/ingest/files with body {program_id: \"P1\", kind: \"activity\", rows: [<valid_row_template>]} and NO Authorization header",
+        "Assert HTTP 401; assert SELECT COUNT(*) FROM usage_events == 0",
+        "POST the same body with header Authorization: Bearer <TOKEN_REVOKED>",
+        "Assert HTTP 401; assert usage_events still empty",
+        "POST the same body with header Authorization: Bearer <TOKEN_P2> (allowed_program_ids=[\"OTHER\"], targeting program_id=\"P1\")",
+        "Assert HTTP 403; assert usage_events still empty",
+        "POST body {program_id: \"UNKNOWN\", kind: \"activity\", rows: [<valid_row_template with program_id patched>]} with header Authorization: Bearer <TOKEN_P1>",
+        "Assert HTTP 404; assert usage_events still empty",
+        "POST body {program_id: \"P1\", kind: \"artifacts\", rows: [<valid_row_template>]} with header Authorization: Bearer <TOKEN_P1>",
+        "Assert HTTP 400; assert usage_events still empty (envelope kind rejected at request tier per FR-7)",
+        "POST body {program_id: \"P1\", kind: \"activity\", rows: <5001 valid rows>} with header Authorization: Bearer <TOKEN_P1>",
+        "Assert HTTP 413; assert usage_events still empty (row-cap abort per AC-4)",
+        "POST body {program_id: \"P1\", kind: \"activity\", rows: <mixed_row_batch materialised>} with header Authorization: Bearer <TOKEN_P1>",
+        "Capture response body and structlog records",
+        "Query SELECT COUNT(*) FROM usage_events WHERE program_id = 'P1' → store as count_after_mixed",
+        "Scan every rejection entry in the mixed-request response body for any key in forbidden_pii_keys_in_response"
+      ],
+      "expected_results": [
+        "No-token POST returns HTTP 401; usage_events remains empty (AC-2)",
+        "Revoked-token POST returns HTTP 401; usage_events remains empty (AC-2)",
+        "Wrong-scope-token POST returns HTTP 403; usage_events remains empty (AC-3)",
+        "Unknown-program POST returns HTTP 404 (via get_ingest_token program lookup per FR-5); usage_events remains empty",
+        "Envelope kind=\"artifacts\" returns HTTP 400; zero writes (FR-7 shared envelope-kind vocabulary)",
+        "5001-row POST returns HTTP 413 before any row is processed; zero writes (AC-4)",
+        "Mixed-row POST returns HTTP 200; response counters equal expected_mixed_batch_counters exactly (received=5, valid=2, inserted=2, updated=0, rejected list matches by index + reason)",
+        "count_after_mixed == 2 (valid rows at positions 3 and 4 committed; unknown field \"vendor_tag\" on the pos-4 row was dropped silently per FR-4 without causing rejection)",
+        "No rejection entry in the mixed-request response contains any key from forbidden_pii_keys_in_response — only {index, reason} are present (C-7 / FR-8)",
+        "Rejection reason enum used by the response is a subset of {malformed_iso_date, missing_required_field, intra_batch_duplicate} (FR-3 / AC-5 reworded)"
+      ],
+      "tags": ["negative", "auth", "authz", "validation-abort", "row-rejection", "pii-safe-responses", "envelope-kind"]
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {"id": "ING-02-AC-1", "covered_by": ["ING-02-TC-01"]},
+      {"id": "ING-02-AC-2", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-AC-3", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-AC-4", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-AC-5", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-AC-6", "covered_by": ["ING-02-TC-01"]}
+    ],
+    "functional_requirements": [
+      {"id": "ING-02-FR-1", "covered_by": ["ING-02-TC-01"]},
+      {"id": "ING-02-FR-2", "covered_by": ["ING-02-TC-01"]},
+      {"id": "ING-02-FR-3", "covered_by": ["ING-02-TC-01", "ING-02-TC-02"]},
+      {"id": "ING-02-FR-4", "covered_by": []},
+      {"id": "ING-02-FR-5", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-FR-6", "covered_by": []},
+      {"id": "ING-02-FR-7", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-FR-8", "covered_by": ["ING-02-TC-01", "ING-02-TC-02"]}
+    ],
+    "non_functional_requirements": [
+      {"id": "ING-02-NFR-performance", "covered_by": []},
+      {"id": "ING-02-NFR-security", "covered_by": ["ING-02-TC-02"]},
+      {"id": "ING-02-NFR-observability", "covered_by": ["ING-02-TC-01", "ING-02-TC-02"]}
+    ],
+    "uncovered": ["ING-02-FR-4", "ING-02-FR-6", "ING-02-NFR-performance"],
+    "operator_directive": {
+      "hard_cap": 2,
+      "rationale": "Operator directive in PRD § Test strategy caps AC-mapped test cases at 2. Consolidation strategy: TC-01 collapses AC-1 + AC-6 + C-1/C-2/C-9 into one end-to-end idempotence run; TC-02 collapses AC-2 + AC-3 + AC-4 + AC-5 + FR-5/FR-7 into one auth/validation denial run. Residual coverage rides as targeted unit tests scheduled in /arh-plan-implementation (see uncovered_disposition).",
+      "uncovered_disposition": {
+        "ING-02-FR-4": "Wire-shape field aliasing + additive migration verified by a targeted unit test on the API-alias mapper (unit test scheduled in /arh-plan-implementation, not an AC-mapped TC).",
+        "ING-02-FR-6": "Housekeeping (stub deletion + orphan removal + SKILL.md citation update). Not a runtime behaviour — verified by plan-validation cross-section check and by the app-boot smoke that /ingest/events now returns 404.",
+        "ING-02-NFR-performance": "p95 ≤ 3s @ 5000 rows against seeded 160k-row table — covered by tests/perf/test_ingest_files_perf.py (C-10) scheduled in /arh-plan-implementation as a type: performance test, not enumerated here per operator directive."
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
 from app.api.health import router as health_router
+from app.api.ingest_files import router as ingest_files_router
 from app.api.manifest import router as manifest_router
 from app.api.me import router as me_router
 from app.api.overview import router as overview_router
@@ -87,16 +88,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     )
 
     app.include_router(health_router)
-    # `ingest_router` is deliberately NOT registered. `app/api/ingest.py` is a
-    # scaffold skeleton: it has no auth dependency and its `_persist()` is a
-    # TODO that returns a fabricated id without writing to Postgres, so
-    # registering it exposes an unauthenticated route that answers `201` while
-    # silently discarding every event pushed to it. ING-01 built the bearer
-    # auth dependency (`app.core.ingest_auth.get_ingest_token`) but placed
-    # `/ingest/*` route wiring and request handling out of scope, deferring
-    # both to ING-02. ING-02 registers this router once the route actually
-    # authenticates and persists; until then `/ingest/events` is a 404, which
-    # is honest, rather than a 201 that loses data.
+    app.include_router(ingest_files_router)
     app.include_router(manifest_router)
     app.include_router(activities_router)
     app.include_router(programs_router)

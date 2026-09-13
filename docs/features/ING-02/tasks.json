@@ -1,0 +1,569 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-02",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-11T00:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/api/ingest_files.py",
+      "reason": "FR-5 / C-4 / C-5: new POST /api/ingest/files router mirroring app/api/manifest.py verbatim in shape \u2014 APIRouter(prefix='/api/ingest'), raw-dict body via request.json(), manual `await get_ingest_token(program_id=..., credentials=..., session=db)` (not Depends), fresh private HTTPBearer(auto_error=False), request-tier envelope-kind check + 413 row-cap, delegates to activity_ingest.ingest_files(), schedules dispatch_org_rebuild via background_tasks.add_task per D-01/ADR-0012"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/services/activity_ingest.py",
+      "reason": "FR-2/FR-3/FR-4/FR-8: service layer \u2014 Pydantic per-row validation with _ROW_SCHEMA_COLUMN_MAP alias table (5 aliases per Q-01, unknown fields dropped silently), Python intra-batch dedup on (program_id, session_id, cmd_ts) last-wins (FR-3 / C-2), chunked pg_insert(...).on_conflict_do_update() at _MAX_ROWS_PER_INSERT = 2_730 (= floor(65_535 / 24 columns)), synchronous rebuild_program_rollups(session, program_id), PII-allowlisted log_ingest_write_completed emitter matching manifest_ingest.log_ingest_manifest_write shape"
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/schemas/ingest_files.py",
+      "reason": "FR-4 / C-7: Pydantic in/out models \u2014 ActivityRowIn (field_validators for malformed_iso_date + missing_required_field; unknown fields silently dropped per FR-4 / Q-01), RejectionEntry {index, reason} (never row content \u2014 FR-8 / C-7), SectionCounts, IngestFilesResponse {received, valid, inserted, updated, rejected: list[RejectionEntry], rollup_summaries: dict}; new canonical Pydantic in/out example cited by pydantic-patterns SKILL.md (F-14) replacing the deleted app/schemas/activity.py"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/core/ingest_kind.py",
+      "reason": "FR-7 / C-6 / D-03: one owning module for envelope-kind vocabulary on the app/core/role_map.py model \u2014 _ACCEPTED_KINDS = frozenset({'activity'}) + accept_envelope_kind(kind). ING-03 extends the frozenset with 'artifacts' in its own scope; row-level usage_events.kind is stored verbatim per Q-02 and never touches this module"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/migrations/versions/006_usage_events_source_credits.py",
+      "reason": "FR-4 / Q-01: additive, column-only Alembic revision (revises 005_persona_precedence, current head). upgrade() adds nullable source (String) + copilot_credits (Numeric) columns to usage_events; downgrade() drops both. Self-registers via down_revision \u2014 no separate registry file needs editing (002/003/004/005 precedent). Zero-lock, zero-rewrite on non-empty prod tables (Postgres 11+); no backfill"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/models/ingestion.py",
+      "reason": "FR-4: UsageEvent gains `source: Mapped[str | None]` and `copilot_credits: Mapped[Decimal | None]` mapped_column declarations matching the F-05 migration. Post-change column count = 24; consumed by activity_ingest (F-02) for _MAX_ROWS_PER_INSERT derivation and by the schema-diff gate (F-07). tests/test_migrations.py::TestSchemaDiffGate requires model + migration to agree (see model docstring at :29-32)"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/tests/test_migrations.py",
+      "reason": "AC-9-analog for migration 006: targeted assertion that usage_events.source and usage_events.copilot_credits exist after upgrade to 006 and are absent after downgrade to 005, in addition to the existing generic full-chain round-trip tests (BED-05 F-14 precedent for migration 004)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "FR-6 / C-5: register `include_router(ingest_files_router)` grouped with the other includes; delete the 11-line `# ingest_router is deliberately NOT registered` comment at :78-88. Closes BED-05 carry-forward R-09 (that story's own risk register explicitly points at this file). Same PR as F-09/F-10/F-14 per D-02"
+    },
+    "F-09": {
+      "action": "delete",
+      "path": "services/api/app/api/ingest.py",
+      "reason": "FR-6 / C-5 / D-02: unregistered ING-02 scaffold stub \u2014 never registered in app/main.py, /ingest/events is 404 today, `_persist()` returns a fabricated id without writing to Postgres. Deleted same PR as F-08 (router registration) and F-10 (orphan schema); its only two imports (ActivityEventIn, ActivityEventOut from app.schemas.activity) are removed with F-10"
+    },
+    "F-10": {
+      "action": "delete",
+      "path": "services/api/app/schemas/activity.py",
+      "reason": "FR-6 / C-5 / D-02: orphaned by F-09 (ingest.py was its sole production consumer); pydantic-patterns SKILL.md's six citations retarget to app/schemas/ingest_files.py (F-14) in the same PR \u2014 no dangling reference survives commit"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_activity_ingest_alias_mapper.py",
+      "reason": "FR-4 (gap #1, dispositioned to plan-implementation per PRD \u00a7 Test strategy operator directive): unit test for the wire\u2192column alias mapper \u2014 asserts the 5 aliases from Q-01 resolve correctly and unknown row-level fields are silently dropped (row still commits)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_activity_ingest_chunk_ceiling.py",
+      "reason": "FR-2 / C-1: unit test asserting `len(UsageEvent.__table__.columns) * _MAX_ROWS_PER_INSERT <= 65_500` \u2014 the ceiling itself, not the specific integer, so a future column addition to usage_events silently trips the assertion instead of silently overflowing the Postgres 65_535 bind-param limit at runtime"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_activity_ingest_intra_batch_dedup.py",
+      "reason": "FR-3 / C-2: unit test for the Python-side dedup on (program_id, session_id, cmd_ts) \u2014 asserts last-wins semantics (matching upsert), asserts dropped row lands in rejected[] with reason `intra_batch_duplicate` and the dropped row's index, closes research risk #5 (HIGH) \u2014 Postgres CardinalityViolation without dedup"
+    },
+    "F-14": {
+      "action": "modify",
+      "path": ".claude/skills/pydantic-patterns/SKILL.md",
+      "reason": "D-02 / C-5: retarget the six citations of `app/schemas/activity.py` (lines 28-31, 37, 52, 60-74, 84) to `app/schemas/ingest_files.py` (F-03) as the new canonical in/out example. Ships same PR as F-09/F-10 \u2014 no stale citation survives commit"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_kind.py",
+      "reason": "FR-7 / C-6 / D-03: unit test for the envelope-kind allowlist \u2014 asserts accept_envelope_kind('activity') is True, accept_envelope_kind('artifacts') is False (until ING-03 extends the frozenset), accept_envelope_kind('') is False"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_files_pii_logging.py",
+      "reason": "C-7 / FR-8: PII allowlist assertion mirroring services/api/tests/unit/test_manifest_pii_logging.py's _EXPECTED_KEY_SET shape \u2014 captures emitted records via a caplog / JSONFormatter probe, asserts `ingest_write_completed`'s key set == {event, program_id, rows_received, rows_inserted, rows_updated, rows_rejected, duration_ms} exactly (never user, command, feature, or row content); asserts no RejectionEntry response body item carries row content"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_files_route_registered.py",
+      "reason": "FR-6 boot smoke (gap #2, dispositioned to plan-implementation): follows the `assert any(getattr(route, 'path', None) == '/api/ingest/files' for route in create_app().routes)` shape from test_auth_oidc_login.py:184 / test_auth_logout.py:199. Chosen over a new services/api/tests/smoke/ directory because no smoke dir exists today and this codebase's existing convention for the same assertion lives under tests/unit/ \u2014 surgical (`.claude/rules/pattern-consistency.md`)"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_files_idempotency.py",
+      "reason": "ING-02-TC-01 (tracker #293): full integration test per docs/test-cases/ING-02.json \u2014 happy-path 5000-row batch, intra-batch dedup at row[0]/row[4999], chunked upsert \u22642 INSERT statements, program-scope rebuild, rebuild_org_rollups spy asserts zero request-path calls (FR-1 / C-9 verification), ingest_write_completed allowlist. Lives under tests/unit/ per this codebase's convention for real-Postgres integration tests (BED-05 F-10 precedent: 'no tests/integration/ dir exists; test_integration is empty in project-commands.yaml')"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_files_auth_denial.py",
+      "reason": "ING-02-TC-02 (tracker #294): full integration test per docs/test-cases/ING-02.json \u2014 401 (no header, revoked), 403 (wrong scope), 404 (unknown program), 400 (envelope kind != 'activity'), 413 (5001 rows), row-level rejection enumeration (malformed_iso_date, missing_required_field, intra_batch_duplicate), PII discipline of rejection response entries. Same file-location rationale as F-18"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_ingest_files_perf.py",
+      "reason": "NFR-performance (gap #3, dispositioned to plan-implementation; C-8, C-10): seeds usage_events to 20k / 40k / 160k rows across \u2265 3 programs BEFORE the 5000-row push; measures p95 for validate + Python dedup + chunked upsert + rebuild_program_rollups; excludes the BackgroundTasks-scheduled rebuild_org_rollups per D-01/ADR-0012. Module docstring records the seeded sizes + per-size p95 budgets per Research Rec #1. Uses the pytest-based perf convention BED-05 established in tests/perf/test_rollup_rebuild_perf.py \u2014 no new runner"
+    },
+    "F-21": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "C-3 (blocking write): expand ### ingest-files-api section's `shape:` with the full rows[] field list \u2014 raw activity.jsonl field names + the 5 aliases (Q-01, resolved 2026-09-09) + types per db-schema + unknown-field policy (dropped silently, row still commits per FR-4). Downstream ING-04 / ING-06 / ING-09 bind against this shared spec, not against ING-02's internal schema module"
+    },
+    "F-22": {
+      "action": "modify",
+      "path": "docs/requirements/data.md",
+      "reason": "C-11 + D-01/ADR-0012: (a) correct ### rollup-rebuild `invariant:` line \u2014 replace 'O(events for the affected program) per write' with wording that distinguishes program rebuild (O(events for the affected program)) from org rebuild (O(all events)), per BED-05 DATA-DESIGN.md:54's own contradiction; (b) update `commit_boundary_note:` \u2014 record that the caller-side ordering ING-02 implements is (1) commit usage_events, (2) sync rebuild_program_rollups, (3) enqueue rebuild_org_rollups via FastAPI BackgroundTasks per ADR-0012"
+    },
+    "F-23": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "Docs T2: add POST /api/ingest/files entry to the API table beside POST /api/ingest/manifest \u2014 ING-10 established the precedent when it added /api/ingest/manifest. Route + auth + limits one-line summary; full field list lives in F-21 (docs/requirements/api.md)"
+    },
+    "F-24": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Docs T2 (root): mirror the same one-line POST /api/ingest/files entry in the root README API table per PRD Documentation \u00a7 README updates. Cross-references docs/requirements/api.md#ingest-files-api for the full contract"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Additive migration 006 \u2014 usage_events gains nullable source + copilot_credits; model + schema-diff gate updated",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-05",
+        "F-06",
+        "F-07"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Must land FIRST \u2014 every downstream task that reads _MAX_ROWS_PER_INSERT (T-04) or asserts the bind ceiling (T-08) needs the model to reflect the post-migration 24-column count. Additive, nullable, zero backfill; safe on non-empty prod tables. Down/up round-trip covered by F-07. Alembic self-registers via down_revision='005_persona_precedence'",
+      "status": "done",
+      "completed_at": "2026-09-11T12:00:00Z",
+      "files_touched": [
+        "services/api/migrations/versions/006_usage_events_source_credits.py",
+        "services/api/app/models/ingestion.py",
+        "services/api/tests/test_migrations.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Envelope-kind vocabulary module \u2014 app/core/ingest_kind.py owns _ACCEPTED_KINDS + accept_envelope_kind",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "ING-02-AC-4"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "D-03 / C-6: one module, on app/core/role_map.py's model; ING-02 lists {'activity'}, ING-03 extends the frozenset in its own scope. Row-level usage_events.kind stored verbatim per Q-02 \u2014 this module is envelope-tier only",
+      "status": "done",
+      "completed_at": "2026-09-11T12:30:00Z",
+      "files_touched": [
+        "services/api/app/core/ingest_kind.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Pydantic schemas \u2014 app/schemas/ingest_files.py (ActivityRowIn, RejectionEntry, SectionCounts, IngestFilesResponse)",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1",
+        "ING-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "FR-4 wire aliases + field_validators for malformed_iso_date / missing_required_field. Unknown fields silently dropped per Q-01. RejectionEntry carries {index, reason} only \u2014 never row content (FR-8 / C-7). This module becomes pydantic-patterns SKILL.md's new canonical in/out example (F-14 retargets citations)",
+      "status": "done",
+      "completed_at": "2026-09-11T12:30:00Z",
+      "files_touched": [
+        "services/api/app/schemas/ingest_files.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "activity_ingest service \u2014 validation + intra-batch dedup + chunked upsert + program-rebuild + PII log emitter",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1",
+        "ING-02-AC-5",
+        "ING-02-AC-6"
+      ],
+      "risk_refs": [
+        "R-04",
+        "R-05",
+        "R-11",
+        "R-12"
+      ],
+      "notes": "The heart of the story. _MAX_ROWS_PER_INSERT = floor(65_535 / len(UsageEvent.__table__.columns)) = 2_730 given the F-06 column addition. Two-tier validation per manifest_ingest.py precedent; per-row Pydantic .model_validate(); Python-side dedup on (program_id, session_id, cmd_ts) last-wins (FR-3 / C-2); chunked pg_insert(...).on_conflict_do_update(index_elements=['program_id','session_id','cmd_ts']) inside one transaction; synchronous rebuild_program_rollups(session, program_id) after commit; PII-allowlisted log_ingest_write_completed emitter (FR-8 / C-7). Does NOT call rebuild_org_rollups directly \u2014 exposes an on_org_rebuild dispatch callable to the router (D-01 / ADR-0012). Row-level program_id vs envelope program_id mismatch counts into rejected[] with reason program_id_mismatch (DATA-DESIGN.md \u00a73)",
+      "status": "done",
+      "completed_at": "2026-09-11T13:15:00Z",
+      "files_touched": [
+        "services/api/app/services/activity_ingest.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Router \u2014 app/api/ingest_files.py POST /api/ingest/files with manifest.py-shaped auth + BackgroundTasks org dispatch",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1",
+        "ING-02-AC-2",
+        "ING-02-AC-3",
+        "ING-02-AC-4"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors app/api/manifest.py verbatim in shape (FR-5 / C-4): raw request.json() dict, program_id off the body, manual `await get_ingest_token(program_id=..., credentials=..., session=db)` (not Depends), fresh private HTTPBearer(auto_error=False) per module \u2014 NEVER import ingest_auth._http_bearer. Request-tier order: JSON dict check \u2192 program_id str check \u2192 envelope kind via accept_envelope_kind (400 on reject, FR-7 / AC-4) \u2192 await get_ingest_token (401/403) \u2192 len(rows) > 5000 \u2192 413. Delegates to activity_ingest.ingest_files; on success, `background_tasks.add_task(dispatch_org_rebuild, ...)` \u2014 the dispatcher opens its own AsyncSession from SessionLocal (request session is closed by then) and calls rebuild_org_rollups; exceptions inside the task logged via logger.exception('ingest_org_rollup_task_failed', ...) with no PII (D-01 / ADR-0012)",
+      "status": "done",
+      "completed_at": "2026-09-11T14:05:00Z",
+      "files_touched": [
+        "services/api/app/api/ingest_files.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Router registration + stub cleanup \u2014 main.py include_router, delete ingest.py + activity.py, retarget pydantic-patterns SKILL.md",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-08",
+        "F-09",
+        "F-10",
+        "F-14"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [
+        "R-10"
+      ],
+      "notes": "D-02 / C-5: single PR, all four edits together. Replace the app/main.py:78-88 comment with `from app.api.ingest_files import router as ingest_files_router` + `app.include_router(ingest_files_router)`. Delete services/api/app/api/ingest.py. Delete services/api/app/schemas/activity.py. Retarget .claude/skills/pydantic-patterns/SKILL.md's six citations to app/schemas/ingest_files.py. Closes BED-05 carry-forward R-09",
+      "status": "done",
+      "completed_at": "2026-09-11T14:40:00Z",
+      "files_touched": [
+        "services/api/app/main.py",
+        "services/api/app/api/ingest.py",
+        "services/api/app/schemas/activity.py",
+        ".claude/skills/pydantic-patterns/SKILL.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Unit test \u2014 wire\u2192column alias mapper (FR-4 gap #1)",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Gap #1 from PRD \u00a7 Test strategy operator directive. Reads _ROW_SCHEMA_COLUMN_MAP from app/services/activity_ingest.py; asserts the 5 aliases from Q-01 resolve correctly and unknown row-level fields are silently dropped (row still commits)",
+      "status": "done",
+      "completed_at": "2026-09-11T14:05:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_activity_ingest_alias_mapper.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Unit test \u2014 bind-parameter ceiling assertion (FR-2 / C-1)",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Asserts `len(UsageEvent.__table__.columns) * _MAX_ROWS_PER_INSERT <= 65_500`. Tests the CEILING, not the constant integer \u2014 a future usage_events column addition trips the assertion instead of silently overflowing Postgres's 65_535 bind-param limit at runtime",
+      "status": "done",
+      "completed_at": "2026-09-11T14:05:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_bind_param_ceiling.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Unit test \u2014 intra-batch dedup last-wins with intra_batch_duplicate reason (FR-3 / C-2)",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "ING-02-AC-5"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
+      "notes": "Feeds a hand-built row list with a duplicate on (program_id, session_id, cmd_ts); asserts the LAST row survives (matching upsert semantics), the dropped row lands in rejected[] with reason='intra_batch_duplicate' and index of the dropped row (never row content)",
+      "status": "done",
+      "completed_at": "2026-09-11T14:05:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_intra_batch_dedup.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Unit test \u2014 envelope kind allowlist (FR-7)",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "ING-02-AC-4"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "Asserts accept_envelope_kind('activity') is True, accept_envelope_kind('artifacts') is False (until ING-03 extends the frozenset), accept_envelope_kind('') is False, accept_envelope_kind('nonsense') is False",
+      "status": "done",
+      "completed_at": "2026-09-11T13:15:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_kind.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Unit test \u2014 ingest_write_completed PII allowlist + rejection-entry PII discipline (C-7 / FR-8)",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [
+        "R-11"
+      ],
+      "notes": "Mirrors services/api/tests/unit/test_manifest_pii_logging.py::_EXPECTED_KEY_SET. Captures emitted records via caplog / JSONFormatter probe; asserts key set == {event, program_id, rows_received, rows_inserted, rows_updated, rows_rejected, duration_ms} EXACTLY (allowlist, not denylist); asserts no RejectionEntry in the response body carries user/command/feature/session_id/cmd_ts or any other row content",
+      "status": "done",
+      "completed_at": "2026-09-11T14:40:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_write_completed_pii.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Unit test \u2014 FR-6 boot smoke: /api/ingest/files is registered on the app.routes table (gap #2)",
+      "complexity": "S",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Gap #2 from PRD \u00a7 Test strategy operator directive. Follows the app.routes-inspection precedent from test_auth_oidc_login.py:184 / test_auth_logout.py:199: `assert any(getattr(route, 'path', None) == '/api/ingest/files' for route in create_app().routes)`. Rationale for tests/unit/ over a new tests/smoke/ dir: no smoke dir exists today; existing convention places the same shape of assertion under tests/unit/ (surgical-changes / pattern-consistency)",
+      "status": "done",
+      "completed_at": "2026-09-11T15:10:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_files_route_registered.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Integration test \u2014 TC-01 idempotent activity ingest happy path (#293)",
+      "complexity": "L",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1",
+        "ING-02-AC-4",
+        "ING-02-AC-5",
+        "ING-02-AC-6"
+      ],
+      "risk_refs": [
+        "R-12"
+      ],
+      "notes": "Full test per docs/test-cases/ING-02.json TC-01 (tracker #293). Two POSTs of the same 5000-row payload with row[4999] duplicating row[0]'s composite key; asserts first response = {received:5000, valid:4999, inserted:4999, updated:0, rejected:[{index:4999, reason:intra_batch_duplicate}]}; second = {inserted:0, updated:4999}; usage_events row count stays at 4999; program_rollup snapshots byte-identical across the two runs (excluding regenerated id/as_of_timestamp/created_at/updated_at per BED-05 D-06); rebuild_org_rollups spy asserts zero request-path calls (FR-1 / C-9); ingest_write_completed emits exactly once per request with allowlist keys only; INSERT statement count for a 5000-row (post-dedup 4999-row) batch <= ceil(4999 / 2_730) = 2. Lives under tests/unit/ per BED-05 F-10 precedent (no tests/integration/ dir per docs/config/project-commands.yaml)",
+      "status": "done",
+      "completed_at": "2026-09-11T15:10:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_files_idempotency.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Integration test \u2014 TC-02 auth/authz denial matrix + validation abort + row-level rejection enumeration (#294)",
+      "complexity": "L",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-19"
+      ],
+      "ac_refs": [
+        "ING-02-AC-2",
+        "ING-02-AC-3",
+        "ING-02-AC-4",
+        "ING-02-AC-5"
+      ],
+      "risk_refs": [
+        "R-11"
+      ],
+      "notes": "Full test per docs/test-cases/ING-02.json TC-02 (tracker #294). Sequence: 401 (no header), 401 (revoked), 403 (wrong scope TOKEN_P2 targets P1), 404 (unknown program_id), 400 (envelope kind='artifacts' \u2014 FR-7 request-tier reject), 413 (5001 rows), then a mixed-row happy path with 3 bad rows (malformed_iso_date, missing_required_field, intra_batch_duplicate) + 2 valid rows including one with an unknown top-level field that must be dropped silently. Each reject-all step asserts usage_events remains empty. Mixed-row response counters must match TC-02 test_data.expected_mixed_batch_counters exactly. Response body scan for forbidden PII keys per TC-02 test_data.forbidden_pii_keys_in_response. Same file-location rationale as T-13",
+      "status": "done",
+      "completed_at": "2026-09-11T15:10:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_ingest_files_auth_denial.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Perf test \u2014 5000-row push p95 at 20k/40k/160k seeded table sizes (NFR gap #3, C-8 / C-10)",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Gap #3 from PRD \u00a7 Test strategy operator directive. Seeds usage_events to 20k / 40k / 160k rows across >=3 programs BEFORE running the 5000-row push. Measures validate + Python dedup + chunked upsert + rebuild_program_rollups (excludes the BackgroundTasks-scheduled rebuild_org_rollups per D-01 / ADR-0012 \u2014 the perf test disables the background dispatch or measures with it disabled). Module docstring records the seeded sizes and per-size p95 budgets per Research Rec #1. Uses the pytest-based perf convention BED-05 established in tests/perf/test_rollup_rebuild_perf.py \u2014 no new runner install / config. Ties to NFR performance p95 <= 3s at 5000 rows / up to 160k accumulated rows",
+      "status": "done",
+      "completed_at": "2026-09-11T15:10:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_ingest_files_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "Docs \u2014 write rows[] field list into docs/requirements/api.md#ingest-files-api (C-3 blocking write)",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-21"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "C-3 blocking write for ING-04/06/09. Expand ### ingest-files-api section's `shape:` with: (a) raw activity.jsonl field names on the wire; (b) the 5 API aliases for columns whose usage_events names differ (per Q-01 resolved 2026-09-09); (c) types per db-schema; (d) unknown-field policy \u2014 unknown fields on a row are dropped silently, row still commits. Depends on T-03 because the wire\u2192column alias table (_ROW_SCHEMA_COLUMN_MAP) is fixed in F-03 first, then transcribed here into the shared registry",
+      "status": "done",
+      "completed_at": "2026-09-11T13:15:00Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "Docs \u2014 correct data.md#rollup-rebuild invariant + commit_boundary_note for ADR-0012 (C-11)",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-22"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "C-11 text-only correction of the `invariant:` line \u2014 the current 'O(events for the affected program) per write' clause is documented as wrong for org scope by BED-05 DATA-DESIGN.md:54 itself. Also update `commit_boundary_note:` to reflect ADR-0012 (per-D-01) \u2014 the caller-side ordering ING-02 implements is (1) commit usage_events, (2) sync rebuild_program_rollups, (3) enqueue rebuild_org_rollups via FastAPI BackgroundTasks. Text-only; no code reopens BED-03/BED-05",
+      "status": "done",
+      "completed_at": "2026-09-11T12:30:00Z",
+      "files_touched": [
+        "docs/requirements/data.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "Docs \u2014 README updates (root + services/api) for POST /api/ingest/files (Docs T2)",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-23",
+        "F-24"
+      ],
+      "ac_refs": [
+        "ING-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Docs T2 (new HTTP route). Add POST /api/ingest/files entry to BOTH the root README.md API table AND services/api/README.md API table (PRD Documentation \u00a7 README updates; ING-10 precedent for /api/ingest/manifest). One-line summary each; cross-references docs/requirements/api.md#ingest-files-api for the full field list (T-16)",
+      "status": "done",
+      "completed_at": "2026-09-11T14:40:00Z",
+      "files_touched": [
+        "README.md",
+        "services/api/README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

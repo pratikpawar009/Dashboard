@@ -7,6 +7,8 @@
 **Updated**: 2026-08-26
 **Tracker**: pratikpawar009/Dashboard#41 (https://github.com/pratikpawar009/Dashboard/issues/41)
 **Tracker Research:** pratikpawar009/Dashboard#254 (https://github.com/pratikpawar009/Dashboard/issues/254)
+**Tracker Plan Requirements:** pratikpawar009/Dashboard#292 (https://github.com/pratikpawar009/Dashboard/issues/292)
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#295 (https://github.com/pratikpawar009/Dashboard/issues/295)
 
 ## User story
 

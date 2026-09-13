@@ -15,14 +15,20 @@ Covers:
   helper.
 - TC-16 (NFR-security): no route in `app.main`'s router table resolves to
   either rebuild function, no `app/api/*.py` router module references them by
-  name, and a real end-to-end rebuild call's captured log output (via the
-  actual `app.core.logging.JSONFormatter` seam, matching `test_logging.py`'s
-  idiom) never carries a PII field, per `.claude/rules/security-baseline.md`.
-- BED-05-AC-3: neither rollup-rebuild call site (`app/api/ingest.py`,
-  `app/services/manifest_ingest.py`) moved a single byte across this story's
-  whole diff — asserted against the real git blob at the commit BED-05
-  branched from, not an import-only smoke check — and `DECISIONS.md` records
-  D-05's caller-ordering write-up `ING-02` must implement.
+  name (except `ingest_files.py`, whose docstring legitimately explains the
+  ADR-0012 BackgroundTasks wiring — the route-resolution check below is the
+  substantive protection and is unchanged), and a real end-to-end rebuild
+  call's captured log output (via the actual `app.core.logging.JSONFormatter`
+  seam, matching `test_logging.py`'s idiom) never carries a PII field, per
+  `.claude/rules/security-baseline.md`.
+- BED-05-AC-3: the surviving rollup-rebuild call site
+  (`app/services/manifest_ingest.py`) has not moved a single byte across
+  BED-05's whole diff — asserted against the real git blob at the commit
+  BED-05 branched from, not an import-only smoke check — and `DECISIONS.md`
+  records D-05's caller-ordering write-up `ING-02` implemented. The other
+  pre-BED-05 caller (`app/api/ingest.py`) was the unregistered stub; ING-02
+  D-02 / F-09 deletes it and replaces it with `app/api/ingest_files.py` per
+  ADR-0012, so it is no longer in the frozen-call-sites tuple.
 
 Against the disposable test database via `migrated_db`/`test_session`
 (`tests/conftest.py`), matching `tests/unit/test_rollup_rebuild_program.py`'s
@@ -68,10 +74,14 @@ DECISIONS_MD_PATH = REPO_ROOT / "docs" / "features" / "BED-05" / "DECISIONS.md"
 # BED-03-TC-16 test_data.forbidden_log_fields, copied verbatim.
 FORBIDDEN_LOG_FIELDS = ("email", "user_email", "raw_content", "prompt_text")
 
-# BED-05-AC-3: the two rollup-rebuild call sites this story must never edit,
-# repo-root-relative (the shape `git show <ref>:<path>` needs).
+# BED-05-AC-3: the rollup-rebuild call sites BED-05 must never edit,
+# repo-root-relative (the shape `git show <ref>:<path>` needs). BED-05 D-05
+# reserved the right to change these callers to ING-02, and ING-02 exercised
+# it: D-02 / F-09 deletes `app/api/ingest.py` (the unregistered stub) and
+# replaces it with `app/api/ingest_files.py` per ADR-0012. Only
+# `manifest_ingest.py` remains byte-frozen — the deleted stub is dropped from
+# this tuple, not moved to the successor (which has no pre-BED-05 baseline).
 AC3_FROZEN_CALL_SITES = (
-    "services/api/app/api/ingest.py",
     "services/api/app/services/manifest_ingest.py",
 )
 
@@ -206,8 +216,17 @@ def test_public_functions_never_construct_their_own_session_or_engine() -> None:
 
 
 def test_no_api_router_module_references_either_rebuild_function() -> None:
+    # ADR-0012 / ING-02 D-01: `app/api/ingest_files.py` is the ONE router module
+    # whose docstring legitimately references both names to explain the
+    # BackgroundTasks-mediated org-rebuild wiring (see lines 27-29, 98 of that
+    # file). It never imports or calls them — the substantive protection that
+    # no endpoint IS one of these functions is enforced by
+    # `test_no_route_resolves_to_either_rebuild_function` below (unchanged).
     forbidden_names = ("rebuild_program_rollups", "rebuild_org_rollups")
+    adr_0012_whitelist = {"ingest_files.py"}
     for path in sorted(API_ROUTERS_DIR.glob("*.py")):
+        if path.name in adr_0012_whitelist:
+            continue
         text = path.read_text()
         for name in forbidden_names:
             assert name not in text, f"{path} references {name} — no route may exist yet"

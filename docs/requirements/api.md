@@ -278,10 +278,73 @@ shape:
 produced_by: ING-02
 consumed_by: [ING-04, ING-06, ING-09]
 shape:
-  endpoint: "POST /api/ingest/files  {program_id, kind:'activity', rows}"
-  auth: "ingest-token-auth bearer"
-  limits: "5000 rows/request cap, 413 over"
-  response: "received/valid/inserted/updated/rejected counts + reasons + rollup summaries"
+  endpoint: "POST /api/ingest/files"
+  auth: "ingest-token-auth bearer (ING-01, `services/api/app/core/ingest_auth.py`); envelope `program_id` must be in the token's `allowed_program_ids` (or wildcard `*`, or empty = allow-all — ING-01 semantics). Manual `await get_ingest_token(program_id=..., credentials=..., session=db)` because `program_id` lives in the body, not the path/query (FR-5 / C-4 — mirrors app/api/manifest.py verbatim). Never session-cookie."
+  request_body: "raw JSON dict — envelope `{program_id: str, kind: 'activity', rows: list[ActivityRowIn]}`. Envelope-level Pydantic bind is deliberately NOT used (matches manifest.py precedent); envelope fields are checked off the raw dict, then per-row Pydantic validation runs in the service layer. Envelope `kind` vocabulary lives in `app/core/ingest_kind.py::_ACCEPTED_KINDS = {'activity'}` (FR-7 / C-6 — ING-03 extends this frozenset with 'artifacts')."
+  limits: "5000 rows/request cap (AC-4). Router rejects `len(rows) > 5000` with 413 before any DB work; `activity_ingest._ENVELOPE_ROW_CAP = 5_000` in the service enforces the same limit defence-in-depth. Chunked upsert further limits per-INSERT rows to `_MAX_ROWS_PER_INSERT = 2_730 = floor(65_535 / 24 cols)` inside one transaction (FR-2 / C-1)."
+  rows_shape:
+    schema_module: "`services/api/app/schemas/ingest_files.py::ActivityRowIn` — Pydantic v2, `model_config = ConfigDict(populate_by_name=True, extra='ignore')`. Unknown row-level fields are silently dropped, the row still commits (FR-4 / Q-01, disposition C-2). `populate_by_name=True` lets tests/service construct rows using either the wire name or the column name."
+    wire_aliases: >
+      Five wire→column aliases (Q-01, resolved 2026-09-09) — the wire uses raw
+      `activity.jsonl` field names, the API stores under `usage_events` column names:
+        duration_s   -> duration_seconds
+        input_token  -> input_tokens
+        output_token -> output_tokens
+        cache_read   -> cache_read_tokens
+        cache_write  -> cache_write_tokens
+    fields: |
+      Every field on `ActivityRowIn` (verbatim from schema module, wire-name column first):
+        program_id       str          required — must match envelope program_id (mismatch → rejection reason program_id_mismatch, service layer)
+        ts               ISO-8601 str required — pre-parsed by field_validator(mode='before'); unparseable → reason malformed_iso_date
+        cmd_ts           ISO-8601 str required — same parser as ts; part of idempotency key
+        user             str          required — PII, never logged or embedded in RejectionEntry (FR-8 / C-7)
+        session_id       str          required — part of idempotency key (program_id, session_id, cmd_ts)
+        kind             str | null   optional — row-level kind, stored verbatim per Q-02, NO vocabulary check
+        command          str          required
+        feature          str | null   optional
+        duration_s       int          required — wire alias for duration_seconds
+        outcome          str          required
+        intervention_count int | null optional
+        files_created    int | null   optional
+        files_modified   int | null   optional
+        lines_added      int | null   optional
+        tool_rejections  int | null   optional
+        input_token      int | null   optional — wire alias for input_tokens
+        output_token     int | null   optional — wire alias for output_tokens
+        cache_read       int | null   optional — wire alias for cache_read_tokens
+        cache_write      int | null   optional — wire alias for cache_write_tokens
+        total            int          required — total tokens (input + output + cache)
+        models           object | null optional — per-model token breakdown, stored as JSONB
+        source           str | null   optional — producer id (e.g. 'harness-mcp-push'); STORED per additive migration 006 (FR-4)
+        copilot_credits  decimal | null optional — per-row credits consumption; STORED per migration 006 (FR-4)
+    unknown_field_policy: "extra='ignore' — unknown row-level fields silently dropped; the row still commits. This is the FR-4 / Q-01 disposition, verified by T-07 wire→column alias unit test and covered by T-14 mixed-row integration test."
+    idempotency_key: "unique(program_id, session_id, cmd_ts) — matches `usage_events` schema (BED-01/db-schema). Chunked `pg_insert(...).on_conflict_do_update(index_elements=['program_id','session_id','cmd_ts'])` gives the caller idempotent replay: a second POST of the same batch yields `inserted=0, updated=<row_count>`, no new rows."
+    intra_batch_dedup: "before upsert, rows are deduplicated in Python on (program_id, session_id, cmd_ts); last row wins on collision (matches ON CONFLICT DO UPDATE semantics). Dropped duplicates count into `rejected[]` with reason `intra_batch_duplicate` and the ORIGINAL row's index in the input array (FR-3 / C-2). Prevents CardinalityViolation on batches with the same key twice."
+  response_shape:
+    schema_module: "`services/api/app/schemas/ingest_files.py::IngestFilesResponse` — flat counts + rejection list + program-scope rollup summary. HTTP 200 on success (partial rejections DO NOT change the status — rejections ride in `rejected[]`)."
+    fields: |
+      received         int                    total rows in the request payload
+      valid            int                    rows that passed validation AND intra-batch dedup
+      inserted         int                    rows newly inserted into usage_events (ON CONFLICT DO UPDATE arm not taken)
+      updated          int                    rows updated in place via ON CONFLICT DO UPDATE
+      rejected         list[RejectionEntry]   per-row rejection outcomes — {index, reason} only
+      rollup_summaries object                 program-scope RebuildResult from rebuild_program_rollups(); org-scope rebuild runs out-of-band (see rollup_summaries_scope)
+    rejection_entry: "`RejectionEntry { index: int, reason: str }` — `index` is the row's position in the request's original `rows[]` array. `reason` is one of the codes below. NEVER carries row content (FR-8 / C-7 PII discipline) — no user/command/feature/ts/cmd_ts/session_id ever appears in a RejectionEntry."
+    rejection_reasons: |
+      Vocabulary the service layer emits (docs/features/ING-02/DATA-DESIGN.md § 3):
+        malformed_iso_date       ts or cmd_ts failed ISO-8601 parse (schema module's field_validator raises this literal)
+        missing_required_field   Pydantic's built-in `missing` error type — a required field was absent
+        intra_batch_duplicate    row's (program_id, session_id, cmd_ts) collided with an earlier row in the same batch; last-wins, this row dropped
+        program_id_mismatch      row-level program_id differs from the envelope program_id (service layer, not schema — the row model has no view of the envelope)
+      Vocabulary is NOT constrained via Literal on RejectionEntry — a future ingest kind (ING-03 artifacts) may extend this list without a schema-module edit. Enforced by service + asserted by T-14 integration test.
+    rollup_summaries_scope: "program-scope ONLY. `rebuild_program_rollups(session, program_id)` runs synchronously after commit and its `RebuildResult` populates this field. `rebuild_org_rollups(session)` runs OUT-OF-BAND via FastAPI `BackgroundTasks` (D-01 / ADR-0012 — supersedes AC-1's original 'run synchronously' wording) and reports through its own emitter; it is NEVER included in this response. Callers that need org-scope confirmation observe the async event, not this field."
+  errors:
+    "400": "envelope invalid — non-dict body, missing/non-string `program_id`, or envelope `kind` not in `_ACCEPTED_KINDS = {'activity'}` (FR-7 / AC-4 abort tier). Zero writes. Router-tier check, before auth."
+    "401": "missing or invalid Bearer token — get_ingest_token's own behaviour (ING-01)"
+    "403": "token's `allowed_program_ids` does not include the envelope `program_id` — get_ingest_token raises HTTPException(403); no data body"
+    "404": "envelope `program_id` does not resolve to a known program — get_ingest_token behaviour when the program is unknown"
+    "413": "len(rows) > 5000 — router rejects before DB work; zero writes (AC-4). `activity_ingest._ENVELOPE_ROW_CAP` mirrors the limit defence-in-depth"
+  observability: "one structured log event per completed request — `event: 'ingest_write_completed'`, allowlist keys ONLY: {event, program_id, rows_received, rows_inserted, rows_updated, rows_rejected, duration_ms} (FR-8 / C-7). NEVER user, command, feature, session_id, cmd_ts, or any row content. Asserted by `test_ingest_pii_logging.py` (T-11) via allowlist diff, not denylist."
 ```
 
 ### program-manifest-api
