@@ -589,3 +589,76 @@ class TestRollupQueryIndexRevision:
         assert at_003 - at_004 == set()
 
         migrated_db.upgrade("head")
+
+
+class TestUsageEventsSourceCreditsRevision:
+    """ING-02-AC-1: revision 006 adds `source` + `copilot_credits` to
+    `usage_events` additively, and downgrade removes both.
+
+    The generic round-trip tests above exercise 006 as part of the whole
+    chain; this isolates the two columns it owns so a regression in 006
+    alone is legible (mirrors the BED-05 `TestRollupQueryIndexRevision`
+    precedent for 004).
+    """
+
+    REVISION_006 = "006_usage_events_source_credits"
+    REVISION_005 = "005_persona_precedence"
+    NEW_COLUMNS = frozenset({"source", "copilot_credits"})
+
+    @staticmethod
+    def _usage_event_column_names(sync_conn: Any) -> set[str]:
+        return {c["name"] for c in inspect(sync_conn).get_columns("usage_events")}
+
+    @pytest.mark.asyncio
+    async def test_columns_present_at_006_and_absent_at_005(
+        self, migrated_db: AlembicRunner, test_engine: AsyncEngine
+    ) -> None:
+        # `migrated_db` upgrades to "head" before the test body runs. 006 is
+        # the current head at time of writing, but land on it explicitly via
+        # `downgrade` rather than assuming "head" resolves there — matching
+        # the same isolation `TestRollupQueryIndexRevision` performs for 004.
+        migrated_db.downgrade(self.REVISION_006)
+
+        async with test_engine.connect() as conn:
+            at_006 = await conn.run_sync(self._usage_event_column_names)
+            revision = (
+                await conn.execute(text("SELECT version_num FROM alembic_version"))
+            ).scalar_one()
+
+        assert revision == self.REVISION_006
+        assert self.NEW_COLUMNS <= at_006
+
+        # And they are really the nullable types DATA-DESIGN.md § 2 pins,
+        # not just columns that happen to carry the name.
+        async with test_engine.connect() as conn:
+            column_types = await conn.run_sync(
+                lambda c: {
+                    col["name"]: (str(col["type"]).upper(), col["nullable"])
+                    for col in inspect(c).get_columns("usage_events")
+                    if col["name"] in self.NEW_COLUMNS
+                }
+            )
+        source_type, source_nullable = column_types["source"]
+        credits_type, credits_nullable = column_types["copilot_credits"]
+        assert source_nullable is True
+        assert credits_nullable is True
+        assert source_type.startswith("VARCHAR") or source_type == "TEXT"
+        assert credits_type.startswith("NUMERIC")
+
+        migrated_db.downgrade("-1")
+
+        async with test_engine.connect() as conn:
+            at_005 = await conn.run_sync(self._usage_event_column_names)
+            revision = (
+                await conn.execute(text("SELECT version_num FROM alembic_version"))
+            ).scalar_one()
+
+        assert revision == self.REVISION_005
+        assert self.NEW_COLUMNS.isdisjoint(at_005)
+
+        # Column-only: downgrading 006 removes exactly those two columns
+        # and nothing else on the table.
+        assert at_006 - at_005 == self.NEW_COLUMNS
+        assert at_005 - at_006 == set()
+
+        migrated_db.upgrade("head")

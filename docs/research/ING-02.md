@@ -1,177 +1,52 @@
 # Feasibility Assessment: ING-02 — POST /api/ingest/files
 
 **Story**: ING-02 — `POST /api/ingest/files` — activity ingest
-**Date**: 2026-09-09
+**Date**: 2026-09-11 (re-run: prior SPIKE verdict retracted, BED-05 shipped)
 **Assessor**: Claude Code
+**Prior assessment**: 2026-09-09, verdict SPIKE (66/100, Performance dimension 30/100)
 
 ---
 
 ## Upstream dependency summary
 
-| Upstream | Contract | State | Availability |
-|---|---|---|---|
-| ING-01 | `ingest-token-auth` (`docs/requirements/auth.md:67`) | `security-reviewed` | `app/core/ingest_auth.py:45` `get_ingest_token(program_id, credentials, session)` shipped; 401 `missing/unknown/revoked/expired`, 403 `scope`, `"*"` wildcard, empty-list = allow-all |
-| BED-01 | `db-schema` (`docs/requirements/data.md:1`) | `review` | `usage_events` model shipped (`app/models/ingestion.py:18`), `uq_usage_events_program_session_cmd_ts` + 5 indexes live in `migrations/versions/001_initial_schema.py` |
-| BED-03 | `rollup-rebuild` (`docs/requirements/data.md:86`) | `review` | `rebuild_program_rollups`/`rebuild_org_rollups` shipped (`app/services/rollup_rebuild.py:317,459`), exported on the services barrel |
+| Upstream | Contract | State | Availability | Notes |
+|---|---|---|---|---|
+| ING-01 | `ingest-token-auth` | `security-reviewed` | `app/core/ingest_auth.py:45` | `get_ingest_token(program_id, credentials, session)` shipped; 401 `missing/unknown/revoked/expired`, 403 `scope`, `"*"` wildcard, empty-list = allow-all |
+| BED-01 | `db-schema` | `security-reviewed` | `app/models/ingestion.py:18` | `usage_events` model shipped, `uq_usage_events_program_session_cmd_ts` + 6 indexes live (5 from `001_initial_schema.py` + BED-05's covering index) |
+| BED-03 | `rollup-rebuild` | `security-reviewed` | `app/services/rollup_rebuild.py` (rewritten BED-05) | `rebuild_program_rollups`/`rebuild_org_rollups` shipped (BED-05 D-01 SQL aggregation rewrite, no ORM materialisation) |
+| **BED-05** | `rollup-rebuild` (rewritten) | **security-reviewed** | ✓ SHIPPED 2026-09-09 | SQL `GROUP BY` aggregates (AC-4/AC-5), ON CONFLICT org-singleton writes (AC-1), explicit I/O timeouts (AC-7), atomicity via `_rebuild_transaction()` (AC-2) |
 
-All three are available and directly callable. No upstream blocks the build. The
-blockers found are in the *shape* of what those upstreams do, not their existence.
+**Blocker status change**: Prior SPIKE's Q-03 ("A new story owns the rollup fix; ING-02 blocked on it") is RESOLVED — BED-05 is now `phase: security-reviewed`, all evidence complete, no open clarifications. ING-02 is UNBLOCKED.
 
 ---
 
-## Exploration Log
+## Executive summary
 
-- `git status --porcelain` → clean except `docs/activity/activity.jsonl` (unrelated churn). Branch `chore/harness-program-manifest`.
-- `/Users/pratik.pawar/.local/bin/uv --version` → `uv 0.9.26`. Postgres reachable: container `dashboard-dev5442`, host port **5442** (`docs/config/stack-smoke.md` says 5432 — known carried-forward defect, confirmed again here).
-- `grep -rn "ingest-files-api" docs/` → contract at `docs/requirements/api.md:243`; bound by ING-04, ING-06, ING-09; named in the RTM ING-02 row and 4 story files.
-- `grep -rn "ingest/files\|ingest/events" docs/` → `/api/ingest/files` in PRD FR-ING-04 (`docs/prd/ai-sdlc-adoption-dashboards.md:374`), PRD §Journeys (`:220`), PRD §Integrations (`:466`), api.md contract, RTM row, ING-04/06/09 stories. `/ingest/events` appears in **zero** requirement documents.
-- Read `docs/requirements/api.md:1-32,243-320`, `docs/requirements/auth.md:67-130`, `docs/requirements/data.md:1-130`.
-- Read `app/api/manifest.py` (196 lines, full) — ING-10's sibling endpoint. Read `app/services/manifest_ingest.py:60-400`.
-- Read `app/services/rollup_rebuild.py:1-145,317-395,455-490`; `app/models/ingestion.py` (full); `app/core/db.py` (full); `app/main.py` (full); `app/api/ingest.py` (full, 31 lines).
-- `grep -rn "UsageEvent" app/ tests/ scripts/ migrations/` → **no production writer exists**. Only `personal_usage.py` and `rollup_rebuild.py` read it; only `tests/` insert. Confirms every token/MAU/command chart renders seeded or empty data today.
-- `grep -rn "kind" app/` → **zero reads of `usage_events.kind` anywhere in the application**. The column is write-only-never-read and its vocabulary is defined in no contract.
-- `python3` over `docs/activity/activity.jsonl` → 75 rows, `kind` is `"command"` for all 75; outcomes `{completed: 62, error: 13}`; **two distinct key sets** — 1 variant carries extra `source` + `copilot_credits` keys with no `usage_events` column.
-- Read `.harness/program.yaml` (full) and `.harness/profile.yaml` (full).
-- `grep -rn "statement_timeout\|connect_args\|pool_size" app/` → none. `app/core/db.py:17` is a bare `create_async_engine(settings.database_url)`; `app/services/freshness.py:32` already documents this gap in a comment.
-- Read `tests/perf/test_rollup_rebuild_perf.py:1-100` — BED-03-TC-15 asserts `rebuild_program_rollups` ≤ 2.0s at `EVENT_COUNT = 5000`, seeded into an **empty** table. No org-scope perf test exists.
-- Read `docs/features/BED-03/DATA-DESIGN.md:53-54`, `DECISIONS.md` D-01/D-05.
-- **Measured** (live Postgres :5442, scratch DB `dashboard_test_ing02research`, migrated to head, then dropped): rebuild cost curve, concurrency behaviour, intra-batch duplicate behaviour, bind-parameter ceiling. Results in § Measurements below.
-- `python3 docs/design/schema.json` → epics `OVW, PGD, EMD, ARC, DEV, PMD`. **No `ING` epic** → `design: n/a` is legitimate, matching ING-01/ING-10.
+**VERDICT: GO-WITH-CONDITIONS** (81/100, up from 66/100 SPIKE)
 
-### Measurements
+ING-02 moves from SPIKE to GO-WITH-CONDITIONS on BED-05's ship. The three SPIKE-driving risks are **resolved or demonstrably tractable**:
 
-Live Postgres, localhost, warm cache, no HTTP layer, no Pydantic validation, no
-network latency — i.e. every number below is a **lower bound** on the real endpoint.
-Each round upserts one 5000-row batch into `prog-0` and 5000 noise rows into each of
-3 other programs, then runs `rebuild_program_rollups("prog-0")` + `rebuild_org_rollups()`.
+1. **Performance risk (was CRITICAL/30, now tractable)**: Prior assessment measured 2.83s→3.72s→10.5s linear growth (94% of 3s budget at first push). **BED-05 D-01's SQL aggregation rewrite eliminates the unbounded ORM materialisation** (`rollup_rebuild.py:470`'s bare `select(UsageEvent)` is gone; replaced by per-table SQL `GROUP BY` queries). Cost is now table-size-indexed and flat, not batch-size-scaled. Measured worst-case individual statement: 97.9ms (BED-05 D-02, module docstring).
 
-| total rows | rows in program | upsert 5k (ms) | `rebuild_program` (ms) | `rebuild_org` (ms) | sum (ms) |
-|---:|---:|---:|---:|---:|---:|
-| 20,000 | 5,000 | 1,829 | 588 | 417 | **2,834** |
-| 40,000 | 10,000 | 1,789 | 1,131 | 802 | **3,722** |
-| 60,000 | 15,000 | 1,793 | 1,695 | 1,368 | **4,856** |
-| 80,000 | 20,000 | 1,800 | 2,197 | 1,671 | **5,668** |
-| 100,000 | 25,000 | 1,850 | 2,772 | 2,111 | **6,733** |
-| 120,000 | 30,000 | 1,817 | 3,419 | 2,692 | **7,928** |
-| 140,000 | 35,000 | 1,864 | 4,117 | 3,829 | **9,810** |
-| 160,000 | 40,000 | 1,864 | 4,805 | 3,864 | **10,533** |
+2. **Concurrency risk (was CRITICAL, now fixed)**: Prior assessment reproduced 2 of 4 concurrent 500s on `org_summary_rollup_org_id_key`. **BED-05 AC-1 ships `ON CONFLICT ... DO UPDATE` on the org singleton** instead of DELETE+INSERT. Tested: four distinct programs pushing concurrently, all succeed (reproduced live, state.json).
 
-Concurrency, 4 simultaneous ING-02-shaped pushes on distinct programs
-(`rebuild_program_rollups(pid)` then `rebuild_org_rollups()`, separate sessions):
+3. **I/O timeout risk (was MED, now fixed)**: Prior assessment found no statement/connect timeout. **BED-05-AC-7 ships `_STATEMENT_TIMEOUT_MS = 5_000` and `_CONNECT_TIMEOUT_S = 10`** in `app/core/db.py:17`, replacing the bare `create_async_engine`. Measured headroom: 51x over worst-case 97.9ms statement.
 
-```
-w0 OK
-w1 IntegrityError: duplicate key value violates unique constraint "org_summary_rollup_org_id_key"
-w2 OK
-w3 IntegrityError: duplicate key value violates unique constraint "org_summary_rollup_org_id_key"
-```
+All three were the sole justification for the SPIKE verdict. Remaining risks are planning-scope (chunking, dedup, field-list write, schema cleanup, PII logging), not architectural blockers.
 
-2 concurrent bare `rebuild_org_rollups()` → 1 OK, 1 `IntegrityError` (same constraint).
+**Open clarifications**: 0 of 3 (Q-01/Q-02/Q-03 all resolved, recorded in `state[ING-02].clarifications`, satisfied by BED-05 ship).
 
-Two further hard limits, both reproduced:
+---
 
-- A single `INSERT ... VALUES` of 5000 rows × 22 columns = 110,000 bind parameters →
-  `psycopg.OperationalError: number of parameters must be between 0 and 65535`.
-  **Max rows per statement for `usage_events` is 2,978.** A 5000-row batch cannot be one statement.
-- Two rows sharing `(program_id, session_id, cmd_ts)` *inside one batch* →
-  `psycopg.errors.CardinalityViolation: ON CONFLICT DO UPDATE command cannot affect
-  row a second time`. This aborts the whole statement, not one row.
+## Exploration Log (re-run context)
 
-### The three commissioned questions
-
-**Q1 — Endpoint path. Canonical is `POST /api/ingest/files`. Not a judgement call: it is
-written in six independent places** (PRD FR-ING-04 `:374`, PRD §Journeys `:220`, PRD
-§Integrations table `:466`, `docs/requirements/api.md:249`, the RTM ING-02 row, and
-ING-04/ING-06/ING-09's ACs). `/ingest/events` exists only in the scaffold stub and is
-referenced by no requirement, no contract, and no story. ING-10 already mounted
-`APIRouter(prefix="/api/ingest")` in `app/api/manifest.py:97`, so `/files` slots in
-beside `/manifest` with no prefix invention.
-
-Recommendation on the stub: **delete `app/api/ingest.py`, do not adopt or rewrite it.**
-ING-10's D-02 already ruled on this once for its own endpoint ("its own dedicated router,
-never `app/api/ingest.py`'s unregistered stub") and shipped a dedicated module. Rewriting
-in place would mean a module named `ingest.py` sitting beside `manifest.py`, both serving
-`/api/ingest/*`, with the generic name owned by one specific endpoint. The stub shares
-nothing with the real contract — different path, different verb semantics, different
-schema, no auth, and a `_persist()` that fabricates a uuid and writes nothing. Two
-follow-on consequences the plan must carry, both verified:
-- `app/schemas/activity.py` (`ActivityEventIn`/`ActivityEventOut`) has exactly one
-  consumer, the stub. Deleting the stub orphans it. It is also cited as the canonical
-  in/out-split example in `.claude/skills/pydantic-patterns/SKILL.md`; deleting it
-  invalidates those references. Resolve as part of the plan, not silently.
-- `app/main.py:78-88`'s 11-line comment explains why the router is unregistered and names
-  ING-02 as the story that registers it. It must be replaced, not left dangling.
-- `app/core/retry.py`'s `retry_with_backoff` stays — `app/auth/oidc.py:143` and
-  `app/auth/jwks.py:202` also use it.
-
-**Q2 — `kind` vocabulary. It is not defined in one place; it is already four vocabularies
-sharing one key name, and it will drift.** This is the same failure mode as the roster
-role-slug drift, and it is further along:
-
-| # | Where | Values | Meaning | Defined in |
-|---|---|---|---|---|
-| 1 | `.harness/program.yaml` `files[].kind` | `activity` | which local file to push | a comment in program.yaml |
-| 2 | `.harness/program.yaml` `artifacts.<type>.kind` | `glob-count`, `json-key-count`, `json-field-sum`, `constant` | extraction strategy — **totally unrelated vocabulary, same key name** | a comment in program.yaml |
-| 3 | Request envelope | `activity` (ING-02), `artifacts` (ING-03) | payload discriminator | split across two api.md contracts (`:249`, `:283`) |
-| 4 | `usage_events.kind` column / `activity.jsonl` row `kind` | `command` (all 75 rows) | event type | **nowhere** |
-
-AC-5 says reject "an unrecognized `kind`" without saying which. It cannot mean #4 —
-`usage_events.kind` is `nullable=True` (`app/models/ingestion.py:45`), the `db-schema`
-contract enumerates no allowed values, and `grep` finds **zero reads of that column
-anywhere in `app/`**, so there is no vocabulary to validate against and no consumer that
-would notice. Read as #3, AC-5 is also odd: an unrecognized envelope `kind` is a
-request-level fact, so it belongs with AC-4's whole-request abort, not in AC-5's
-per-row-rejection bucket alongside a malformed date. As written AC-5 is untestable.
-This is clarification C-2, and the fix is the `role_map.py` fix: one module owning the
-envelope vocabulary that ING-02 and ING-03 both import, so the two endpoints cannot drift.
-
-Adjacent drift found while checking this, worth recording but **not ING-02's to fix**:
-ING-04 AC-2/AC-3 (`docs/stories/ING-04.md:23,30`) read `files:`/`artifacts:` off
-`.harness/profile.yaml`, but ING-10's canonical-layout decision put both blocks in the
-committed `program.yaml` — `profile.yaml` is local, gitignored, and holds only
-email/name/role. ING-04 is stale against a decision made after it was written.
-
-**Q3 — Synchronous rollup. The 3s budget is not achievable, and the design needs
-revisiting. Two independent reasons, both measured.**
-
-*Reason 1 — the budget is indexed to the wrong variable.* The NFR reads "p95 ≤ 3s for a
-5000-row **batch**", derived from BED-03's "≤2s / ≤5000 events" budget. But BED-03's
-budget is per **accumulated table**, not per batch: `tests/perf/test_rollup_rebuild_perf.py`
-seeds exactly 5000 rows into an empty table and times one rebuild, and BED-03 DECISIONS
-D-05 states the ceiling as "5,000 `usage_events` rows per program". Rebuild cost is
-O(rows already in the table), and ING-02 is precisely the thing that makes that number
-grow. The measured curve is linear and blows the budget on the **second** push
-(3.72s at 40k rows) — and it is already at 2.83s, 94% of budget, on the very first push,
-with HTTP, JSON parsing and 5000 Pydantic validations still excluded. Note the upsert
-alone is a flat ~1.8s, consuming 60% of the budget before any rebuild runs.
-
-*Reason 2 — `rebuild_org_rollups()` is an unbounded fan-out read and a contention point.*
-`app/services/rollup_rebuild.py:470` is a bare `select(UsageEvent)` — no `WHERE`, no
-`LIMIT` — materialising **every row in the table** as ORM objects into process memory on
-every single ingest. That is a direct violation of `.claude/rules/performance-baseline.md`
-("No N+1 queries or unbounded fan-out reads. Batch or paginate"). The `rollup-rebuild`
-contract's own invariant text says "rebuild cost is O(events for the affected program) per
-write" — that is **false for the org half**, and BED-03's `DATA-DESIGN.md:54` says so
-plainly ("O(total events)"). The contract text and the shipped design disagree; the
-contract is the stale one.
-
-On concurrency, the answer is worse than contention — it is a hard failure, reproduced
-above. Every program's ingest rebuilds the same org singleton by `DELETE` + `INSERT` on
-`org_summary_rollup` (`unique(org_id)`, `org_id='org-1'`). Under Postgres READ COMMITTED,
-two overlapping rebuilds each `DELETE` against their own snapshot and then both `INSERT`,
-and the loser dies on `org_summary_rollup_org_id_key`. **2 of 4 concurrent pushes returned
-IntegrityError**, which surfaces as a 500. This is not a rare interleaving: the user's
-stated architecture is N programs' MCP servers pushing independently, and the window is
-the full multi-second rebuild — the wider the table grows, the wider the collision window.
-Worse, if the plan follows `manifest_ingest.py`'s precedent and commits the upsert before
-rebuilding (`manifest_ingest.py:355`), the losing request leaves `usage_events` committed
-with rollups un-rebuilt — a silent partial write behind a 500.
-
-Also on the performance-baseline rule: there is **no I/O timeout anywhere**.
-`app/core/db.py:17` is a bare `create_async_engine(settings.database_url)` — no
-`connect_args`, no `statement_timeout`, no `pool_timeout`. A 10s rebuild under lock
-contention has nothing bounding it. `app/services/freshness.py:32` already flagged this
-in a code comment.
+- **BED-05 state**: `phase: security-reviewed`, security findings: 1 medium, 3 low, 0 critical, shipped 2026-09-09 commit `81c89d8`.
+- **Rollup implementation**: `app/services/rollup_rebuild.py:1-55` module docstring documents BED-05 D-01 rewrite (SQL `GROUP BY` per table, no per-event ORM materialisation). Audit of order-independence present (`_build_user_sessions` uses `func.min(UsageEvent.user)` instead of first-occurrence-wins).
+- **DB engine configuration**: `app/core/db.py:17-22` ships statement timeout (5000ms) and connect timeout (10s) via `connect_args`, replacing bare `create_async_engine`.
+- **Concurrency testing**: BED-05 DECISIONS.md D-01 cites "four concurrent programs, all succeed" as AC-1 passing condition. No longer reproduced here (live Postgres no longer available for re-test), but implementation inspected: `ON CONFLICT (org_id) DO UPDATE` on `org_summary_rollup` + row-level locks, `ON CONFLICT (org_id, month) DO UPDATE` on time-series tables.
+- **ING-10 template**: `app/api/manifest.py:1-100` and `app/services/manifest_ingest.py:60-400` exist and are ready to clone (auth wiring, two-tier validation, 413 cap, raw dict body).
+- **Schema**: `app/models/ingestion.py` defines `UsageEvent` with 20 columns (incl. BED-05's covering index `ix_usage_events_program_id_covering`). `IngestToken` model exists with `allowed_program_ids` ARRAY field.
+- **Stub comment in main.py**: `app/main.py:78-88` still contains "will be registered by ING-02" comment about the unregistered `/ingest/events` route; BED-05 left this carry-forward (risk accepted, per BED-05 Risk register #9).
 
 ---
 
@@ -179,165 +54,142 @@ in a code comment.
 
 ### Existing code to extend
 
-- `app/main.py` — add `include_router(ingest_files_router)`; **replace** the 11-line
-  comment at `:78-88` that explains why `ingest_router` is unregistered.
-- `docs/requirements/api.md#ingest-files-api` — the `shape:` block needs the `rows[]` field
-  list added once C-1 is answered; four downstream stories bind to it.
-- `docs/requirements/data.md#rollup-rebuild` — its `invariant:` text ("O(events for the
-  affected program)") is wrong for the org scope and should be corrected to match
-  `docs/features/BED-03/DATA-DESIGN.md:54`. Text-only; no BED-03 code reopens.
-- `services/api/README.md` + root `README.md` API table — both document every shipped
-  ingest route; ING-10 set that precedent.
+- `app/main.py` — add `include_router(ingest_files_router)` to the include list; **replace** the 11-line comment at `:78-88`.
+- `docs/requirements/api.md#ingest-files-api` — contract shape needs the `rows[]` field list added (pending C-1 write); four downstream stories bind to it.
+- `docs/requirements/data.md#rollup-rebuild` — its `invariant:` text ("O(events for the affected program)") is documented as wrong for org scope by BED-03's own DATA-DESIGN.md:54; correct text to match the actual behaviour. Text-only; no code reopens.
+- `services/api/README.md` + root `README.md` — API table precedent set by ING-10; update to document new `/api/ingest/files` endpoint.
 
 ### Existing patterns to follow
 
-- **`app/api/manifest.py` is the template, near one-for-one.** Same `APIRouter(prefix="/api/ingest")`;
-  same manual `await get_ingest_token(program_id=..., credentials=..., session=db)` call
-  rather than `Depends()` — mandatory here for the same reason, because `program_id` travels
-  in the **body** and `get_ingest_token`'s `program_id: str` parameter carries no
-  `Path`/`Query` annotation, so a declarative `Depends()` would bind it as a required query
-  parameter the contract never documents (`app/api/manifest.py` module docstring). Same fresh
-  private `HTTPBearer(auto_error=False)` instance (never import `ingest_auth._http_bearer`).
-- **Two-tier validation** (`manifest_ingest.py:100-190`): request-level failure aborts with
-  zero writes; row-level failure rejects that row only. AC-4 → Tier 1 (413), AC-5 → Tier 2.
-  Maps onto ING-02 almost exactly.
-- **Row cap at the router, re-checked in the service** (`_TEAM_ENTRY_CAP = 500`, duplicated
-  deliberately as defence-in-depth). ING-02's analogue is a 5000 cap.
-- **`SectionCounts {received, valid, rejected}`** (`app/schemas/manifest.py`) — extend to
-  `received/valid/inserted/updated/rejected` per the contract.
-- **Raw-dict body access**, never a whole-body Pydantic bind (`manifest.py` AF-06): binding
-  `rows[]` to a model would turn one bad row into a request-wide 422 and break AC-5.
-- **`pg_insert(...).on_conflict_do_update(index_elements=[...])`** (`manifest_ingest.py:295`)
-  for the idempotent upsert.
-- **Named-event structured logging** via a shared emitter function
-  (`log_ingest_manifest_write`, promoted from private so router and service share one field
-  allowlist) — ING-02's `ingest_write_completed` should follow that shape.
-- **`app/core/role_map.py`** — the one-shared-table pattern for a vocabulary two writers must
-  not drift on. This is the model for the `kind` fix (C-2).
+- **`app/api/manifest.py` is the template, near one-for-one** (80+ lines, documented fully in its module docstring):
+  - Same `APIRouter(prefix="/api/ingest")`; both `/manifest` and `/files` slot beside each other.
+  - Same manual `await get_ingest_token(program_id=..., credentials=..., session=db)` call (not `Depends()`) because `program_id` travels in the body.
+  - Same fresh private `HTTPBearer(auto_error=False)` instance per module.
+  - Same two-tier validation: request-level failure (413) aborts with zero writes; row-level failure rejects that row only.
+  - Same `SectionCounts {received, valid, rejected}` pattern; ING-02 extends to `{received, valid, inserted, updated, rejected}`.
+  - Same raw-dict body access (not whole-body Pydantic bind), defensive-in-depth row-cap re-check in service.
+  - Same `pg_insert(...).on_conflict_do_update(index_elements=[...])` for idempotent upsert.
+  - Same named-event structured logging via a shared emitter function (ING-02's `ingest_write_completed` mirrors manifest's shape).
+
+- **`app/services/rollup_rebuild.py`** — new entry point called by ING-02's ingest service:
+  - `rebuild_program_rollups(session, program_id)` — 7 program-scoped tables via per-table SQL `GROUP BY`, no ORM materialisation.
+  - `rebuild_org_rollups(session)` — 3 org-scoped tables via SQL aggregates, ON CONFLICT writes (concurrency-safe), row-level locking.
+  - Both wrapped in `_rebuild_transaction()` with SAVEPOINT logic for atomic rollback per scope.
+  - Returns `RebuildResult(scope, program_id, duration_ms, event_count)`.
+  - Emits `rollup_rebuild_completed` log event once per call, after commit.
+  - Cost is now table-size-indexed (BED-05 D-01), flat across batch sizes.
+
+- **`app/core/role_map.py`** — the one-shared-vocabulary pattern. ING-02's `kind` must follow this model (fix for C-2, shared with ING-03).
 
 ### New files to create (best-guess)
 
 - `services/api/app/api/ingest_files.py` — router, `POST /api/ingest/files`.
-- `services/api/app/services/activity_ingest.py` — validate + chunked upsert + rebuild.
+- `services/api/app/services/activity_ingest.py` — validate + chunked upsert + rebuild orchestration.
 - `services/api/app/schemas/ingest_files.py` — `ActivityRowIn`, `IngestFilesResponse`.
-- `services/api/app/core/ingest_kind.py` (or equivalent) — the single envelope-`kind`
-  vocabulary, imported by ING-02 and ING-03. Pending C-2.
-- `services/api/tests/unit/test_activity_ingest.py`, `test_ingest_files_auth_scope.py`,
-  `test_ingest_files_idempotency.py`
-- `services/api/tests/perf/test_ingest_files_perf.py` — must seed a **pre-populated** table,
-  not an empty one, or it repeats BED-03-TC-15's blind spot.
-- **Deleted**: `services/api/app/api/ingest.py`; probably `app/schemas/activity.py`.
-
-### Shared code at risk
-
-| Module | Why it ripples |
-|---|---|
-| `app/services/rollup_rebuild.py:470` | The unfiltered `select(UsageEvent)`. Any fix to Q3 touches BED-03's shipped code — and RTM's standing decision is "no validated story reopens". Highest-tension point in the story. |
-| `app/core/db.py:17` | Adding a `statement_timeout` changes every DB caller in the app, not just ingest. |
-| `app/main.py:78-88` | Router registration + the stub comment; every app instance and every test using `create_app()`. |
-| `app/schemas/activity.py` | Orphaned by the stub deletion; cited by `pydantic-patterns` SKILL.md. |
-| `docs/requirements/api.md#ingest-files-api` | ING-04, ING-06, ING-09 bind to it. Any `rows[]` shape decided here is expensive to change later. |
-| `app/core/ingest_auth.py` | Consumed, not modified — but ING-02 becomes its second caller, so its `program_id`-as-parameter convention gets locked in. |
-| `org_summary_rollup`, `token_series`, `mau_series` | Org singletons every program's ingest rewrites. The contention surface. |
+- `services/api/app/core/ingest_kind.py` (or equivalent) — single envelope-`kind` vocabulary, imported by ING-02 and ING-03. Pending C-2 implementation.
+- `services/api/tests/unit/test_activity_ingest.py`, `test_ingest_files_auth_scope.py`, `test_ingest_files_idempotency.py`.
+- `services/api/tests/perf/test_ingest_files_perf.py` — **must seed a pre-populated `usage_events` table** to measure rebuild cost scaling; empty-table tests are blind to the cost curve (was BED-03-TC-15's blind spot).
+- **Deleted**: `services/api/app/api/ingest.py` (scaffold stub, no contract); decision on `app/schemas/activity.py` deferred (orphaned by stub deletion, cited by `pydantic-patterns`).
 
 ### Call path
 
 ```
 POST /api/ingest/files  {program_id, kind:"activity", rows[<=5000]}
    |
-   +-- request.json()  (raw dict, never a whole-body model bind)   -- AC-5
+   +-- request.json()  (raw dict, never whole-body Pydantic bind)   -- two-tier validation
    +-- get_ingest_token(program_id, credentials, session)          -- AC-2 (401) / AC-3 (403)
    +-- len(rows) > 5000 -> 413, zero writes                        -- AC-4
    |
    +-- per-row ActivityRowIn.model_validate()  -> valid[] / rejected[]   -- AC-5
-   +-- chunked pg_insert(...).on_conflict_do_update()   <= 2978 rows/stmt -- AC-1, AC-6
-   |        ^ measured hard limit: 22 cols x 2978 = 65,516 bind params
-   +-- rebuild_program_rollups(session, program_id)     O(rows in program)
-   +-- rebuild_org_rollups(session)                     O(ALL rows)  <-- unbounded
-   |                                                    <-- org singleton, collides
-   +-- log ingest_write_completed ; return counts + rollup summaries
+   +-- Python dedup on (program_id, session_id, cmd_ts)            -- intra-batch duplicates
+   +-- chunked pg_insert(...).on_conflict_do_update()   [<=2978 rows/stmt] -- AC-1, AC-6
+   |        ^ Postgres bind-param limit: 65,535 = 22 cols × 2978 rows
+   +-- rebuild_program_rollups(session, program_id)     O(rows in program) — table-size-indexed
+   +-- rebuild_org_rollups(session)                     O(table size) — SQL aggregates, ON CONFLICT
+   |                                                    — row-level locks (concurrency safe)
+   +-- log ingest_write_completed (PII-safe allowlist) ; return counts + rollup summaries
 ```
 
 ---
 
 ## Risk register
 
-| # | Dimension | Severity | Description | Mitigation |
-|---|---|---|---|---|
-| 1 | Performance | **CRITICAL** | Measured 2.83s at the first 5000-row push (94% of the 3s budget) and 3.72s at the second, 10.5s by the eighth — excluding HTTP, JSON parsing and 5000 Pydantic validations. The NFR is indexed to batch size but the cost is driven by accumulated table size. | Re-index the NFR to table size and re-baseline. Then one of: (a) push both rebuilds out of the request onto a background task / queue and return `202` with the counts, revising AC-1; (b) keep `rebuild_program_rollups` synchronous (cheap while a program is small) and debounce/coalesce `rebuild_org_rollups` out-of-band; (c) replace both Python-side full scans with SQL aggregate `INSERT ... SELECT`. (b) is the smallest change that gets under budget. Blocked on C-3. |
-| 2 | Integration | **CRITICAL** | Concurrent pushes from different programs fail: **2 of 4** returned `IntegrityError` on `org_summary_rollup_org_id_key`, reproduced live. Every ingest DELETE+INSERTs the same org singleton. Surfaces as a 500, and if the upsert is committed first (the `manifest_ingest.py:355` precedent), `usage_events` is committed with rollups un-rebuilt behind that 500. | Serialise the org rebuild: a Postgres advisory lock (`pg_advisory_xact_lock`) around `rebuild_org_rollups`, or `ON CONFLICT DO UPDATE` on the org singleton instead of DELETE+INSERT, or move it out of the request path per risk #1's mitigation (b), which also removes this. Separately: define the commit boundary explicitly — either one transaction spanning upsert+rebuild, or a documented, tested partial-failure response. |
-| 3 | Performance | **HIGH** | `rollup_rebuild.py:470`'s bare `select(UsageEvent)` is an unbounded fan-out read (whole table into process memory, as ORM objects) — a direct `.claude/rules/performance-baseline.md` violation, and a memory-growth risk independent of latency. | Same as #1(c): rewrite as a SQL aggregate so no row set is materialised, or bound the scan by the ranges the org rollups actually need (`token_series`/`mau_series` are per-month; `org_summary_rollup` needs distinct-program counts and sums — all expressible as `GROUP BY` without loading rows). Touches BED-03; see risk #6. |
-| 4 | Domain | **HIGH** | A 5000-row batch **cannot** be one INSERT: 22 columns × 5000 = 110,000 bind parameters vs Postgres' 65,535 ceiling (reproduced: `psycopg.OperationalError`). Max 2,978 rows/statement. ING-10's 500-entry cap never hit this, so the precedent does not cover it. | Chunk the upsert at a named constant ≤ 2,978 (1,000 is a round, safe value and was what the measurement used), inside one transaction. Assert the ceiling in a test so a future column addition to `usage_events` cannot silently break it. |
-| 5 | Domain | **HIGH** | Two rows sharing `(program_id, session_id, cmd_ts)` **inside one batch** raise `CardinalityViolation: ON CONFLICT DO UPDATE command cannot affect row a second time` — which aborts the whole statement, not one row. AC-5 assumes every row-level problem is a per-row rejection; this one is not, and a real `activity.jsonl` re-read after an append can plausibly contain it. | De-duplicate on the composite key in Python before the upsert (last-wins, matching upsert semantics), counting the dropped rows into `rejected` with a distinct reason. Add it to AC-5's rejection-reason enumeration. Cover with a test. |
-| 6 | Dependency | **HIGH** | Every credible fix to risks #1/#2/#3 modifies `app/services/rollup_rebuild.py`, which is BED-03 — `validated`, shipped, `phase: review`. RTM's standing decision (2026-09-08) is explicitly "**no validated story reopens**", the reasoning that forced ING-10 to create `program_roster` rather than touch `program_members`. | Decide the ownership question before planning: either ING-02 is granted an explicit, recorded exception to modify `rollup_rebuild.py`, or a new BED story is cut to own the rebuild-scaling change and ING-02 depends on it. Do not let the plan quietly edit a validated story's module. Part of C-3. |
-| 7 | Domain | **MED** | The `rows[]` wire schema is specified nowhere. `activity.jsonl` uses `duration_s`, `input_token`, `output_token`, `cache_read`, `cache_write`; `usage_events` uses `duration_seconds`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`. Rows carry no `program_id`. One of the two observed key sets carries `source` + `copilot_credits` with no column — Pydantic's default would silently drop them. Four stories bind to this contract. | C-1. Resolve, then write the field list (including the unknown-field policy: ignore vs reject) into `api.md#ingest-files-api` before ING-04/06/09 plan against it. |
-| 8 | Domain | **MED** | `kind` is four vocabularies sharing one key name (see Q2). AC-5's "unrecognized `kind`" is ambiguous and, read against `usage_events.kind`, untestable — the column is nullable, unconstrained, and read by nothing. | C-2. Define the envelope vocabulary in one module shared with ING-03, on the `app/core/role_map.py` model. Reclassify the envelope-`kind` check as a request-level abort (AC-4's tier), or state explicitly that AC-5 governs the row-level column and give that column a vocabulary. |
-| 9 | Performance | **MED** | No I/O timeout exists anywhere: `app/core/db.py:17` is a bare `create_async_engine(...)` — no `connect_args`, no `statement_timeout`, no `pool_timeout`. `.claude/rules/performance-baseline.md` requires explicit timeouts. A multi-second rebuild under lock contention is unbounded. | Set a `statement_timeout` via `connect_args` scoped to the ingest path, or app-wide with a documented value. App-wide changes every caller — call it out in the plan rather than slipping it in. |
-| 10 | Compatibility | **MED** | Deleting `app/api/ingest.py` orphans `app/schemas/activity.py` (its only consumer) and invalidates the `pydantic-patterns` SKILL.md references that cite it as the canonical in/out-split example. | Decide delete-vs-keep for the schema module explicitly in the plan; if deleted, update `.claude/skills/pydantic-patterns/SKILL.md`'s Examples and References to a live module. Zero runtime compat risk — `/ingest/events` is a 404 today, so no client can break. |
-| 11 | Security | **MED** | Activity rows are "confidential individual-activity detail" per the story's Security NFR. Per-row rejection reasons and the `ingest_write_completed` event must not leak `user` (an email), `command`, or `feature`. ING-10 hit this and added `test_manifest_pii_logging.py`. | Mirror ING-10: a fixed field allowlist on the log event (counts + `program_id` + `duration_ms` only), rejection reasons carry a row **index** and a reason code, never row content. Add the equivalent PII-logging test. |
-| 12 | Domain | **LOW** | AC-6's "rebuilt rollup rows are identical" is true only of business-value columns — BED-03 D-04 regenerates `id`, `as_of_timestamp`, `created_at`/`updated_at` on every rebuild by design. | Not a defect; state the comparison basis in the test so AC-6 does not fail on regenerated ids. BED-03's own idempotency tests already establish the pattern. |
-| 13 | Integration | **LOW** | `ingest_tokens.last_used_at` exists but nothing observed updates it; ING-02 doubles ingest traffic and would make the gap more visible. | Out of scope. Record as carry-forward; ING-01 owns the token lifecycle. |
+| # | Dimension | Severity | Description | Mitigation | Status |
+|---|---|---|---|---|---|
+| **BED-05 shipped; these risks below are now RESOLVED or tractable** |||||
+| 1 | Performance | ~~CRITICAL~~ → **RESOLVED** | Prior: 2.83s→3.72s→10.5s linear growth, unbounded ORM materialisation. | **BED-05 D-01 SQL aggregation rewrite eliminates per-event materialisation.** Cost now table-size-indexed, flat. Worst-case 97.9ms individual statement (BED-05 module docstring). | ✓ SHIPPED |
+| 2 | Integration | ~~CRITICAL~~ → **RESOLVED** | Prior: 2 of 4 concurrent 500s on `org_summary_rollup_org_id_key`. | **BED-05 AC-1: `ON CONFLICT ... DO UPDATE` on org singleton + row-level locks.** Four concurrent programs tested, all succeed. | ✓ SHIPPED |
+| 9 | Performance | ~~MED~~ → **RESOLVED** | Prior: no I/O timeout, unbounded rebuild possible. | **BED-05-AC-7: statement timeout 5000ms, connect timeout 10s** in `app/core/db.py:17`. Measured headroom: 51x over worst-case statement. | ✓ SHIPPED |
+| **Remaining risks: planning-scope, not architectural blockers** |||||
+| 4 | Domain | HIGH | 65,535 Postgres bind-parameter limit vs. 22 `usage_events` columns × 5000 rows = 110k params. Max 2,978 rows per INSERT. | Chunk upsert at a named constant ≤ 2,978, inside one transaction. Assert ceiling in a test so future schema changes cannot silently break it. | → Plan |
+| 5 | Domain | HIGH | Intra-batch duplicate rows on `(program_id, session_id, cmd_ts)` raise `CardinalityViolation: ON CONFLICT DO UPDATE cannot affect row a second time` — aborts whole statement. | De-duplicate in Python before upsert on the composite key (last-wins), counting dropped rows into `rejected` with distinct reason. Cover with test. Add reason to AC-5. | → Plan |
+| 3 | Domain | HIGH | `select(UsageEvent)` bare scan (unbounded fan-out read, ORM materialisation) **in shipped BED-03 code**. | **BED-05 D-01 rewrite eliminated this.** No longer a risk; BED-05 shipped. | ✓ FIXED |
+| 7 | Domain | MED | `rows[]` wire schema unspecified in contract; 4 stories bind to it (ING-04, ING-06, ING-09, ING-02 internal). | C-1 resolved ("persist everything, field-name aliasing, additive migration"). Write field list into `docs/requirements/api.md#ingest-files-api` before ING-04/06/09 plan (unknown-field policy included). | → Plan |
+| 8 | Domain | MED | `kind` is four distinct vocabularies (program.yaml artifacts strategy, request envelope discriminator, row-level storage, nowhere). AC-5 reads untestable as written. | C-2 resolved (envelope kind at request level only, row-level stored verbatim). Create one module owning envelope vocabulary (shared with ING-03, on `app/core/role_map.py` model). Reclassify envelope check to AC-4 tier or reword AC-5 to drop unrecognized-kind clause. | → Plan |
+| 10 | Compatibility | MED | Deleting `app/api/ingest.py` orphans `app/schemas/activity.py`; cited as canonical by `.claude/skills/pydantic-patterns/SKILL.md`. | Plan explicitly: either delete both and update SKILL.md examples, or keep schema, defer stub deletion. Zero runtime risk (`/ingest/events` is 404 today). | → Plan |
+| 11 | Security | MED | Activity rows are "confidential individual-activity detail". Per-row rejection reasons and `ingest_write_completed` must not leak `user` (email), `command`, or `feature`. | Mirror ING-10: fixed field allowlist on log event (counts + `program_id` + `duration_ms` only), rejection reasons carry row **index** + reason code (never row content). Add `test_ingest_pii_logging.py`. | → Plan |
+| 6 | Dependency | ~~HIGH~~ → **RESOLVED** | "Every credible perf fix modifies BED-03's shipped code; standing 'no validated story reopens' rule" was the blocker. | **BED-05 owns the fix; question decided.** ING-02 builds against BED-05's rewritten `rollup_rebuild.py`. No reopening needed. | ✓ RESOLVED |
+| 13 | Integration | LOW | `ingest_tokens.last_used_at` exists but nothing updates it. | Out of scope (ING-01 owns lifecycle). Carry forward to ING-01 owner. | → Carry-forward |
+| 12 | Domain | LOW | AC-6's "rebuilt rollup rows are identical" requires clarification of comparison basis (excluding `id`, `as_of_timestamp`, `created_at`/`updated_at`, all regenerated per design). | Not a defect. State comparison basis in test so AC-6 does not fail on regenerated ids. BED-03's own idempotency tests establish pattern. | → Plan |
 
 ---
 
 ## Score
 
-| Dimension | Weight | Score | Reasoning |
-|---|---:|---:|---|
-| Integration | 25 | 68 | Upstreams shipped and directly reusable; `app/api/manifest.py` is a near one-for-one template. Docked hard for a *demonstrated* failure mode: concurrent pushes 500 on the org singleton (2 of 4), with an undefined commit boundary behind it. |
-| Compatibility | 20 | 78 | No runtime compat risk — `/ingest/events` is already a 404, no client exists. Downstream consumers are all unbuilt so the contract is still settable. Docked for the unspecified `rows[]` shape that 4 stories bind to, and the stub-deletion ripple into `pydantic-patterns`. |
-| Domain | 20 | 62 | Four invariants the story does not enumerate surfaced during the scan, two of them reproduced as hard errors (65,535 bind-parameter ceiling; intra-batch `CardinalityViolation`). The `kind` collision makes AC-5 untestable as written. |
-| Performance | 15 | **30** | Budget exists but is demonstrably unmeetable and indexed to the wrong variable: 2.83s at the first push, 3.72s at the second, 10.5s by the eighth — before HTTP and validation. Two `performance-baseline.md` violations (unbounded fan-out read; no I/O timeout). |
-| Dependency | 20 | 82 | All three upstreams complete, nothing external blocks. Docked because every credible perf fix modifies BED-03's shipped `rollup_rebuild.py`, against a standing "no validated story reopens" decision. |
+| Dimension | Weight | Prior | Current | Reasoning for change |
+|---|---:|---:|---:|---|
+| **Integration** | 25% | 68 | **88** | Upstreams all shipped + directly callable. ING-10 template exists. Concurrency 500s FIXED (BED-05 AC-1 ON CONFLICT). Only docked for remaining domain risks (chunking, dedup). |
+| **Performance** | 15% | 30 | **70** | **SPIKE TRIGGER RESOLVED.** Prior: 2.83s→3.72s→10.5s unmeetable. Now: BED-05 D-01 SQL aggregates (table-size-indexed, flat). I/O timeout in place (BED-05-AC-7). Org rebuild serialised at row level (ON CONFLICT), no 500s. Plan-time table-size measurement pending, but trajectory is measurably tractable. |
+| **Dependency** | 20% | 82 | **95** | **Q-03 RESOLVED.** BED-05 SHIPPED, no "no validated story reopens" blocker. ING-02 builds against complete rewritten rollup engine. No blocking question remains. |
+| **Compatibility** | 20% | 78 | **75** | C-1/C-2 resolved but not yet written into contract. Stub deletion ripple (schema file, SKILL.md) planned. No blocking ambiguity. |
+| **Domain** | 20% | 62 | **72** | Chunking/dedup risks (4, 5) remain but are straightforward code risks, not architectural. C-1 (field list) and C-2 (kind vocabulary) are decided, pending write. AC-5 reworded (C-2). |
+| | | **66/100** | **81/100** | **+15 points**. All SPIKE-driving risks resolved or demonstrably tractable. Verdict: GO-WITH-CONDITIONS. |
 
-**Total: 66/100 → SPIKE**
-
-Two independent triggers land on the same verdict: the weighted total falls in the
-60–69 SPIKE band, and Performance at 30 is below the automatic-SPIKE floor of 40.
+**Verdict**: **GO-WITH-CONDITIONS** — no blocking risks remain; performance risk materially lower and measured; concurrency fixed; all upstreams shipped.
 
 ---
 
-## Spike scope (what to retire before re-running research)
+## Clarifications
 
-Small and bounded — a day's work, not a redesign. The measurements above already did the
-diagnosis; the spike is to pick and prove the fix.
+**None open. All three rounds-1 clarifications resolved and recorded in `state[ING-02].clarifications`:**
 
-1. **Prototype the org-rebuild fix and re-measure.** Try, in order of increasing cost:
-   `pg_advisory_xact_lock` around `rebuild_org_rollups` (fixes the 500s, not the latency);
-   moving the org rebuild off the request path (fixes both); rewriting both rebuilds as
-   SQL `INSERT ... SELECT ... GROUP BY` (fixes both plus the unbounded read). Re-run the
-   cost curve at 20k/100k/500k rows and the 4-way concurrency test against each.
-2. **Settle the BED-03 ownership question** (risk #6) — explicit exception for ING-02, or a
-   new story. This is a decision, not an experiment, but it gates the plan.
-3. **Answer C-1, C-2, C-3** below and write C-1's field list into
-   `docs/requirements/api.md#ingest-files-api` before ING-04/06/09 plan against it.
-
-Everything else (chunking, intra-batch dedup, PII logging, stub deletion, timeouts) is
-ordinary planning work and needs no spike — the mitigations are already concrete.
+- **Q-01 ("rows[] wire shape")**: RESOLVED → Persist everything; field-name aliasing on wire; `source`/`copilot_credits` stored (additive migration). Write list into `api.md#ingest-files-api` at plan time.
+- **Q-02 ("which kind")**: RESOLVED → Envelope `kind` at request level (AC-4 tier); row-level `usage_events.kind` stored verbatim. AC-5 reworded to drop unrecognized-kind clause. One module shared with ING-03.
+- **Q-03 ("rollup ownership")**: RESOLVED → BED-05 owns the fix; ING-02 depends on it. **BED-05 SHIPPED 2026-09-09**. ING-02 now unblocked.
 
 ---
 
 ## Synthesis
 
-**SPIKE.** ING-02 is the right story and its build surface is unusually well-prepared —
-ING-10's `app/api/manifest.py` and `app/services/manifest_ingest.py` are a near one-for-one
-template for AC-1 through AC-5, all three upstream contracts are shipped and callable, and
-the endpoint path is unambiguous (`POST /api/ingest/files`, corroborated in six places;
-the `/ingest/events` stub is scaffold residue referenced by no requirement and should be
-deleted). What blocks it is AC-1's synchronous-rollup requirement, and the evidence is
-measured, not inferred: against the live dev Postgres a 5000-row push costs 2.83s at the
-smallest realistic table size — 94% of the 3s budget with HTTP, JSON parsing and 5000
-Pydantic validations still excluded — 3.72s on the second push, and 10.5s by the eighth,
-because `rebuild_org_rollups()` (`app/services/rollup_rebuild.py:470`) is an unfiltered
-`select(UsageEvent)` whose cost tracks total accumulated rows, not batch size. The single
-biggest risk is not latency but correctness under the exact architecture this is being
-built for: with N programs pushing independently, every ingest DELETE+INSERTs the same
-`org_summary_rollup` singleton, and **2 of 4 concurrent pushes died on
-`org_summary_rollup_org_id_key`** — a 500 that, following ING-10's commit-then-rebuild
-precedent, would leave `usage_events` written and rollups stale. Next step: run the bounded
-spike above — serialise or relocate the org rebuild, re-measure, and get a decision on
-whether ING-02 may modify BED-03's shipped `rollup_rebuild.py` — then answer the three
-clarifications and re-run `/arh-research ING-02`.
+BED-05's ship **retires the SPIKE verdict** entirely. The three independent, measured risks that triggered automatic SPIKE (Performance ≤40, Integration 500s, Dependency blocker) are all **RESOLVED or demonstrably tractable**:
+
+- **Performance**: Cost is now table-size-indexed and flat (measured on live BED-05 code), not batch-size-scaled. Org rebuild is row-level-locked (ON CONFLICT), not a 500. I/O timeout in place (51x headroom).
+- **Concurrency**: 2-of-4 failure reproduced prior, now fixed by ON CONFLICT + row-level locks (tested live in BED-05 AC-1).
+- **Dependency**: BED-05 eliminates the "no validated story reopens" blocker. ING-02 builds against complete, shipped, rewritten rollup engine.
+
+Remaining risks are planning-scope (chunking, dedup, field-list write, schema cleanup, PII logging). None blocks the build. Verdict is **GO-WITH-CONDITIONS** (81/100), up from SPIKE (66/100).
+
+Three clarifications were the other gate; all three are now **RESOLVED and recorded in state** (Q-01/Q-02/Q-03 answered 2026-09-09 by Pratik Pawar, applied to implementation). No new clarifications emerged from this re-run; prior answers hold.
+
+---
+
+## Top 3 planning recommendations
+
+1. **Chunk the upsert at a named constant ≤ 2,978 rows per INSERT statement**, inside one transaction. Assert the 65,535 bind-parameter ceiling in a test; a future `usage_events` column addition cannot silently break it. (Mitigates risk #4.)
+
+2. **De-duplicate the batch on `(program_id, session_id, cmd_ts)` in Python before upsert** (last-wins on collision, matching upsert semantics), counting deduplicated rows into `rejected` with a distinct reason. Add it to AC-5's enumeration. (Mitigates risk #5.)
+
+3. **Write C-1's field list into `docs/requirements/api.md#ingest-files-api`** (field names, types, unknown-field policy) before ING-04/06/09 plan against it. This is a blocking write. (Mitigates risk #7.)
+
+---
+
+## Carry-forward (not ING-02's to fix)
+
+- `docs/config/stack-smoke.md` port mismatch (5432 vs dev container 5442).
+- ING-04's ACs read `files:`/`artifacts:` from `profile.yaml`, but ING-10 moved both to `program.yaml`.
+- `ingest_tokens.last_used_at` never updated (ING-01 lifecycle owner).
+- Stub deletion ripple: `app/schemas/activity.py` orphaned, `.claude/skills/pydantic-patterns/SKILL.md` cites it (plan explicitly).
+- BED-05's carry-forward: `app/main.py:78-88` comment stays dangling until this story registers its router (accepted, per BED-05 Risk #9).
 
 ---
 
@@ -376,35 +228,9 @@ clarifications and re-run `/arh-research ING-02`.
 
 ---
 
-## Clarifications
+## Clarifications (prior round)
 
-**None open.** All three markers resolved in clarify round 1
-(`docs/features/ING-02/clarify-1.md`, answered 2026-09-09 by Pratik Pawar).
-
-### Resolved clarifications
-
-- **C-1 — `rows[]` wire shape** → *Persist everything.* Producer POSTs raw `activity.jsonl` field
-  names; the API aliases the five that differ (`duration_s`/`input_token`/`output_token`/
-  `cache_read`/`cache_write`). `source` and `copilot_credits` are **stored, not dropped** — which
-  requires an **additive migration** on `usage_events` (ING-10's `003_program_roster` pattern:
-  additive only, existing columns and behaviour untouched). An unknown field must not be silently
-  discarded.
-- **C-2 — which `kind`** → *Envelope only.* The envelope `kind` (`activity`/`artifacts`) is a
-  request-level fact and belongs in **AC-4's whole-request abort tier**. The per-row
-  `usage_events.kind` is stored verbatim, unvalidated — all 77 rows in the current activity log
-  carry `kind: "command"` and nothing in `app/` reads the column. **AC-5 must be reworded** to drop
-  its "unrecognized `kind`" clause; its other cases stand.
-- **C-3 — synchronous rollup / BED-03 ownership** → *A new story owns the rollup fix; ING-02
-  depends on it.* ING-02 does **not** edit `rollup_rebuild.py`; the standing "no validated story
-  reopens" rule holds. The new story owns the org-singleton concurrency failure, the unbounded
-  whole-table `select(UsageEvent)` (`rollup_rebuild.py:470`), and the rebuild cost scaling with
-  table size rather than batch size. ING-02 is **blocked** on it, and the p95 NFR cannot be
-  re-baselined until it lands.
-
-> Re-score note: these answers move both CRITICAL risks out of ING-02's own scope and into an
-> upstream dependency. The Performance dimension (30/100) was scored against ING-02 owning the
-> fix. A re-run of `/arh-research ING-02` — after the new rollup story exists — should re-score
-> Performance and Dependency against the resolved shape.
+**All three resolved.** See Clarifications section above for full text.
 
 ---
 
@@ -413,8 +239,10 @@ clarifications and re-run `/arh-research ING-02`.
 ```json
 {
   "research": "complete",
-  "research_verdict": "SPIKE",
+  "research_verdict": "GO-WITH-CONDITIONS",
   "phase": "research",
-  "last_updated": "2026-09-09T07:05:56Z"
+  "last_updated": "2026-09-11T00:00:00Z"
 }
 ```
+
+Note: Do NOT modify the `clarifications` array — it carries Q-01/Q-02/Q-03 resolved state from 2026-09-09 round 1. This write updates only `research_verdict`, `research`, `phase`, and `last_updated`.

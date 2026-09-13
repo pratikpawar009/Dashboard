@@ -55,6 +55,10 @@ disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "perf: performance NFR tests; excluded from default run, opt in with `-m perf`",
+]
+addopts = "-m 'not perf'"
 
 [build-system]
 requires = ["hatchling"]

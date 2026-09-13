@@ -10,8 +10,9 @@ AUTH-07 PLAN.md module hierarchy, not split into its own module.
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, Index, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,6 +72,13 @@ class UsageEvent(Base):
     cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total: Mapped[int] = mapped_column(BigInteger, nullable=False)
     models: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # ING-02 (migration 006, DATA-DESIGN.md § 2 / F-06): additive nullable
+    # columns for the wire's `source` (producer id) and `copilot_credits`
+    # (per-row credits consumption) — stored, not dropped, per PRD FR-4 /
+    # Q-01. Post-change column count is 24; `_MAX_ROWS_PER_INSERT` in
+    # `app/services/activity_ingest.py` is derived against this count.
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    copilot_credits: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
 
 
 class IngestToken(Base):

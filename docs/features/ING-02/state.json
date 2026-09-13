@@ -1,0 +1,176 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#41",
+  "tracker_research": "pratikpawar009/Dashboard#254",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/ING-02/DESIGN.md",
+  "design_provider": "none",
+  "design_iteration": 0,
+  "design_override_reason": "backend endpoint; no epic in schema.json (ING is not one of OVW/PGD/EMD/ARC/DEV/PMD); product-spec-agent override per plan-requirements/steps/00-design-mode.md",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "phase": "implement",
+  "last_updated": "2026-09-12T04:15:26.555642Z",
+  "tasks": {
+    "file": "docs/features/ING-02/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/ING-02/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/ING-02/DATA-DESIGN.md"
+  },
+  "clarifications": [
+    {
+      "round": 1,
+      "status": "resolved",
+      "artefact": "docs/features/ING-02/clarify-1.md",
+      "asked_at": "2026-09-09T07:19:50Z",
+      "answered_at": "2026-09-09T07:19:50Z",
+      "answered_by": "Pratik Pawar",
+      "tracker_comment": "pratikpawar009/Dashboard#41 (round-1 comment)",
+      "note": "Migrated from docs/state/features.json[ING-02].clarifications at /arh-plan-requirements Phase 1 (two-tier migration point). Index retains this array for backward-compat readers until /arh-sync slims it.",
+      "questions": [
+        {
+          "id": "Q-01",
+          "category": "integration",
+          "source_doc": "docs/research/ING-02.md",
+          "marker": "C-1 rows[] wire shape",
+          "answer": "Persist everything. Raw activity.jsonl field names on the wire, API aliases the five that differ; source + copilot_credits are STORED, not dropped -> additive migration on usage_events required.",
+          "applied_at": "2026-09-09T07:19:50Z"
+        },
+        {
+          "id": "Q-02",
+          "category": "scope",
+          "source_doc": "docs/research/ING-02.md",
+          "marker": "C-2 which kind",
+          "answer": "Envelope kind only, validated at request level (AC-4 abort tier). Row-level usage_events.kind stored verbatim, unvalidated. AC-5 reworded to drop its unrecognized-kind clause.",
+          "applied_at": "2026-09-09T07:19:50Z"
+        },
+        {
+          "id": "Q-03",
+          "category": "integration",
+          "source_doc": "docs/research/ING-02.md",
+          "marker": "C-3 rollup / BED-03 ownership",
+          "answer": "A new story owns the rollup fix (org-singleton concurrency, unbounded whole-table read, table-size-scaling cost). ING-02 does not edit rollup_rebuild.py and is blocked on that story.",
+          "applied_at": "2026-09-09T07:19:50Z"
+        }
+      ]
+    }
+  ],
+  "activity_log": [
+    {
+      "command": "plan-requirements",
+      "description": "PRD drafted at docs/features/ING-02/REQUIREMENTS.md; 11 research conditions (C-1..C-11) addressed; FR-1 delta from AC-1 (out-of-band org rebuild) recorded for Product Gate review; two-tier state migration point \u2014 per-feature state.json created.",
+      "timestamp": "2026-09-11T00:00:00Z",
+      "result": "PASS",
+      "agent": "product-spec-agent",
+      "phase_transition": "research -> plan-requirements"
+    },
+    {
+      "command": "plan-requirements",
+      "description": "Design mode override: integrations.design=html-mockup but ING is not an epic in docs/design/schema.json (only OVW/PGD/EMD/ARC/DEV/PMD). Backend-only endpoint, no UI surface. design_mode=none per plan-requirements/steps/00-design-mode.md; DESIGN.md not created; ## Screen inventory omitted from PRD.",
+      "timestamp": "2026-09-11T00:00:00Z",
+      "result": "PASS",
+      "agent": "product-spec-agent",
+      "phase_transition": null
+    },
+    {
+      "command": "plan-implementation",
+      "description": "PLAN.md written (7 pinned sections); DECISIONS.md 3 entries (D-01 org rebuild out-of-band via BackgroundTasks \u2192 ADR-0012; D-02 stub cleanup + orphan handling; D-03 envelope-kind module path); DATA-DESIGN.md written (additive migration 006, chunk-ceiling derivation on post-migration 24-column count, dedup + upsert transaction boundaries, BackgroundTasks async section); ADR-0012 authored; tasks.json \u2014 18 tasks (9 S / 6 M / 3 L), 24 file_plan entries (15 create, 7 modify, 2 delete). plan-validation PASS in round 1 across all 6 dimensions (wiring, docs, runner-setup, cross-section, config drift, decision-promotion).",
+      "timestamp": "2026-09-11T14:15:00Z",
+      "result": "PASS",
+      "agent": "impl-planning-agent",
+      "phase_transition": "plan-requirements-approved -> plan-implementation"
+    }
+  ],
+  "tracker_prd": "pratikpawar009/Dashboard#292",
+  "tracker_plan": "pratikpawar009/Dashboard#295",
+  "impl_evidence": {
+    "status": "READY",
+    "rounds": 1,
+    "dimensions": {
+      "typecheck": "PASS",
+      "unit_tests": "PASS",
+      "lint": "PASS",
+      "runtime": "PASS",
+      "compile": "N/A",
+      "design": "N/A"
+    },
+    "ran_at": "2026-09-12T04:06:36.450420Z",
+    "notes": "perf tests deselected from default via D-04 (@pytest.mark.perf + addopts='-m not perf'); AF-05 triaged as carry-forward pending CI provisioning"
+  },
+  "validation": {
+    "verdict": "PASS",
+    "acs_covered": "6/6",
+    "frs_covered": "8/8",
+    "conditions_verified": "11/11",
+    "report": "docs/features/ING-02/VALIDATION-20260912-0410.md",
+    "rounds": 1,
+    "ran_at": "2026-09-12T04:14:52.539482Z",
+    "snapshot_sha1": "0b37fd7ac6cf7796d451ec835151705e2a2e57a1"
+  },
+  "review": {
+    "verdict": "PASS WITH WARNINGS",
+    "findings": {
+      "CRITICAL": 0,
+      "HIGH": 1,
+      "MEDIUM": 2,
+      "LOW": 4
+    },
+    "high_findings": [
+      "F-1 NFR perf accepted per D-04"
+    ],
+    "report": "docs/features/ING-02/REVIEW.md",
+    "rounds": 1,
+    "ran_at": "2026-09-12T04:14:52.539482Z",
+    "blocked_rounds": 0,
+    "snapshot_sha1": "0b37fd7ac6cf7796d451ec835151705e2a2e57a1"
+  },
+  "gate_verdict": "GREEN",
+  "agent_flags": [
+    {
+      "id": "AF-01",
+      "task": "T-17",
+      "kind": "risky-pattern",
+      "status": "triaged-accept-reviewer",
+      "summary": "F-22 invariant vs commit_boundary_note scope mismatch \u2014 footnote sufficient per do-not-rewrite-contract-field-text precedent"
+    },
+    {
+      "id": "AF-02",
+      "task": "T-16",
+      "kind": "risky-pattern",
+      "status": "triaged-accept",
+      "summary": "400 vs 422 envelope-invalid \u2014 400 matches PLAN.md T-05 + api.md"
+    },
+    {
+      "id": "AF-03",
+      "task": "T-04",
+      "kind": "plan-drift",
+      "status": "triaged-accept-reviewer",
+      "summary": "Dedup inline instead of _dedup_intra_batch helper \u2014 accepted as MEDIUM F-2 in review; integration TC-01/02 covers DB side"
+    },
+    {
+      "id": "AF-04",
+      "task": "T-18",
+      "kind": "doc-drift",
+      "status": "triaged-accept-reviewer",
+      "summary": "services/api/README.md ingest-token-dep wording \u2014 carry-forward to ingest-docs consolidation"
+    },
+    {
+      "id": "AF-05",
+      "task": "T-15",
+      "kind": "nfr-miss",
+      "status": "triaged-accept",
+      "summary": "NFR perf \u22643s not met on local dev (3.67-3.98s) \u2014 accepted per D-04 (perf marker); carry-forward to CI provisioning"
+    }
+  ]
+}
