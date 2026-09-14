@@ -279,6 +279,17 @@ produced_by: ING-02
 consumed_by: [ING-04, ING-06, ING-09]
 shape:
   endpoint: "POST /api/ingest/files"
+  ing03_router_topology: >
+    ADR-0013 — the shipped route is `POST /api/ingest/{kind}` with
+    `kind='activity'` (i.e. the wire URL is `POST /api/ingest/activity`,
+    not `POST /api/ingest/files`), a single generic handler on
+    `app/api/ingest.py` (renamed from `ingest_files.py` in ING-03 T-04
+    via `git mv`). The activity branch preserves ING-02 semantics
+    byte-for-byte per ADR-0013 § Consequences: same request-tier order,
+    same 413 row cap, same `background_tasks.add_task(dispatch_org_rebuild)`
+    ADR-0012 scheduling. Envelope-kind vocabulary lives in
+    `_ACCEPTED_KINDS = frozenset({'activity', 'artifacts'})` — ING-03
+    T-01 extended it from ING-02's `{'activity'}`.
   auth: "ingest-token-auth bearer (ING-01, `services/api/app/core/ingest_auth.py`); envelope `program_id` must be in the token's `allowed_program_ids` (or wildcard `*`, or empty = allow-all — ING-01 semantics). Manual `await get_ingest_token(program_id=..., credentials=..., session=db)` because `program_id` lives in the body, not the path/query (FR-5 / C-4 — mirrors app/api/manifest.py verbatim). Never session-cookie."
   request_body: "raw JSON dict — envelope `{program_id: str, kind: 'activity', rows: list[ActivityRowIn]}`. Envelope-level Pydantic bind is deliberately NOT used (matches manifest.py precedent); envelope fields are checked off the raw dict, then per-row Pydantic validation runs in the service layer. Envelope `kind` vocabulary lives in `app/core/ingest_kind.py::_ACCEPTED_KINDS = {'activity'}` (FR-7 / C-6 — ING-03 extends this frozenset with 'artifacts')."
   limits: "5000 rows/request cap (AC-4). Router rejects `len(rows) > 5000` with 413 before any DB work; `activity_ingest._ENVELOPE_ROW_CAP = 5_000` in the service enforces the same limit defence-in-depth. Chunked upsert further limits per-INSERT rows to `_MAX_ROWS_PER_INSERT = 2_730 = floor(65_535 / 24 cols)` inside one transaction (FR-2 / C-1)."
@@ -374,8 +385,77 @@ produced_by: ING-03
 consumed_by: [ING-04]
 shape:
   endpoint: "POST /api/ingest/artifacts  {program_id, kind:'artifacts', counts, as_of}"
-  auth: "ingest-token-auth bearer"
-  validation: "counts validated against the 5 canonical artifact types; one-transaction idempotent upsert"
+  router_topology: "ADR-0013 — the shipped route is `POST /api/ingest/{kind}`, a single generic handler on `app/api/ingest.py` (renamed from `ingest_files.py` in ING-03 T-04; the retired `POST /api/ingest/files` literal URL was replaced by `POST /api/ingest/activity` byte-for-byte). Envelope-kind vocabulary lives in `app/core/ingest_kind.py::_ACCEPTED_KINDS = frozenset({'activity', 'artifacts'})` — extended from ING-02's `{'activity'}` by ING-03 T-01. A path-param regex constraint would fork this vocabulary; see ADR-0013 § Consequences."
+  auth: "ingest-token-auth bearer (ING-01, `services/api/app/core/ingest_auth.py`); envelope `program_id` must be in the token's `allowed_program_ids` (or wildcard `*`, or empty = allow-all — ING-01 semantics). Manual `await get_ingest_token(program_id=..., credentials=..., session=db)` because `program_id` lives in the body, not the path/query — mirrors `app/api/manifest.py` and the ingest-files-api activity branch verbatim. Never session-cookie."
+  request_body: >
+    Wire envelope `{program_id: str, kind: 'artifacts', counts: dict[str, int],
+    as_of: ISO-8601 datetime}`. Bound to `ArtifactCountsIn`
+    (`services/api/app/schemas/ingest_artifacts.py`) — Pydantic v2,
+    `ConfigDict(extra='ignore', populate_by_name=True)`.
+    Envelope-kind check (URL path `{kind}` + body `kind`, both against
+    `_ACCEPTED_KINDS`) runs BEFORE bearer auth (FR-1) — the two MUST agree
+    or the request is rejected 400 with `unknown envelope kind`.
+  fields: |
+    program_id  str          required — must match the token's `allowed_program_ids`
+    kind        Literal['artifacts']  required — MUST equal 'artifacts'
+    counts      dict[str,int] required — keys MUST be from the closed canonical vocabulary (see canonical_types); values are integer counts (>=0 by convention, no upper bound)
+    as_of       ISO-8601 str required — the producer-reported observation timestamp, stored verbatim in `program_artifacts.as_of_timestamp`
+  canonical_types: |
+    Closed vocabulary — the five values in
+    `app/schemas/ingest_artifacts.py::_CANONICAL_ARTIFACT_TYPES` (frozenset):
+      prd
+      user_story
+      test_case
+      arch_diagram
+      api_spec
+    Case-sensitive. A `counts` key outside this set (or the empty string)
+    is rejected 400 at the schema tier with `unknown_canonical_type` in the
+    validation-error detail. Vocabulary drift is prevented by
+    `test_ingest_artifacts_schema.py`'s parametrised probe.
+  idempotency: >
+    `pg_insert(program_artifacts).values(rows).on_conflict_do_update(
+    index_elements=['program_id','type'], set_={'count': excluded.count,
+    'as_of_timestamp': excluded.as_of_timestamp})` inside `session.begin()`
+    -> one `db.commit()`. A second POST of the same envelope yields the
+    same `rows_upserted` count with no duplicate rows (FR-3 / AC-5 /
+    DECISIONS.md D-02). At most 5 rows fit in one INSERT (the canonical
+    type set has 5 entries), so no chunking; well under Postgres's 65_535
+    bind-parameter limit.
+  response_shape:
+    schema_module: "`services/api/app/schemas/ingest_artifacts.py::IngestArtifactsResponse` — flat counts + rejections list. HTTP 200 on success. Symmetric with `IngestFilesResponse` (int + int + list[RejectionEntry]) per DECISIONS.md D-02 / Q-02."
+    fields: |
+      rows_received  int                   total (program_id, type) rows the envelope carried (== len(counts))
+      rows_upserted  int                   rows persisted via ON CONFLICT DO UPDATE (insert OR update; not disambiguated because the wire caller has no legitimate use for the split)
+      rejections     list[RejectionEntry]  per-row rejection outcomes — currently always [] on the happy path (schema-tier validation is all-or-nothing 400; there is no partial-batch rejection surface today). Present in the response envelope for shape symmetry with ingest-files-api and forward-compatibility with a future partial-batch mode.
+    rejection_entry: "reuses `services/api/app/schemas/ingest_files.py::RejectionEntry { index: int, reason: str }` — same shape and same PII discipline (FR-5 / C-7) as the activity branch; row content NEVER appears."
+    no_rollup_summary: >
+      The response does NOT carry a `rollup_summaries` field.
+      `program_artifacts` is a leaf counts table — no rollup source
+      relationship (`app/services/rollup_rebuild.py` neither reads nor
+      writes it). ADR-0012 is non-applicable on this branch
+      (DECISIONS.md D-03): the service MUST NOT import
+      `rebuild_program_rollups` or `rebuild_org_rollups`, and NO
+      `BackgroundTasks.add_task(...)` fires from the artifacts dispatch
+      branch. Enforced by
+      `tests/unit/test_ingest_artifacts_no_rollup_dispatch.py`
+      (F-16, static AST + signature guard).
+  errors:
+    "400": "envelope invalid — non-dict body, missing/non-string `program_id`, kind not in `_ACCEPTED_KINDS` (`unknown envelope kind`), URL path kind != body kind (`unknown envelope kind`), or `ArtifactCountsIn.model_validate` failed (`invalid artifacts envelope`; canonical-type violation, missing field, non-integer count). Zero writes. Router-tier check, before auth."
+    "401": "missing or invalid Bearer token — `get_ingest_token`'s own behaviour (ING-01). Zero writes."
+    "403": "token's `allowed_program_ids` does not include the envelope `program_id` — `get_ingest_token` raises HTTPException(403); zero writes."
+    "404": "envelope `program_id` does not resolve to a known program — `get_ingest_token` behaviour when the program is unknown. Zero writes."
+  observability: >
+    One structured log event per completed write —
+    `event: 'ingest_artifacts_write'`, allowlist keys ONLY:
+    `{event, program_id, token_label, types_written}` (FR-5 / C-7).
+    Allowlist is the module-level frozenset
+    `app.services.ingest_artifacts._LOG_FIELD_ALLOWLIST`. NEVER
+    `user_email`, `token_hash`, `as_of`, raw `counts` values, or any
+    request-body field. Event name is intentionally distinct from
+    ING-02's `ingest_write_completed` so dashboards can aggregate
+    per-kind without payload-shape collision (`test_ingest_artifacts_observability.py`). PII allowlist enforced by
+    `test_ingest_artifacts_pii_logging.py` (F-15) via allowlist diff,
+    not denylist.
 ```
 
 ### mcp-tools

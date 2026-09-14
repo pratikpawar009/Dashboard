@@ -111,14 +111,14 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import ingest_files as ingest_files_module
+from app.api import ingest as ingest_files_module
 from app.core.db import get_db
 from app.models.ingestion import IngestToken, UsageEvent
 from tests.conftest import AlembicRunner
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
-_INGEST_PATH = "/api/ingest/files"
+_INGEST_PATH = "/api/ingest/activity"
 
 # ING-02-NFR-performance -- do not relax.
 P95_BUDGET_SECONDS = 3.0

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
 from app.api.health import router as health_router
-from app.api.ingest_files import router as ingest_files_router
+from app.api.ingest import router as ingest_router
 from app.api.manifest import router as manifest_router
 from app.api.me import router as me_router
 from app.api.overview import router as overview_router
@@ -88,8 +88,13 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     )
 
     app.include_router(health_router)
-    app.include_router(ingest_files_router)
+    # ADR-0013: `manifest_router` mounts `POST /api/ingest/manifest` and MUST
+    # be included BEFORE `ingest_router`, whose `POST /api/ingest/{kind}`
+    # path-param route would otherwise shadow the literal `/manifest`
+    # segment. Starlette matches routes in registration order; specific
+    # literals must precede path-param catch-alls sharing their prefix.
     app.include_router(manifest_router)
+    app.include_router(ingest_router)
     app.include_router(activities_router)
     app.include_router(programs_router)
     app.include_router(overview_router)

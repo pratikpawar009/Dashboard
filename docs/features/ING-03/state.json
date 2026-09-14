@@ -1,0 +1,53 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO",
+  "research_score": 92,
+  "research_session_id": "ing-03-research-2026-09-13",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/ING-03/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#42",
+  "tracker_research": "pratikpawar009/Dashboard#297",
+  "phase": "implement",
+  "last_updated": "2026-09-13T16:35:25.820625Z",
+  "tracker_prd": "pratikpawar009/Dashboard#298",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "decisions": {
+    "file": "docs/features/ING-03/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/ING-03/DATA-DESIGN.md"
+  },
+  "tasks": {
+    "file": "docs/features/ING-03/tasks.json"
+  },
+  "tracker_plan": "pratikpawar009/Dashboard#301",
+  "impl_evidence": {
+    "typecheck": "PASS",
+    "typecheck_cmd": "cd services/api && .venv/bin/python -m mypy app",
+    "typecheck_result": "Success: no issues found in 59 source files",
+    "unit": "PASS",
+    "unit_cmd": "cd services/api && .venv/bin/python -m pytest -q",
+    "unit_result": "681 passed, 4 deselected (perf marker) in 180.67s",
+    "lint": "PASS",
+    "lint_cmd": "cd services/api && .venv/bin/python -m ruff check app tests",
+    "lint_result": "All checks passed (18 UP017 auto-fixes applied to timezone imports across 4 test files)",
+    "perf": "PASS",
+    "perf_cmd": "cd services/api && .venv/bin/python -m pytest tests/perf/test_ingest_artifacts_perf.py -m perf -s",
+    "perf_result": "p50=3.3ms p95=4.2ms (budget 300ms) — 71x margin under ING-03-NFR-performance",
+    "compile": "N/A",
+    "runtime": "PASS",
+    "runtime_result": "route registration verified: /api/ingest/manifest ['POST'] then /api/ingest/{kind} ['POST'] — order preserves manifest.py precedence",
+    "design": "N/A"
+  }
+}
