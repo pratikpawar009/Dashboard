@@ -1,0 +1,326 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-03",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-13T17:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/core/ingest_kind.py",
+      "reason": "FR-1 / D-01 / ADR-0013: extend `_ACCEPTED_KINDS` from `frozenset({\"activity\"})` to `frozenset({\"activity\", \"artifacts\"})` in the same PR that ships the generic router. The `accept_envelope_kind()` callable is unchanged; the module docstring is updated to reflect the two-entry set and to cite ADR-0013 alongside the existing ING-02 D-03 citation."
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/schemas/ingest_artifacts.py",
+      "reason": "FR-2 / D-02: Pydantic v2 request + response models. `ArtifactCountsIn { program_id: str, kind: Literal[\"artifacts\"], counts: dict[str, int], as_of: datetime }` with a `field_validator` on `counts` asserting every key is in `frozenset({\"prd\", \"user_story\", \"test_case\", \"arch_diagram\", \"api_spec\"})` (case-sensitive, no aliasing) — unknown key raises 400 BEFORE the service is called. `IngestArtifactsResponse { rows_received: int, rows_upserted: int, rejections: list[RejectionEntry] }` mirrors ING-02's `IngestFilesResponse` field-for-field per Q-02; `RejectionEntry` is IMPORTED verbatim from `app/schemas/ingest_files.py` (reuse over re-definition). Module docstring pins the D-02 mirror rationale."
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/services/ingest_artifacts.py",
+      "reason": "FR-3 / FR-4 / D-03: `ingest_artifacts(db, program_id, counts, as_of, token_label) -> IngestArtifactsResponse`. NO `on_org_rebuild` parameter, by construction (D-03 / ADR-0012 non-applicability). Performs ONE `pg_insert(program_artifacts).values(rows).on_conflict_do_update(index_elements=[\"program_id\", \"type\"], set_={\"count\": excluded.count, \"as_of_timestamp\": excluded.as_of_timestamp})` inside `session.begin()`; commits; returns `{rows_received: len(counts), rows_upserted: len(counts), rejections: []}`. Emits `log_ingest_artifacts_write(program_id, token_label, types_written)` structured event — allowlist `{event, program_id, token_label, types_written}` only, NEVER user email, token hash, `as_of`, `counts` values, or request body (FR-5). Module docstring pins ADR-0012 non-applicability explicitly and contrasts with `activity_ingest.py`. Does NOT import `rebuild_program_rollups` or `rebuild_org_rollups` (F-16 static-code guard asserts)."
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/api/ingest.py",
+      "reason": "D-01 / D-04 / ADR-0013: RENAMED module (git mv from ingest_files.py). Router refactored to a single generic handler `@router.post(\"/{kind}\", ...)` on the `/api/ingest` prefix, dispatched by `kind` path-param. Request-tier order preserved verbatim from ING-02 for `kind=\"activity\"` byte-for-byte: JSON parse → dict check → `program_id` str check → `accept_envelope_kind(kind)` (400 if reject) → `await get_ingest_token(program_id=..., credentials=..., session=db)` (401/403) → kind-specific body validation. Dispatch: `kind==\"activity\"` → `activity_ingest.ingest_files(...)` with `on_org_rebuild=lambda: background_tasks.add_task(dispatch_org_rebuild)` (ADR-0012, UNCHANGED); `kind==\"artifacts\"` → validate `ArtifactCountsIn.model_validate(payload)` (400 on canonical-type failure) → `ingest_artifacts(db, program_id, model.counts, model.as_of, ingest_token.label)` (NO background task, NO org rebuild — D-03). Module docstring records the ING-02→ING-03 semantic evolution and pins ADR-0013 alongside ADR-0012."
+    },
+    "F-05": {
+      "action": "delete",
+      "path": "services/api/app/api/ingest_files.py",
+      "reason": "D-04: renamed to `services/api/app/api/ingest.py` (F-04) via `git mv` — history-preserving. Paired same-task with F-04 so `file_plan` honestly reflects the pre-image path (a bare `create` on F-04 would hide that ING-02's router module was RETIRED under this filename)."
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "D-04: update the router include — replace `from app.api.ingest_files import router as ingest_files_router` with `from app.api.ingest import router as ingest_router` (top imports) and `app.include_router(ingest_files_router)` → `app.include_router(ingest_router)` (grouped with other includes). Sole consuming site of the F-04 module (wiring entry per `plan-validation` § Wiring)."
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_ingest_kind.py",
+      "reason": "FR-1: update the ING-02 test to reflect the 2-entry frozenset — `test_accept_envelope_kind_activity_true` unchanged; `test_accept_envelope_kind_artifacts_false_until_ing03` becomes `test_accept_envelope_kind_artifacts_true` (asserts `accept_envelope_kind(\"artifacts\") is True`); the parametrized `sorted(_ACCEPTED_KINDS)` test naturally exercises both entries after the frozenset extension. An accidental revert of F-01 to the singleton set fails this test."
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_ingest_files_idempotency.py",
+      "reason": "D-01 / ADR-0013 preservation gate: swap the URL constant `_INGEST_FILES_PATH = \"/api/ingest/files\"` → `\"/api/ingest/activity\"`. All test assertions on request body, response shape, status-code ordering, PII allowlist, and ADR-0012 background dispatch stay VERBATIM — this is the byte-for-byte semantics preservation contract for TC-01 (#293)."
+    },
+    "F-09": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_ingest_files_auth_denial.py",
+      "reason": "D-01 / ADR-0013 preservation gate: swap the URL constant `_INGEST_FILES_PATH = \"/api/ingest/files\"` → `\"/api/ingest/activity\"`. All assertions on 401/403/404/400/413 ordering, kind-validation, and rejection-entry PII discipline stay VERBATIM — TC-02 (#294) semantics preservation."
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "services/api/tests/unit/test_ingest_files_route_registered.py",
+      "reason": "D-01 / ADR-0013: update the two `getattr(route, \"path\", None) == \"/api/ingest/files\"` checks to match the FastAPI-formatted path pattern for a path-param route (`\"/api/ingest/{kind}\"`). The test's semantic guarantee (a smoke assertion that the ingest router is mounted at boot, no 404) is preserved; only the literal path constant changes."
+    },
+    "F-11": {
+      "action": "modify",
+      "path": "services/api/tests/perf/test_ingest_files_perf.py",
+      "reason": "D-01 / ADR-0013 preservation gate: swap `_INGEST_PATH = \"/api/ingest/files\"` → `\"/api/ingest/activity\"`. All seeding, timing, and p95 assertions stay VERBATIM. `@pytest.mark.perf` marker unchanged."
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_schema.py",
+      "reason": "FR-2 unit coverage: exercise `ArtifactCountsIn` — happy path for each of the 5 canonical types individually and combined; 400 (Pydantic `ValidationError`) on an unknown key (e.g. `\"design_doc\"`), on empty string keys, on non-int values, on missing required fields (`program_id`, `kind`, `counts`, `as_of`), on `kind != \"artifacts\"`; asserts case-sensitivity (upper-case type key rejected). Covers ING-03-AC-4 at the schema tier before it can touch the DB."
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_upsert.py",
+      "reason": "ING-03-TC-01 (tracker #299): full integration test per docs/test-cases/ING-03.json — pre-seed `program_artifacts` with `(program_id='prog-ing03-a', type='user_story', count=7, as_of_timestamp=2026-09-01T00:00:00Z)`; POST `{prd:3, test_case:12}` twice with the seeded bearer; assert 200 twice, exact 3-row post-state (prd + test_case at 2026-09-13, user_story unchanged), no duplicates, `IngestArtifactsResponse.rows_upserted == 2`. Lives under `tests/unit/` per this codebase's convention for real-Postgres integration tests (BED-05 F-10 precedent, ING-02 F-18 precedent — no `tests/integration/` dir per `docs/config/project-commands.yaml`). Covers AC-1, AC-5, AC-6."
+    },
+    "F-14": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_auth_denial.py",
+      "reason": "ING-03-TC-02 (tracker #300): full denial matrix per docs/test-cases/ING-03.json — (a) no bearer → 401, (b) valid bearer T_A scoped to `['prog-scoped']` targeting `'prog-other'` → 403, (c) valid bearer + valid scope + `counts={prd:2, design_doc:4}` → 400 with zero rows written for any (program_id, type). Asserts `SELECT COUNT(*) FROM program_artifacts WHERE program_id IN ('prog-scoped','prog-other') == 0` after all three requests (no partial commit). Same file-location rationale as F-13. Covers AC-2, AC-3, AC-4."
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_pii_logging.py",
+      "reason": "FR-5 unit coverage (test-case GAP #1): mirrors `services/api/tests/unit/test_ingest_write_completed_pii.py` (ING-02) shape — captures emitted records via caplog / structured-log probe; asserts the `ingest_artifacts_write` event's key set == `{event, program_id, token_label, types_written}` EXACTLY (allowlist diff, not denylist). Also asserts NO record carries `user_email`, `token_hash`, the raw `counts` values, `as_of`, or any request-body field. Uses a `_EXPECTED_KEY_SET` module constant so a future field addition here must be intentional (mirrors ING-02's `_LOG_FIELD_ALLOWLIST` discipline)."
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_no_rollup_dispatch.py",
+      "reason": "D-03 / ADR-0012 non-applicability static-code guard: MODULE-LEVEL assertion that `app.services.ingest_artifacts`'s AST (or import graph via `sys.modules[...].__dict__`) does not import `rebuild_program_rollups` or `rebuild_org_rollups` from `app.services.rollup_rebuild`. Cheaper and more reliable than a runtime spy — catches copy-paste from `activity_ingest.py` at the earliest possible check. Also asserts `ingest_artifacts.ingest_artifacts.__signature__` has no parameter named `on_org_rebuild` (the second half of the D-03 structural guarantee)."
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_route_generic.py",
+      "reason": "D-01 / ADR-0013: exercise the generic `POST /api/ingest/{kind}` dispatcher directly — (i) `create_app().routes` contains a route with `path == \"/api/ingest/{kind}\"` (not two separate `/files` + `/artifacts` entries); (ii) POST with `kind='unknown_kind'` in the URL and a valid body → 400 (envelope-kind reject) BEFORE auth is called (mock `get_ingest_token` and assert it was NOT invoked); (iii) POST with `kind='activity'` reaches the activity dispatch branch (mocked to a sentinel); (iv) POST with `kind='artifacts'` reaches the artifacts dispatch branch (mocked to a sentinel); (v) `background_tasks.add_task` is NOT called for the `kind='artifacts'` branch (ADR-0012 non-applicability, D-03 router-tier guard)."
+    },
+    "F-18": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_ingest_artifacts_observability.py",
+      "reason": "NFR-observability unit coverage (test-case GAP #2): asserts the structured log event's NAME is exactly `\"ingest_artifacts_write\"` (not e.g. `\"ingest_write_completed\"` accidentally copied from `activity_ingest.py`). Captures the `logger.info(...)` first-positional argument on a happy-path POST; asserts the event-name string literally. Complements F-15 (which asserts FIELD allowlist) with the event-NAME check."
+    },
+    "F-19": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_ingest_artifacts_perf.py",
+      "reason": "NFR-performance opt-in perf test (test-case GAP #3, D-05): `@pytest.mark.perf` — reuses ING-02 D-04's marker + `-m 'not perf'` default addopts, no new runner install. Seeds two OTHER programs' artifacts (proves program-scope isolation of the ON CONFLICT lookup); measures the ≤5-row `/api/ingest/artifacts` push against a third program; asserts p95 < 300 ms across N=50 iterations. Module docstring records the seeded shape (2 unrelated programs × 5 rows each) + the 300 ms budget target explicitly."
+    },
+    "F-20": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "D-02 / D-01 / ADR-0013 (blocking write): (a) `### ingest-artifacts-api` — replace the current stub `shape:` with the full contract per DATA-DESIGN.md § 9: `endpoint: 'POST /api/ingest/{kind} with kind=\"artifacts\" (URL POST /api/ingest/artifacts)'`, `auth:` (ingest-token-auth bearer, program-scoped), `request_body:` (envelope + `counts` canonical-type frozenset), `response_body:` (`{rows_received, rows_upserted, rejections}` mirroring `IngestFilesResponse` — Q-02), `errors:` (400/401/403), `observability:` (`ingest_artifacts_write` event + field allowlist). (b) `### ingest-files-api` — add a topology note pointing at ADR-0013: route path is now `POST /api/ingest/{kind}` with `kind=\"activity\"` (URL `POST /api/ingest/activity`), not the retired `/api/ingest/files`. The `rows[]` field list, response shape, error branches, and observability stay unchanged; only the URL and the router-topology sentence change. Downstream ING-04 / ING-06 / ING-09 bind against this shared spec, not against ING-03's or ING-02's internal schema modules."
+    },
+    "F-21": {
+      "action": "create",
+      "path": "docs/adr/0013-generic-ingest-kind-router.md",
+      "reason": "D-01 promotion to full ADR (`blast:system` → ADR mandatory per `plan-validation` decision-promotion rule). Status/Context/Decision/Consequences per `adr-template`. Records the URL topology change, the byte-for-byte semantics preservation contract for `kind=\"activity\"`, the mechanical reversibility posture, and the pre-merge (`phase: review`) rationale for retiring `POST /api/ingest/files` without a compatibility alias."
+    },
+    "F-22": {
+      "action": "modify",
+      "path": "docs/adr/README.md",
+      "reason": "ADR index update — append the ADR-0013 row (`ADR-0013 | POST /api/ingest/{kind} is a single generic router; POST /api/ingest/files is retired | Accepted`). Matches the format of ADR-0001..ADR-0012 rows already in the table."
+    },
+    "F-23": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "Docs T2: add `POST /api/ingest/artifacts` entry to the API surface table beside the existing `POST /api/ingest/files` / `POST /api/ingest/manifest` rows, and update the `POST /api/ingest/files` reference to note the URL is now `POST /api/ingest/activity` under the generic `POST /api/ingest/{kind}` topology (per ADR-0013). Route + auth + upsert shape one-line summary; full field list lives in F-20 (docs/requirements/api.md)."
+    },
+    "F-24": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Docs T2 (root): mirror the F-23 entries in the root README's `## API` table — add `POST /api/ingest/artifacts` (body + auth + response shape one-liner cross-referencing `docs/requirements/api.md#ingest-artifacts-api`); revise the existing `POST /api/ingest/files` row to note the URL change to `POST /api/ingest/activity` under `POST /api/ingest/{kind}` topology, citing ADR-0013. Preserves the row for `POST /api/ingest/manifest` unchanged."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Extend envelope-kind allowlist to {\"activity\", \"artifacts\"} + update the ING-02 unit test",
+      "complexity": "S",
+      "predecessors": [],
+      "files": ["F-01", "F-07"],
+      "ac_refs": ["ING-03-AC-1"],
+      "risk_refs": ["R-01"],
+      "notes": "FR-1 / D-01 / ADR-0013. Single-line frozenset extension in `app/core/ingest_kind.py` + docstring update; matching update in `test_ingest_kind.py` (flips the `artifacts_false_until_ing03` case to `artifacts_true`). Both edits in one commit so `test_ingest_kind.py` never observes the extended module with the old assertion. Zero-risk edit; unblocks the router refactor (T-04) and the artifact-service tests.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "New Pydantic schemas — `ArtifactCountsIn` + `IngestArtifactsResponse` (mirrors IngestFilesResponse, Q-02)",
+      "complexity": "M",
+      "predecessors": [],
+      "files": ["F-02"],
+      "ac_refs": ["ING-03-AC-1", "ING-03-AC-4"],
+      "risk_refs": ["R-02"],
+      "notes": "FR-2 / D-02. `ArtifactCountsIn` uses a `field_validator(mode='after')` on `counts` that asserts every key is in `frozenset({\"prd\", \"user_story\", \"test_case\", \"arch_diagram\", \"api_spec\"})`; case-sensitive; unknown key raises `ValueError('unknown_canonical_type')` and Pydantic returns 400 BEFORE the service is called. `IngestArtifactsResponse` shape is EXACTLY `{rows_received: int, rows_upserted: int, rejections: list[RejectionEntry]}` — `RejectionEntry` IMPORTED from `app/schemas/ingest_files.py` (not re-defined). Runs in parallel with T-01 (no file overlap).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "`ingest_artifacts` service — single-txn ON CONFLICT DO UPDATE + `ingest_artifacts_write` structured log (NO rollup dispatch, NO on_org_rebuild parameter)",
+      "complexity": "M",
+      "predecessors": ["T-02"],
+      "files": ["F-03"],
+      "ac_refs": ["ING-03-AC-1", "ING-03-AC-5", "ING-03-AC-6"],
+      "risk_refs": ["R-03", "R-05"],
+      "notes": "FR-3 / FR-4 / FR-5 / D-03. Signature `async def ingest_artifacts(db, program_id, counts, as_of, token_label) -> IngestArtifactsResponse` — NO `on_org_rebuild` parameter (D-03 structural guarantee). One `pg_insert(ProgramArtifact).values(rows).on_conflict_do_update(index_elements=['program_id','type'], set_={'count': excluded.count, 'as_of_timestamp': excluded.as_of_timestamp})` inside `session.begin()`, commit, return. `log_ingest_artifacts_write` allowlist == `{event, program_id, token_label, types_written}`; keyword-only signature makes the allowlist part of the type contract (mirrors ING-02 `log_ingest_write_completed` discipline). Module docstring pins ADR-0012 non-applicability explicitly and contrasts with `activity_ingest.py`. MUST NOT import from `app.services.rollup_rebuild` (F-16 asserts).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Rename router + refactor to generic `POST /api/ingest/{kind}` with kind-dispatch (git mv ingest_files.py → ingest.py; main.py include update)",
+      "complexity": "L",
+      "predecessors": ["T-01", "T-02", "T-03"],
+      "files": ["F-04", "F-05", "F-06"],
+      "ac_refs": ["ING-03-AC-1", "ING-03-AC-2", "ING-03-AC-3", "ING-03-AC-4"],
+      "risk_refs": ["R-01"],
+      "notes": "D-01 / D-04 / ADR-0013. Single commit, three edits together: (a) `git mv services/api/app/api/ingest_files.py services/api/app/api/ingest.py`; (b) refactor the router body — `@router.post(\"/{kind}\", ...)` replaces `@router.post(\"/files\", ...)`; the request-tier order for `kind=\"activity\"` is preserved BYTE-FOR-BYTE from ING-02 (JSON parse → dict check → `program_id` str check → `accept_envelope_kind` (400) → `get_ingest_token` (401/403) → `len(rows)>5000` (413) → delegate to `activity_ingest.ingest_files` with `on_org_rebuild=lambda: background_tasks.add_task(dispatch_org_rebuild)`, ADR-0012 UNCHANGED); the `kind=\"artifacts\"` branch validates `ArtifactCountsIn.model_validate(payload)` (400 on canonical-type or missing-field failure) then calls `ingest_artifacts(db, program_id, model.counts, model.as_of, ingest_token.label)` (NO background task); (c) `services/api/app/main.py` import + include-router lines updated to the new module name. Path-param route `/api/ingest/{kind}` — FastAPI accepts `activity` and `artifacts` as URL segments only after `accept_envelope_kind` gates them (400 on any other value). No path-param regex constraint on `{kind}` — the regex would fork the vocabulary from `_ACCEPTED_KINDS` and re-introduce the ING-02 D-03 drift.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "ING-02 URL-preservation gate — swap `_INGEST_FILES_PATH`/`_INGEST_PATH` from `/api/ingest/files` → `/api/ingest/activity` in the four route-touching test files",
+      "complexity": "S",
+      "predecessors": ["T-04"],
+      "files": ["F-08", "F-09", "F-10", "F-11"],
+      "ac_refs": [],
+      "risk_refs": ["R-01"],
+      "notes": "D-01 / ADR-0013 preservation gate. Four surgical edits: F-08 + F-09 + F-11 swap a single URL string constant each (`\"/api/ingest/files\"` → `\"/api/ingest/activity\"`); F-10 updates the two `getattr(route, \"path\", None) == \"/api/ingest/files\"` checks to the FastAPI-formatted path pattern `\"/api/ingest/{kind}\"` (path-param routes carry the pattern, not the resolved segment, in `app.routes`). All test assertions on body, response fields, status-code ordering, PII allowlist, ADR-0012 background dispatch, and perf p95 stay VERBATIM. This is the audit surface for the byte-for-byte semantics-preservation contract in ADR-0013 (Consequences § Positive).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Unit test — `ArtifactCountsIn` schema (canonical-type enum, unknown-key 400, case-sensitivity)",
+      "complexity": "S",
+      "predecessors": ["T-02"],
+      "files": ["F-12"],
+      "ac_refs": ["ING-03-AC-4"],
+      "risk_refs": ["R-02"],
+      "notes": "FR-2 unit coverage. Exercises each canonical type individually; combined 5-type payload; unknown key (`\"design_doc\"`); empty string key; non-int value; missing `program_id`/`kind`/`counts`/`as_of`; `kind != \"artifacts\"`; case-sensitivity (`\"PRD\"` rejected). One assertion per case for parametrize-friendly output. Reads the frozenset from the schema module — an accidental widening of the canonical set flips the parametrize expectations red.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Integration test — ING-03-TC-01 idempotent partial-payload upsert (#299)",
+      "complexity": "M",
+      "predecessors": ["T-04"],
+      "files": ["F-13"],
+      "ac_refs": ["ING-03-AC-1", "ING-03-AC-5", "ING-03-AC-6"],
+      "risk_refs": ["R-03"],
+      "notes": "Real-Postgres integration test per `docs/test-cases/ING-03.json` TC-01. Pre-seed `program_artifacts (program_id='prog-ing03-a', type='user_story', count=7, as_of_timestamp=2026-09-01T00:00:00Z)`; seed a valid non-revoked ingest token scoped to `['prog-ing03-a']`; POST `{prd:3, test_case:12}` twice against `/api/ingest/artifacts`; assert 200 both times, exact 3-row post-state (prd + test_case at 2026-09-13, user_story unchanged); assert `response.rows_received == response.rows_upserted == 2`, `response.rejections == []`. Lives under `tests/unit/` per this codebase's convention (BED-05 F-10 / ING-02 F-18 precedent; no `tests/integration/` dir per `docs/config/project-commands.yaml`).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Integration test — ING-03-TC-02 auth + canonical-type denial matrix (#300)",
+      "complexity": "M",
+      "predecessors": ["T-04"],
+      "files": ["F-14"],
+      "ac_refs": ["ING-03-AC-2", "ING-03-AC-3", "ING-03-AC-4"],
+      "risk_refs": ["R-02", "R-06"],
+      "notes": "Real-Postgres integration test per `docs/test-cases/ING-03.json` TC-02. Seed a valid non-revoked ingest token `T_A` scoped to `['prog-scoped']`; issue three requests: (a) no Authorization header → 401; (b) `Bearer T_A` targeting `program_id='prog-other'` → 403; (c) `Bearer T_A` targeting `'prog-scoped'` with `counts={prd:2, design_doc:4}` → 400. Assert `SELECT COUNT(*) FROM program_artifacts WHERE program_id IN ('prog-scoped','prog-other') == 0` after all three (no partial commit — the router-tier canonical-type check runs before `pg_insert`, and case (c) fails Pydantic validation for the whole request). Same file-location rationale as T-07.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Unit test — FR-5 PII allowlist on `ingest_artifacts_write` event (test-case GAP #1)",
+      "complexity": "S",
+      "predecessors": ["T-03"],
+      "files": ["F-15"],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Covers the FR-5 test-case gap (user's 2-TC cap left this deferred to plan-implementation per PRD § Approvals). Mirrors `services/api/tests/unit/test_ingest_write_completed_pii.py` (ING-02) shape — captures emitted records via caplog / structured-log probe; asserts key set == `{event, program_id, token_label, types_written}` EXACTLY (allowlist diff via `frozenset`, not denylist). Also asserts no captured record carries `user_email`, `token_hash`, the raw `counts` values, `as_of`, or any request-body field. Module-level `_EXPECTED_KEY_SET` constant so a future field addition to the log is intentional.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Unit test — D-03 / ADR-0012 non-applicability static-code guard",
+      "complexity": "S",
+      "predecessors": ["T-03"],
+      "files": ["F-16"],
+      "ac_refs": [],
+      "risk_refs": ["R-05"],
+      "notes": "D-03 structural guarantee. Two assertions: (i) `app.services.ingest_artifacts` module does NOT import `rebuild_program_rollups` or `rebuild_org_rollups` from `app.services.rollup_rebuild` — inspect via `import ast; ast.parse(open(path).read())` walk over `ImportFrom` nodes, or via `sys.modules['app.services.ingest_artifacts'].__dict__` name lookup after import. (ii) `inspect.signature(ingest_artifacts).parameters` does NOT contain a `on_org_rebuild` key. A copy-paste from `activity_ingest.py` fails both assertions immediately. Static-code check runs at test-collect time, no DB or app boot required.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Unit test — generic `POST /api/ingest/{kind}` route registration + kind-dispatch (ING-02 semantics preservation smoke)",
+      "complexity": "S",
+      "predecessors": ["T-04"],
+      "files": ["F-17"],
+      "ac_refs": ["ING-03-AC-1", "ING-03-AC-4"],
+      "risk_refs": ["R-01"],
+      "notes": "D-01 / ADR-0013 smoke. (i) `create_app().routes` contains a route with `path == \"/api/ingest/{kind}\"` — not two separate `/files`+`/artifacts` entries. (ii) POST with `kind='unknown_kind'` and a syntactically-valid body → 400 (envelope-kind reject); mock `get_ingest_token` and assert it was NOT invoked (kind check runs BEFORE auth). (iii) Mock `activity_ingest.ingest_files` to a sentinel; POST `kind='activity'` reaches it. (iv) Mock `ingest_artifacts.ingest_artifacts` to a sentinel; POST `kind='artifacts'` reaches it. (v) Assert `background_tasks.add_task` was NOT called for the `kind='artifacts'` branch (ADR-0012 non-applicability, D-03 router-tier structural guarantee).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Unit test — NFR-observability event name `ingest_artifacts_write` (test-case GAP #2)",
+      "complexity": "S",
+      "predecessors": ["T-03"],
+      "files": ["F-18"],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Covers the NFR-observability test-case gap (user's 2-TC cap). Complements F-15 (allowlist FIELDS) with the event-NAME check. Captures the `logger.info(...)` first-positional argument on a happy-path artifacts POST; asserts the string literal is exactly `\"ingest_artifacts_write\"` — an accidental copy-paste of `\"ingest_write_completed\"` from `activity_ingest.py` fails this test immediately.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Perf test — `@pytest.mark.perf` p95 < 300 ms budget for ≤5-row artifacts upsert (test-case GAP #3, D-05)",
+      "complexity": "M",
+      "predecessors": ["T-04"],
+      "files": ["F-19"],
+      "ac_refs": [],
+      "risk_refs": ["R-04"],
+      "notes": "Covers the NFR-performance test-case gap (user's 2-TC cap). Reuses ING-02 D-04's `perf` pytest marker + `-m 'not perf'` default addopts — no new runner install, no new pytest config, no new task on `docs/config/project-commands.yaml`. Seeds two OTHER programs' `program_artifacts` (proves program-scope isolation of the unique-index ON CONFLICT lookup); measures the ≤5-row `/api/ingest/artifacts` push against a third program across N=50 iterations; asserts `statistics.quantiles(latencies_ms, n=20)[18] < 300` (p95). Module docstring records the seeded shape + the 300 ms budget explicitly.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Docs — api.md#ingest-artifacts-api shape + api.md#ingest-files-api topology note + ADR-0013 + ADR index + services/api/README + root README",
+      "complexity": "M",
+      "predecessors": ["T-04"],
+      "files": ["F-20", "F-21", "F-22", "F-23", "F-24"],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Docs T2 (new HTTP route `POST /api/ingest/artifacts`) + ADR-0013 promotion + api.md contract fill-in per D-02 blocking-write clause. Single task, five edits together so no README ever shows a partial view. F-20 is the blocking write for the downstream `ingest-artifacts-api` `consumed_by: [ING-04]` — ING-04 binds against this exact response shape. F-21 is the promoted ADR (D-01, `blast:system` → adr:ADR-0013). F-22 registers the ADR in the index. F-23 + F-24 update the API tables to add the artifacts row and reflect the URL topology change for the activity route.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    }
+  ]
+}

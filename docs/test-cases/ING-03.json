@@ -1,0 +1,228 @@
+{
+  "story_id": "ING-03",
+  "test_cases": [
+    {
+      "id": "ING-03-TC-01",
+      "title": "Idempotent partial-payload upsert leaves omitted types untouched",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-03-AC-1",
+      "given": "a valid non-revoked ingest token whose allowed_program_ids includes the target program_id and program_artifacts already holds a row for user_story from an earlier ingest",
+      "when": "POST /api/ingest/artifacts is called twice with an identical partial-canonical-types payload (prd + test_case only)",
+      "then": "the response is 200 both times, prd and test_case rows are upserted with the given counts and as_of_timestamp, no duplicate rows exist for (program_id, type), and the pre-existing user_story row is unchanged (neither zeroed nor deleted)",
+      "objective": "Verify AC-1 (happy-path upsert), AC-5 (same-payload idempotency: no duplicates, identical end state) and AC-6 (partial-payload semantics: omitted canonical types are preserved) in a single integration flow against a real Postgres transaction.",
+      "preconditions": [
+        "API service running against a real Postgres test database with the BED-01 program_artifacts table present (unique (program_id, type))",
+        "An ingest_tokens row seeded with a known bearer, not revoked, not expired, allowed_program_ids = ['prog-ing03-a']",
+        "program_artifacts pre-seeded with one row: (program_id='prog-ing03-a', type='user_story', count=7, as_of_timestamp=2026-09-01T00:00:00Z)",
+        "_ACCEPTED_KINDS includes 'artifacts' (ING-03-FR-1 extension already landed in this PR)"
+      ],
+      "test_data": {
+        "bearer_token": "<INGEST_TOKEN_PROG_ING03_A>",
+        "program_id": "prog-ing03-a",
+        "kind": "artifacts",
+        "counts": {
+          "prd": 3,
+          "test_case": 12
+        },
+        "as_of": "2026-09-13T10:00:00Z",
+        "preseeded_user_story_row": {
+          "count": 7,
+          "as_of_timestamp": "2026-09-01T00:00:00Z"
+        }
+      },
+      "steps": [
+        "Issue first POST /api/ingest/artifacts with Authorization: Bearer <INGEST_TOKEN_PROG_ING03_A> and JSON body {program_id, kind:'artifacts', counts:{prd:3, test_case:12}, as_of:'2026-09-13T10:00:00Z'}",
+        "Capture response status and body",
+        "Query program_artifacts WHERE program_id='prog-ing03-a' ORDER BY type",
+        "Issue an identical second POST /api/ingest/artifacts with the same headers and body",
+        "Capture second response status and body",
+        "Re-query program_artifacts WHERE program_id='prog-ing03-a' ORDER BY type"
+      ],
+      "expected_results": [
+        "First response status = 200",
+        "After first POST: program_artifacts contains exactly 3 rows for prog-ing03-a \u2014 (prd, 3, 2026-09-13T10:00:00Z), (test_case, 12, 2026-09-13T10:00:00Z), (user_story, 7, 2026-09-01T00:00:00Z)",
+        "Second response status = 200",
+        "After second POST: program_artifacts contains the same 3 rows with identical values (no duplicates, no new rows for arch_diagram or api_spec, user_story row still (7, 2026-09-01T00:00:00Z))",
+        "SELECT COUNT(*) FROM program_artifacts WHERE program_id='prog-ing03-a' returns 3 in both post-POST snapshots"
+      ],
+      "tags": [
+        "happy-path",
+        "idempotency",
+        "partial-payload",
+        "upsert"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#299"
+    },
+    {
+      "id": "ING-03-TC-02",
+      "title": "Auth and canonical-type denial matrix (401 / 403 / 400) writes zero rows",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-03-AC-2",
+      "given": "a running API with an ingest_tokens row for bearer token T_A scoped to allowed_program_ids=['prog-scoped'], and a program_artifacts table with no rows for the targets under test",
+      "when": "three requests are issued against POST /api/ingest/artifacts: (a) no bearer header, (b) bearer T_A targeting program_id='prog-other' not in its allowed list, (c) bearer T_A targeting 'prog-scoped' with counts containing an unknown type key 'design_doc'",
+      "then": "responses are 401, 403 and 400 respectively, no row is written for any of the three attempts, and no partial commit occurs",
+      "objective": "Verify AC-2 (missing/invalid token \u2192 401 per ingest-token-auth), AC-3 (out-of-scope program_id \u2192 403 per ingest-token-auth), and AC-4 (non-canonical type key \u2192 400, zero writes) in one denial-matrix run, and confirm NFR-security bearer-token-only + program-scoped-authorization behaviour end-to-end against a real DB.",
+      "preconditions": [
+        "API service running against a real Postgres test database",
+        "ingest_tokens row seeded: token T_A, hash matches known bearer, not revoked, not expired, allowed_program_ids=['prog-scoped']",
+        "program_artifacts empty for program_ids 'prog-scoped' and 'prog-other'",
+        "_ACCEPTED_KINDS includes 'artifacts'"
+      ],
+      "test_data": {
+        "valid_scoped_bearer": "<INGEST_TOKEN_T_A>",
+        "case_a_headers": {},
+        "case_a_body": {
+          "program_id": "prog-scoped",
+          "kind": "artifacts",
+          "counts": {
+            "prd": 1
+          },
+          "as_of": "2026-09-13T10:00:00Z"
+        },
+        "case_b_headers": {
+          "Authorization": "Bearer <INGEST_TOKEN_T_A>"
+        },
+        "case_b_body": {
+          "program_id": "prog-other",
+          "kind": "artifacts",
+          "counts": {
+            "prd": 1
+          },
+          "as_of": "2026-09-13T10:00:00Z"
+        },
+        "case_c_headers": {
+          "Authorization": "Bearer <INGEST_TOKEN_T_A>"
+        },
+        "case_c_body": {
+          "program_id": "prog-scoped",
+          "kind": "artifacts",
+          "counts": {
+            "prd": 2,
+            "design_doc": 4
+          },
+          "as_of": "2026-09-13T10:00:00Z"
+        }
+      },
+      "steps": [
+        "Case (a): POST /api/ingest/artifacts with no Authorization header and case_a_body; capture status",
+        "Case (b): POST /api/ingest/artifacts with Authorization: Bearer <INGEST_TOKEN_T_A> and case_b_body (program_id='prog-other'); capture status",
+        "Case (c): POST /api/ingest/artifacts with Authorization: Bearer <INGEST_TOKEN_T_A> and case_c_body (counts contains non-canonical key 'design_doc'); capture status",
+        "Query SELECT COUNT(*) FROM program_artifacts WHERE program_id IN ('prog-scoped','prog-other')"
+      ],
+      "expected_results": [
+        "Case (a) response status = 401",
+        "Case (b) response status = 403",
+        "Case (c) response status = 400",
+        "Row count for program_id IN ('prog-scoped','prog-other') = 0 (no partial write for case (c) \u2014 the valid 'prd' key must not commit when 'design_doc' is rejected)",
+        "No row exists for type='design_doc' anywhere in program_artifacts (canonical-type set is closed)"
+      ],
+      "tags": [
+        "negative",
+        "auth",
+        "authorization",
+        "validation",
+        "denial-matrix"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#300"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-03-AC-1",
+        "covered_by": [
+          "ING-03-TC-01"
+        ]
+      },
+      {
+        "id": "ING-03-AC-2",
+        "covered_by": [
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-AC-3",
+        "covered_by": [
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-AC-4",
+        "covered_by": [
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-AC-5",
+        "covered_by": [
+          "ING-03-TC-01"
+        ]
+      },
+      {
+        "id": "ING-03-AC-6",
+        "covered_by": [
+          "ING-03-TC-01"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-03-FR-1",
+        "covered_by": [
+          "ING-03-TC-01",
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-FR-2",
+        "covered_by": [
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-FR-3",
+        "covered_by": [
+          "ING-03-TC-01"
+        ]
+      },
+      {
+        "id": "ING-03-FR-4",
+        "covered_by": [
+          "ING-03-TC-01"
+        ]
+      },
+      {
+        "id": "ING-03-FR-5",
+        "covered_by": []
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-03-NFR-security",
+        "covered_by": [
+          "ING-03-TC-02"
+        ]
+      },
+      {
+        "id": "ING-03-NFR-performance",
+        "covered_by": []
+      },
+      {
+        "id": "ING-03-NFR-observability",
+        "covered_by": []
+      }
+    ],
+    "uncovered": [
+      "ING-03-FR-5",
+      "ING-03-NFR-performance",
+      "ING-03-NFR-observability"
+    ],
+    "coverage_cap_note": "Manifest capped at 2 test cases by explicit user override. All 6 ACs are covered. The uncovered ids require additional dedicated TCs the cap forbids: FR-5 and NFR-observability need a log-capture unit/integration TC asserting the ingest_artifacts_write allowlist ({event, program_id, token_label, types_written}) and PII absence; NFR-performance needs a type=performance TC measuring p95 < 300 ms for a \u22645-row upsert. Escalate before the Product Gate \u2014 self-correction round skipped because generating the missing TCs would violate the user cap."
+  }
+}

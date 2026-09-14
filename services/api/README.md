@@ -114,7 +114,7 @@ Callers present the token the same way as a session JWT — `Authorization: Bear
 
 No route declares `Depends(get_ingest_token)` yet — this story ships the dependency only.
 
-`POST /api/ingest/files` (ING-02) is the first route to consume this dependency, and it calls `await get_ingest_token(program_id=..., credentials=..., session=db)` manually rather than via `Depends()` because `program_id` travels in the body — the same shape `app/api/manifest.py` established. Full wire contract at [`docs/requirements/api.md#ingest-files-api`](../../docs/requirements/api.md#ingest-files-api); story scope at [`docs/features/ING-02/REQUIREMENTS.md`](../../docs/features/ING-02/REQUIREMENTS.md).
+`POST /api/ingest/activity` and `POST /api/ingest/artifacts` (ING-02 + ING-03) are the two routes that consume this dependency. Both are handled by a single generic router `POST /api/ingest/{kind}` per ADR-0013 (`app/api/ingest.py`, renamed from `ingest_files.py` in ING-03 T-04); each calls `await get_ingest_token(program_id=..., credentials=..., session=db)` manually rather than via `Depends()` because `program_id` travels in the body — the same shape `app/api/manifest.py` established. Envelope-kind vocabulary is owned by `app/core/ingest_kind.py::_ACCEPTED_KINDS = frozenset({"activity","artifacts"})`. Full wire contracts at [`docs/requirements/api.md#ingest-files-api`](../../docs/requirements/api.md#ingest-files-api) and [`docs/requirements/api.md#ingest-artifacts-api`](../../docs/requirements/api.md#ingest-artifacts-api); story scopes at [`docs/features/ING-02/REQUIREMENTS.md`](../../docs/features/ING-02/REQUIREMENTS.md) and [`docs/features/ING-03/REQUIREMENTS.md`](../../docs/features/ING-03/REQUIREMENTS.md).
 
 ## RBAC checks
 

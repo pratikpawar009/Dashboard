@@ -49,7 +49,7 @@ from tests.conftest import AlembicRunner
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
-_INGEST_FILES_PATH = "/api/ingest/files"
+_INGEST_FILES_PATH = "/api/ingest/activity"
 
 
 # -----------------------------------------------------------------------------

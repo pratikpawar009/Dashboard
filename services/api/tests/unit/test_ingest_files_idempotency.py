@@ -63,7 +63,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import ingest_files as ingest_files_router
+from app.api import ingest as ingest_files_router
 from app.core.db import get_db
 from app.core.logging import JSONFormatter
 from app.models.ingestion import IngestToken, UsageEvent
@@ -72,7 +72,7 @@ from tests.conftest import AlembicRunner
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
 
-_INGEST_FILES_PATH = "/api/ingest/files"
+_INGEST_FILES_PATH = "/api/ingest/activity"
 
 # Pin FR-8's allowlist literally (T-11 keeps the service-side frozenset as
 # runtime source of truth; snapshotting it here as well means any drift on

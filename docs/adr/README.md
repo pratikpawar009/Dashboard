@@ -14,3 +14,4 @@
 | [ADR-0010](0010-program-roster-new-table.md) | `program_roster` is a new, additive table — file-authoritative program membership, kept separate from `program_members` | Accepted |
 | [ADR-0011](0011-persona-precedence-new-table.md) | `persona_precedence` is a new, additive table — persona-precedence order rides AUTH-02's own 3-tier config mechanism, not `persona_config` | Accepted |
 | [ADR-0012](0012-ingest-org-rollup-out-of-band.md) | `rebuild_org_rollups()` runs out-of-band from the ingest request path via FastAPI `BackgroundTasks` | Accepted |
+| [ADR-0013](0013-generic-ingest-kind-router.md) | `POST /api/ingest/{kind}` is a single generic router; the old `POST /api/ingest/files` URL is retired | Accepted |
