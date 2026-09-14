@@ -1,0 +1,163 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 75,
+  "research_session_id": "ing-04-research-2026-09-14",
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#43",
+  "tracker_research": "pratikpawar009/Dashboard#303",
+  "prd": "complete",
+  "design": "n/a",
+  "phase": "review",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "last_updated": "2026-09-14T15:04:34Z",
+  "tasks": {
+    "file": "docs/features/ING-04/tasks.json"
+  },
+  "decisions": [
+    {
+      "id": "D-01",
+      "at": "2026-09-14T05:27:24Z",
+      "title": "MCP server is a separately-deployed sibling service",
+      "rationale": "Deploy independently from services/api. Do NOT wire services/mcp-server into docs/config/project-commands.yaml::preflight of the main API. It ships as its own deployable with its own pyproject.toml, own tests, own commands. Root docs/config/project-commands.yaml may add an mcp_server:* namespace or leave it entirely out (PLAN decision)."
+    }
+  ],
+  "data_design": {
+    "file": "docs/features/ING-04/DATA-DESIGN.md"
+  },
+  "open_clarifications": [],
+  "risks": [
+    {
+      "id": "R-04",
+      "title": "Profile YAML location drift",
+      "category": "Scope / Contract",
+      "severity": "HIGH",
+      "summary": "Story AC-2 reads '.harness/profile.yaml', but ING-10 moves activity/artifact sources to '.harness/program.yaml' (committed)",
+      "mitigation": "Story logic should accept BOTH layouts gracefully (check program.yaml first, fall back to profile.yaml for local dev), OR explicitly gate on ING-10's completion.",
+      "resolved_at": "2026-09-14T05:27:24Z",
+      "resolution": "Filesystem reality settles this: profile.yaml is IDENTITY ONLY (email/name/role, gitignored, per-machine) \u2014 no files[], no artifacts{}. Committed program.yaml holds the canonical files[] (line 84) and artifacts{} (line 110). Tool reads program.yaml for both push_activity and push_artifacts. Story text is pre-ING-10 stale \u2014 correct in PLAN: replace every '.harness/profile.yaml' reference in ACs with '.harness/program.yaml'. Optional: read profile.yaml for identity attribution logging only (email/name), NOT for source paths.",
+      "status": "resolved"
+    },
+    {
+      "id": "R-06",
+      "title": "Glob pattern / JSON path injection",
+      "category": "Security",
+      "severity": "HIGH",
+      "summary": "User-controlled glob/path in profile.yaml is passed unsanitized to filesystem/JSON resolver",
+      "mitigation": "Input validation: glob patterns must not contain .., must stay within workspace_root; JSON paths must not contain $ or @ or complex expressions. Enforce via explicit allowlist or sandboxed path resolution.",
+      "status": "carry-forward-to-plan",
+      "note": "HIGH risk stands; PLAN must define explicit allowlist for glob patterns (no '..' traversal, workspace_root scoped) and JSON key/field names (no expressions)."
+    },
+    {
+      "id": "R-07",
+      "title": "Token secret handling",
+      "category": "Security",
+      "severity": "HIGH",
+      "summary": "Env-var leak (e.g., env printed in logs, leaked in error output)",
+      "mitigation": "Establish MCP server's logging config to suppress env-var printing. Review all exception handlers to ensure token is never in extra dict passed to logger.",
+      "status": "carry-forward-to-plan",
+      "note": "HIGH risk stands; PLAN must include logging-config discipline + token-absence-in-logs test assertion."
+    }
+  ],
+  "resolved_clarifications": [
+    {
+      "id": "C-01",
+      "title": "FastMCP vs mcp-python library selection",
+      "question": "The story and PRD both reference 'FastMCP' and a 'reference implementation' in agentrise_mcp, but do not name the exact library/version. Is this fastapi-mcp (a FastAPI plugin), the standalone mcp library from Anthropic, or a third-party agentrise-specific fork?",
+      "impact": "Low if a reference implementation exists to copy; HIGH if team must build FastMCP integration from scratch.",
+      "resolution_path": "Provide link to reference GitHub repository or PyPI package name in story's PLAN phase.",
+      "resolved_at": "2026-09-14T05:27:24Z",
+      "resolution": "Use the standalone FastMCP Python package (https://pypi.org/project/fastmcp/ \u2014 jlowin/fastmcp, v2.x). NOT fastapi-mcp (a FastAPI plugin) and NOT the low-level anthropic mcp SDK. FastMCP provides @server.tool() decorator + streamable HTTP transport out of the box, matching AC-1."
+    }
+  ],
+  "tracker_prd": "pratikpawar009/Dashboard#304",
+  "gate": "APPROVE",
+  "tracker_plan": "pratikpawar009/Dashboard#320",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-14T13:43:28Z",
+    "rounds": 3,
+    "verdict": "READY",
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "PLAN test strategy: mypy on src/",
+        "command": "services/mcp-server/.venv/bin/mypy services/mcp-server/src/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-04/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-14T13:43:28Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "PLAN test strategy: pytest tests/unit",
+        "command": "services/mcp-server/.venv/bin/pytest services/mcp-server/tests/unit -q",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-04/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-14T13:43:28Z",
+        "counts": {
+          "passed": 126,
+          "failed": 0
+        }
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "PLAN test strategy: ruff check",
+        "command": "services/mcp-server/.venv/bin/ruff check services/mcp-server/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-04/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-14T13:43:28Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "PLAN test strategy: boot smoke via AGENTRISE_MCP_SMOKE_TEST=1",
+        "command": "AGENTRISE_INGEST_TOKEN=test AGENTRISE_MCP_SMOKE_TEST=1 services/mcp-server/.venv/bin/python -m agentrise_mcp",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-04/evidence/runtime-smoke.log",
+        "flag_id": null,
+        "ran_at": "2026-09-14T13:43:28Z",
+        "boot_log_scan": "clean",
+        "token_leak_scan": "clean"
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "PLAN test strategy: compileall src/",
+        "command": "services/mcp-server/.venv/bin/python -m compileall services/mcp-server/src/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/ING-04/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-14T13:43:28Z"
+      },
+      "design": {
+        "status": "N/A",
+        "source": "state.json design=n/a; PRD NFR-Accessibility=N/A (backend-only)",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "partial",
+  "validation_summary": "2026-09-14 P=40/45 in 2 round(s) (1 skipped CI-deferred, 4 manual)",
+  "validation_report": "docs/features/ING-04/VALIDATION-20260914-1500.md",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/ING-04/REVIEW.md",
+  "pending_carry_forward": [
+    "TC-03 skipped (agentrise-mcp not on caller PATH in dev; python -m variant TC-02 covers same boot surface; re-runs in CI post pip install -e)",
+    "TC-34/35/36 manual (secret-scan audit; automated coverage in test_logging_no_token_leak passed)",
+    "TC-45 manual (live MCP client handshake; automatable=false)",
+    "F-6 MEDIUM: sync tool bodies vs PLAN \u00a73 async pin \u2014 accept sync (functional + tested) OR record a new DECISIONS entry before an async refactor",
+    "F-10 MEDIUM: FR-5 auth-fail aggregate fields + 403 branch under-asserted in tests (code correct; contract not locked)",
+    "F-7 LOW: 3 tracker-header lines in docs/stories/ING-04.md outside PLAN file_plan (harness-orchestrator side edit)",
+    "F-8 LOW: docs/activity/activity.jsonl auto-appended by Copilot activity hook (auto-generated, not implementation output)",
+    "AF-01 carry-forward: pyproject dev-deps style vs services/api convention (cross-service cleanup, not blocking)"
+  ]
+}

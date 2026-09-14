@@ -6,6 +6,9 @@
 **Owner**: —
 **Updated**: 2026-08-26
 **Tracker**: pratikpawar009/Dashboard#43 (https://github.com/pratikpawar009/Dashboard/issues/43)
+**Tracker Research:** pratikpawar009/Dashboard#303
+**Tracker PRD:** pratikpawar009/Dashboard#304
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#320
 
 ## User story
 

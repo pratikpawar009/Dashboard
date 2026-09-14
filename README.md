@@ -6,6 +6,7 @@ AI SDLC monitoring dashboard. Next.js frontend, FastAPI backend, Postgres datast
 
 - `apps/web` — Next.js 15 (TypeScript, pnpm, vitest)
 - `services/api` — FastAPI 0.115 (Pydantic, Alembic, uv, pytest)
+- `services/mcp-server` — Standalone MCP server exposing `push_activity` and `push_artifacts` tools for AI clients (Claude Code, Cursor). Run: `cd services/mcp-server && pip install -e . && AGENTRISE_INGEST_TOKEN=... agentrise-mcp`. Separately deployed sibling to `services/api`, NOT wired into the API preflight (ADR-0014, ING-04 D-01 / D-07). Details: [`services/mcp-server/README.md`](services/mcp-server/README.md).
 - `docker-compose.yml` — web + api + postgres, local orchestration
 
 ## Getting started
