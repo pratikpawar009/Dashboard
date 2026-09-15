@@ -12,9 +12,9 @@
   "design_artifact": "docs/features/ING-05/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "validate-review",
+  "phase": "implementation-complete",
   "needs_clarification_count": 0,
-  "last_updated": "2026-09-15T05:33:39Z",
+  "last_updated": "2026-09-15T05:36:46Z",
   "tracker_prd": "pratikpawar009/Dashboard#323",
   "gate": "APPROVE",
   "plan": "complete",
@@ -91,5 +91,12 @@
     "report_path": "docs/features/ING-05/REVIEW.md",
     "at": "2026-09-15T05:33:39Z"
   },
-  "gate_outcome": "GREEN"
+  "gate_outcome": "GREEN",
+  "impl_status": "complete",
+  "pr": "pratikpawar009/Dashboard#328",
+  "pr_url": "https://github.com/pratikpawar009/Dashboard/pull/328",
+  "pr_commit_sha": "fcb25a4a4a65675fb72629d70bbc11d998556463",
+  "pr_branch": "feature/ING-05",
+  "flags_triaged_count": 7,
+  "flags_open_count": 0
 }
