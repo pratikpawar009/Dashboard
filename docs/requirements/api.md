@@ -464,8 +464,78 @@ shape:
 produced_by: ING-04
 consumed_by: [ING-05]
 shape:
-  server: "services/mcp-server, package agentrise_mcp, FastMCP streamable HTTP, default 0.0.0.0:3010, path /mcp"
-  tools: ["push_activity(program_id?, workspace_root?)", "push_artifacts(program_id?, workspace_root?)"]
+  server: >
+    services/mcp-server/ — package `agentrise_mcp`, FastMCP v2.x streamable HTTP
+    transport on 0.0.0.0:3010 path /mcp (FR-1, D-02). Standalone sibling to
+    services/api, separately deployed (D-01, ADR-0014) — NOT wired into
+    `docs/config/project-commands.yaml::preflight` (D-07). Smoke procedure
+    lives in `docs/config/stack-smoke.md` under the `# mcp-server` section.
+  auth: >
+    Bearer token via env `AGENTRISE_INGEST_TOKEN` — enforced at MCP-server
+    startup (fail-fast: missing/empty aborts before any HTTP or filesystem
+    call, FR-6 / D-06) and re-applied as `Authorization: Bearer <token>` on
+    every HTTP POST to `/api/ingest/*`. Same ingest-token-auth mechanism
+    ingest-files-api / ingest-artifacts-api / program-manifest-api use
+    (ADR-0006). Base URL overridable via `AGENTRISE_INGEST_BASE_URL`
+    (default `http://127.0.0.1:8000`).
+  tools:
+    push_activity: |
+      push_activity(program_id: str | None = None, workspace_root: str | None = None) -> dict
+      Reads `.harness/program.yaml::files[]` glob patterns (D-04).
+      Parses each matched file as NDJSON, batches at 500 rows per POST (D-05).
+      POSTs to `POST /api/ingest/activity` per ADR-0013 — envelope
+      `{program_id, kind:"activity", rows[]}`, kind literal `"activity"`.
+      When `program_id` is supplied, overrides the YAML `programId` in the
+      envelope (FR-1); when None, the YAML value is used.
+      Backend response is `IngestFilesResponse`
+      (`{received, valid, inserted, updated, rejected, rollup_summaries}`);
+      the tool aggregates `inserted` / `updated` across batches, concatenates
+      `rejected`, and merges `rollup_summaries` into `rollups` (last-write-wins).
+      Result envelope on success (FR-2):
+        {success: true, files_read, rows_read, batches, inserted, updated, rejected, rollups}
+      Result envelope on auth failure (FR-5, 401 or 403):
+        {success: false, error: "unauthorized" | "forbidden", http_status: 401 | 403,
+         batches_sent, batches_failed, files_read, rows_read, inserted, updated,
+         rejected, rollups}
+      Result envelope on missing token (FR-6):
+        {success: false, error: "missing_ingest_token",
+         message: "Set AGENTRISE_INGEST_TOKEN before invoking this tool."}
+      See FR-2, FR-5, FR-6.
+    push_artifacts: |
+      push_artifacts(program_id: str | None = None, workspace_root: str | None = None) -> dict
+      Reads `.harness/program.yaml::artifacts{}` — the 5 canonical types
+      (`prd`, `user_story`, `test_case`, `arch_diagram`, `api_spec`).
+      Missing keys are OK (partial payload).
+      Each type is resolved via its source `kind`:
+        constant | glob-count | json-key-count | json-field-sum.
+      When `program_id` is supplied, overrides the YAML `programId` in the
+      envelope (FR-1); when None, the YAML value is used.
+      POSTs once to `POST /api/ingest/artifacts` per ADR-0013 — envelope
+      `{program_id, kind:"artifacts", counts, as_of}`, kind literal
+      `"artifacts"`.
+      Result envelope on success:
+        {success: true, rows_received, rows_upserted, rejections, resolver_errors?}
+      Result envelope on auth failure (FR-5, 401 or 403):
+        {success: false, error: "unauthorized" | "forbidden", http_status: 401 | 403,
+         batches_sent: 1, batches_failed: 1, inserted: 0}
+      Result envelope on missing token (FR-6):
+        {success: false, error: "missing_ingest_token",
+         message: "Set AGENTRISE_INGEST_TOKEN before invoking this tool."}
+      Result envelope on allowlist rejection (FR-7 / FR-8) — POST is aborted:
+        {success: false, error: "unsafe_glob_pattern" | "unsafe_json_key",
+         entry_key: "<canonical_type>", offending_value: "<value>"}
+      See FR-3, FR-5, FR-6, FR-7, FR-8.
+  timeout_retry: >
+    5s connect + 30s total per HTTP call; 3 attempts with exponential backoff
+    + jitter. Retry ONLY on network errors (connect/read/timeout) — NEVER on
+    a 4xx or 5xx response, which are terminal and returned to the caller
+    verbatim in the failure envelope (NFR-Performance).
+  security: >
+    Allowlisted event names in structured logs; `TokenSuppressionFilter`
+    redacts token substrings and secret-keyed fields from every log record
+    before it leaves the process (NFR-Security, R-07). Neither
+    `AGENTRISE_INGEST_TOKEN` nor any bearer header ever appears in a log
+    line, an error envelope, or an exception message.
 ```
 
 ### admin-scan-api

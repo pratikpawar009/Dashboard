@@ -71,3 +71,18 @@ Migration tool, invoked as a step before the API runs (see `Migrate:` under
 - Run: cd services/api && uv run uvicorn app.main:app --reload --port 8000
 - Docker: docker compose up api postgres
 - Check: http://127.0.0.1:8000/health
+
+# mcp-server
+
+Fast smoke checks for `services/mcp-server/`. Not wired into the main API preflight
+(D-01: separately deployed sibling; D-07: no `mcp_server:*` entries in
+`docs/config/project-commands.yaml`). Run its deploy pipeline separately from the
+main API — see `services/mcp-server/README.md` and ADR-0014.
+
+- Install: cd services/mcp-server && pip install -e .[dev]
+- Syntax check: cd services/mcp-server && python -m py_compile src/agentrise_mcp/**/*.py
+- Unit tests: pytest services/mcp-server/tests/unit -q
+- Integration smoke: AGENTRISE_INGEST_TOKEN=test AGENTRISE_MCP_SMOKE_TEST=1 python -m agentrise_mcp — exits 0 after `build_server()`, does NOT bind :3010
+- Lint: ruff check services/mcp-server/
+- Types: mypy services/mcp-server/src/
+- Check: http://127.0.0.1:3010/mcp (only when launched non-smoke via `agentrise-mcp`)

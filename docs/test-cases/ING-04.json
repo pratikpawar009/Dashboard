@@ -1,0 +1,2099 @@
+{
+  "story_id": "ING-04",
+  "test_cases": [
+    {
+      "id": "ING-04-TC-01",
+      "title": "FastMCP server exposes exactly two tools over streamable HTTP at /mcp",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-1",
+      "given": "the FastMCP server is constructed via FastMCP(\"agentrise-mcp\") and started on 0.0.0.0:3010",
+      "when": "an MCP client performs the ListTools handshake against /mcp",
+      "then": "exactly two tools are returned: push_activity and push_artifacts, and no resources or prompts",
+      "objective": "Verify FR-1's tool-registration surface: FastMCP transport + exactly two tools + no extra registrations.",
+      "preconditions": [
+        "services/mcp-server/ package installed",
+        "fastmcp v2.x pinned in pyproject.toml",
+        "AGENTRISE_INGEST_TOKEN set to a dummy value so the server boots"
+      ],
+      "test_data": {
+        "bind": "0.0.0.0:3010",
+        "path": "/mcp"
+      },
+      "steps": [
+        "Import agentrise_mcp.server and instantiate the FastMCP server via its factory",
+        "Enumerate registered tools via the FastMCP introspection API (or fastmcp.Client('/mcp').list_tools())",
+        "Enumerate registered resources and prompts"
+      ],
+      "expected_results": [
+        "Tool names set equals {'push_activity', 'push_artifacts'}",
+        "Both tools declare parameters program_id: str | None = None and workspace_root: str | None = None",
+        "Registered resources list is empty",
+        "Registered prompts list is empty"
+      ],
+      "tags": [
+        "happy-path",
+        "mcp-registration",
+        "FR-1"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#305",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-02",
+      "title": "Entry point `python -m agentrise_mcp.server` boots the same FastMCP server",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-1",
+      "given": "the package is installed with the module entry point declared",
+      "when": "python -m agentrise_mcp.server is invoked in a subprocess",
+      "then": "the process listens on 0.0.0.0:3010 and serves /mcp with the two tools registered",
+      "objective": "Verify the module entry point boots the identical FastMCP surface as the console script.",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=dummy set in subprocess env",
+        "Free TCP port 3010 on the test host"
+      ],
+      "test_data": {
+        "command": "python -m agentrise_mcp.server"
+      },
+      "steps": [
+        "Spawn subprocess.Popen(['python', '-m', 'agentrise_mcp.server'])",
+        "Poll TCP 127.0.0.1:3010 until accepting connections (timeout 5s)",
+        "Issue an MCP ListTools request to http://127.0.0.1:3010/mcp",
+        "Terminate the subprocess"
+      ],
+      "expected_results": [
+        "Subprocess reaches listening state within 5s",
+        "ListTools returns {'push_activity', 'push_artifacts'}",
+        "Subprocess exits cleanly on SIGTERM (returncode 0 or -SIGTERM)"
+      ],
+      "tags": [
+        "mcp-registration",
+        "FR-1",
+        "entry-point"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#306",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-03",
+      "title": "Console script `agentrise-mcp` boots the same FastMCP server",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-1",
+      "given": "the console script is declared in pyproject.toml's [project.scripts]",
+      "when": "the agentrise-mcp binary is invoked in a subprocess",
+      "then": "the process listens on 0.0.0.0:3010 and serves /mcp with the two tools registered",
+      "objective": "Verify the console-script entry point boots the identical FastMCP surface as `python -m`.",
+      "preconditions": [
+        "Package installed (pip install -e services/mcp-server or equivalent)",
+        "AGENTRISE_INGEST_TOKEN=dummy set in subprocess env"
+      ],
+      "test_data": {
+        "command": "agentrise-mcp"
+      },
+      "steps": [
+        "Spawn subprocess.Popen(['agentrise-mcp'])",
+        "Poll TCP 127.0.0.1:3010 until accepting connections (timeout 5s)",
+        "Issue an MCP ListTools request to http://127.0.0.1:3010/mcp",
+        "Terminate the subprocess"
+      ],
+      "expected_results": [
+        "Subprocess reaches listening state within 5s",
+        "ListTools returns {'push_activity', 'push_artifacts'}",
+        "Subprocess exits cleanly on SIGTERM"
+      ],
+      "tags": [
+        "mcp-registration",
+        "FR-1",
+        "entry-point"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#307",
+      "last_run": {
+        "status": "skipped",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-04",
+      "title": "push_activity happy path: reads program.yaml, batches 500, POSTs to /api/ingest/activity",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-2",
+      "given": ".harness/program.yaml declares two files[] entries totalling 750 activity rows and a valid bearer token",
+      "when": "push_activity(program_id='prog-1', workspace_root=<tmp>) is invoked",
+      "then": "rows are batched at 500/POST and each batch is POSTed to /api/ingest/activity with envelope {program_id, kind:'activity', rows}",
+      "objective": "Verify the FR-2 happy path: YAML source, NDJSON parsing, 500-row batching, correct URL, correct envelope kind.",
+      "preconditions": [
+        "tmp_path fixture with .harness/program.yaml declaring files:[{kind:activity,path:a.ndjson},{kind:activity,path:b.ndjson}]",
+        "a.ndjson has 500 valid JSON rows; b.ndjson has 250 valid JSON rows",
+        "AGENTRISE_INGEST_TOKEN=valid-token env-var set",
+        "respx mock for POST /api/ingest/activity returning IngestFilesResponse {inserted:<n>, updated:0, rejected:[], rollups:{...}}"
+      ],
+      "test_data": {
+        "program_id": "prog-1",
+        "total_rows": 750,
+        "batch_size": 500
+      },
+      "steps": [
+        "Await push_activity(program_id='prog-1', workspace_root=str(tmp_path))",
+        "Capture the sequence of respx.calls to /api/ingest/activity"
+      ],
+      "expected_results": [
+        "Exactly 2 POSTs made to path '/api/ingest/activity'",
+        "First batch payload: {'program_id':'prog-1','kind':'activity','rows':[...500 rows...]}",
+        "Second batch payload: {'program_id':'prog-1','kind':'activity','rows':[...250 rows...]}",
+        "Every request carries header 'Authorization: Bearer valid-token'",
+        "Every envelope field 'kind' equals the literal string 'activity'"
+      ],
+      "tags": [
+        "happy-path",
+        "FR-2",
+        "ADR-0013"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#308",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-05",
+      "title": "push_activity returns the aggregated IngestFilesResponse envelope",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-2",
+      "given": "two mocked backend POSTs return per-batch counts that must be summed",
+      "when": "push_activity completes",
+      "then": "the returned dict carries success=True and the aggregated fields files_read, rows_read, batches, inserted, skipped_duplicate, rejected, rollups",
+      "objective": "Pin the tool-result envelope shape mandated by FR-2 (aggregated across all batches).",
+      "preconditions": [
+        "tmp_path with 2 activity files (300 + 400 rows)",
+        "respx mock: batch 1 \u2192 inserted=300, updated=0, rejected=[]; batch 2 \u2192 inserted=400, updated=0, rejected=[]"
+      ],
+      "test_data": {
+        "expected_files_read": 2,
+        "expected_rows_read": 700,
+        "expected_batches": 2,
+        "expected_inserted": 700
+      },
+      "steps": [
+        "Await push_activity(program_id='p1', workspace_root=str(tmp_path))",
+        "Inspect the returned dict keys and values"
+      ],
+      "expected_results": [
+        "Returned dict has keys: success, files_read, rows_read, batches, inserted, skipped_duplicate, rejected, rollups",
+        "success is True",
+        "files_read == 2, rows_read == 700, batches == 2, inserted == 700, rejected == []"
+      ],
+      "tags": [
+        "FR-2",
+        "envelope-shape"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#309",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-06",
+      "title": "push_activity skips blank NDJSON lines silently",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-2",
+      "given": "an NDJSON file interleaves valid rows with blank lines and whitespace-only lines",
+      "when": "push_activity parses the file",
+      "then": "blank lines are dropped from the POSTed batch and do not appear in rejected",
+      "objective": "Verify the FR-2 blank-line skip rule (whitespace-only lines are NOT malformed \u2014 they are skipped silently).",
+      "preconditions": [
+        "tmp_path with .harness/program.yaml pointing at f.ndjson",
+        "f.ndjson: 3 valid JSON rows separated by empty lines and one line containing only spaces",
+        "respx mock for POST /api/ingest/activity"
+      ],
+      "test_data": {
+        "file_lines": 7,
+        "expected_rows_posted": 3,
+        "expected_rejected": 0
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect the POSTed batch payload and the returned envelope"
+      ],
+      "expected_results": [
+        "POSTed batch contains exactly 3 rows",
+        "Returned rejected list is empty (blank lines never surface as rejections)",
+        "rows_read == 3"
+      ],
+      "tags": [
+        "FR-2",
+        "edge-case",
+        "ndjson-parser"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#310",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-07",
+      "title": "push_activity counts malformed NDJSON lines as rejected with reason malformed_ndjson_line",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-2",
+      "given": "an NDJSON file with 4 valid rows and 2 lines that fail JSON parsing",
+      "when": "push_activity parses the file",
+      "then": "only the 4 valid rows are POSTed and the 2 bad lines appear in rejected with reason 'malformed_ndjson_line' and 0-based batch indices",
+      "objective": "Verify the FR-2 malformed-line rule and RejectionEntry index semantics (0-based within the batch).",
+      "preconditions": [
+        "tmp_path with f.ndjson: line0=valid, line1='not{json', line2=valid, line3='}bad{', line4=valid, line5=valid",
+        "respx mock for POST /api/ingest/activity returning inserted=4, rejected=[]"
+      ],
+      "test_data": {
+        "total_lines": 6,
+        "valid_rows": 4,
+        "malformed_lines": [
+          1,
+          3
+        ]
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect the POSTed batch and the returned envelope"
+      ],
+      "expected_results": [
+        "POSTed batch contains exactly 4 rows (the valid ones, in file order)",
+        "Returned rejected has 2 entries, each with reason='malformed_ndjson_line'",
+        "Rejected entries' index fields are 0-based batch positions of the malformed lines"
+      ],
+      "tags": [
+        "FR-2",
+        "edge-case",
+        "ndjson-parser"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#311",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-08",
+      "title": "push_activity splits a 1000-row file into exactly two 500-row batches",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-2",
+      "given": "a single NDJSON file with exactly 1000 valid rows",
+      "when": "push_activity is invoked",
+      "then": "exactly two POSTs are made, each carrying 500 rows",
+      "objective": "Pin the 500-row batch cap at an exact-multiple boundary.",
+      "preconditions": [
+        "tmp_path with f.ndjson containing 1000 valid rows",
+        "respx mock for POST /api/ingest/activity"
+      ],
+      "test_data": {
+        "rows": 1000,
+        "expected_batches": 2,
+        "expected_batch_size": 500
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Count respx.calls and inspect each request body's rows array length"
+      ],
+      "expected_results": [
+        "Exactly 2 POSTs to /api/ingest/activity",
+        "First request has len(rows)==500",
+        "Second request has len(rows)==500",
+        "Returned batches == 2, rows_read == 1000"
+      ],
+      "tags": [
+        "FR-2",
+        "boundary",
+        "batching"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#312",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-09",
+      "title": "push_activity splits a 501-row file into two batches of 500 + 1",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-2",
+      "given": "a single NDJSON file with exactly 501 valid rows",
+      "when": "push_activity is invoked",
+      "then": "exactly two POSTs are made, sized 500 and 1",
+      "objective": "Pin the 500-row batch cap at the one-over boundary.",
+      "preconditions": [
+        "tmp_path with f.ndjson containing 501 valid rows",
+        "respx mock for POST /api/ingest/activity"
+      ],
+      "test_data": {
+        "rows": 501,
+        "expected_batches": 2,
+        "expected_sizes": [
+          500,
+          1
+        ]
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect each request's rows array length"
+      ],
+      "expected_results": [
+        "Exactly 2 POSTs",
+        "First request has len(rows)==500",
+        "Second request has len(rows)==1",
+        "Returned batches == 2"
+      ],
+      "tags": [
+        "FR-2",
+        "boundary",
+        "batching"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#313",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-10",
+      "title": "push_activity across multiple files reports cumulative counts",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-04-FR-2",
+      "given": "three NDJSON files with 200, 350 and 100 valid rows",
+      "when": "push_activity is invoked",
+      "then": "files_read=3, rows_read=650 and inserted matches the summed per-batch inserts",
+      "objective": "Verify aggregation across multiple files (cumulative, not per-file).",
+      "preconditions": [
+        "tmp_path with three NDJSON files declared in .harness/program.yaml files[]",
+        "respx mock returning inserted=<per-batch> on each call"
+      ],
+      "test_data": {
+        "file_rows": [
+          200,
+          350,
+          100
+        ],
+        "expected_files_read": 3,
+        "expected_rows_read": 650
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect the returned envelope aggregate fields"
+      ],
+      "expected_results": [
+        "files_read == 3",
+        "rows_read == 650",
+        "inserted equals the summed per-batch inserted counts across all POSTs"
+      ],
+      "tags": [
+        "FR-2",
+        "multi-file"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#314",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-11",
+      "title": "push_artifacts happy path: resolves 4 source kinds and issues one POST to /api/ingest/artifacts",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-3",
+      "given": ".harness/program.yaml artifacts{} declares one entry of each source kind (glob-count, json-key-count, json-field-sum, constant)",
+      "when": "push_artifacts is invoked",
+      "then": "exactly one POST to /api/ingest/artifacts is made with envelope {program_id, kind:'artifacts', counts, as_of}",
+      "objective": "Verify FR-3 happy path: one POST per invocation, correct envelope, ISO-8601 as_of.",
+      "preconditions": [
+        "tmp_path with fixtures for each of the 4 source kinds",
+        ".harness/program.yaml artifacts:{prd:glob-count, user_story:json-key-count, test_case:json-field-sum, arch_diagram:constant}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock for POST /api/ingest/artifacts returning IngestArtifactsResponse"
+      ],
+      "test_data": {
+        "expected_post_count": 1,
+        "expected_kind": "artifacts"
+      },
+      "steps": [
+        "Await push_artifacts(program_id='p1', workspace_root=str(tmp_path))",
+        "Inspect the single POST request"
+      ],
+      "expected_results": [
+        "Exactly 1 POST to '/api/ingest/artifacts'",
+        "Request body has fields program_id, kind, counts, as_of",
+        "kind == 'artifacts' verbatim",
+        "as_of parses as ISO-8601 UTC timestamp",
+        "counts dict has one integer per configured artifact type"
+      ],
+      "tags": [
+        "happy-path",
+        "FR-3",
+        "ADR-0013"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#315",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-12",
+      "title": "glob-count resolver counts matching files and honours exclude",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-3",
+      "given": "a fixture dir with 5 .md files at the top level and 1 .wip subdirectory containing another .md",
+      "when": "the glob-count resolver runs with glob='**/*.md', exclude=['.wip/**']",
+      "then": "the resolver returns 5 (the .wip entry is excluded)",
+      "objective": "Verify glob-count source kind: glob match + exclude via fnmatch with ** semantics.",
+      "preconditions": [
+        "tmp_path/docs/ contains a.md, b.md, c.md, d.md, e.md, .wip/f.md",
+        "artifacts.prd = {kind: glob-count, path: docs, glob: '**/*.md', exclude: ['.wip/**']}"
+      ],
+      "test_data": {
+        "expected_count": 5
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect counts['prd'] in the POSTed envelope"
+      ],
+      "expected_results": [
+        "counts['prd'] == 5",
+        ".wip/f.md is not counted"
+      ],
+      "tags": [
+        "FR-3",
+        "glob-count"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#316",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-13",
+      "title": "json-key-count resolver counts top-level keys and honours exclude",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-3",
+      "given": "a JSON file {\"a\":1,\"b\":2,\"last_updated\":\"x\"} with exclude=['last_updated']",
+      "when": "the json-key-count resolver runs",
+      "then": "the resolver returns 2",
+      "objective": "Verify json-key-count source kind: top-level key count minus excluded literal keys.",
+      "preconditions": [
+        "tmp_path/index.json contains {\"a\":1,\"b\":2,\"last_updated\":\"x\"}",
+        "artifacts.user_story = {kind: json-key-count, path: index.json, exclude: ['last_updated']}"
+      ],
+      "test_data": {
+        "expected_count": 2
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect counts['user_story']"
+      ],
+      "expected_results": [
+        "counts['user_story'] == 2"
+      ],
+      "tags": [
+        "FR-3",
+        "json-key-count"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#317",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-14",
+      "title": "json-field-sum resolver sums array lengths across matching JSON files",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-3",
+      "given": "a fixture dir with 2 JSON files each carrying {\"test_cases\":[row, row, row]}",
+      "when": "the json-field-sum resolver runs with field='test_cases', glob='*.json'",
+      "then": "the resolver returns 6",
+      "objective": "Verify json-field-sum source kind: array-length summation across globbed JSON files.",
+      "preconditions": [
+        "tmp_path/tc/a.json and tmp_path/tc/b.json each contain {\"test_cases\":[1,2,3]}",
+        "artifacts.test_case = {kind: json-field-sum, path: tc, glob: '*.json', field: 'test_cases'}"
+      ],
+      "test_data": {
+        "files": 2,
+        "rows_per_file": 3,
+        "expected_sum": 6
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect counts['test_case']"
+      ],
+      "expected_results": [
+        "counts['test_case'] == 6",
+        "A JSON file missing the 'test_cases' key contributes 0 (not an error)"
+      ],
+      "tags": [
+        "FR-3",
+        "json-field-sum"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#318",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-15",
+      "title": "constant resolver returns the fixed value",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-3",
+      "given": "artifacts.arch_diagram = {kind: constant, value: 0}",
+      "when": "the constant resolver runs",
+      "then": "the resolver returns 0",
+      "objective": "Verify constant source kind returns the literal value including the zero boundary.",
+      "preconditions": [
+        "tmp_path/.harness/program.yaml declares the constant entry"
+      ],
+      "test_data": {
+        "value": 0,
+        "expected_count": 0
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect counts['arch_diagram']"
+      ],
+      "expected_results": [
+        "counts['arch_diagram'] == 0"
+      ],
+      "tags": [
+        "FR-3",
+        "constant"
+      ],
+      "tracker_key": "pratikpawar009/Dashboard#319",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-16",
+      "title": "push_artifacts returns IngestArtifactsResponse fields wrapped in the tool envelope",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-3",
+      "given": "the backend mock returns {rows_received: 5, rows_upserted: 5, rejections: []}",
+      "when": "push_artifacts completes",
+      "then": "the returned dict has success=True and the backend fields present",
+      "objective": "Pin the push_artifacts tool-result envelope shape per FR-3.",
+      "preconditions": [
+        "tmp_path with a minimal valid artifacts{} block",
+        "respx mock returning the fixture backend response"
+      ],
+      "test_data": {
+        "backend_response": {
+          "rows_received": 5,
+          "rows_upserted": 5,
+          "rejections": []
+        }
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect the returned dict"
+      ],
+      "expected_results": [
+        "Returned dict has keys: success, rows_received, rows_upserted, rejections",
+        "success is True",
+        "rows_received == 5, rows_upserted == 5, rejections == []"
+      ],
+      "tags": [
+        "FR-3",
+        "envelope-shape"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-17",
+      "title": "workspace_root supplied: program.yaml and relative paths resolve under it",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-4",
+      "given": "workspace_root='/tmp/wsX' and program.yaml declares files:[{path:'data/a.ndjson'}]",
+      "when": "push_activity(workspace_root='/tmp/wsX') runs",
+      "then": "the tool opens /tmp/wsX/.harness/program.yaml and reads /tmp/wsX/data/a.ndjson",
+      "objective": "Verify FR-4 explicit workspace_root anchoring for both YAML and referenced relative paths.",
+      "preconditions": [
+        "tmp_path/.harness/program.yaml exists",
+        "tmp_path/data/a.ndjson exists with 10 rows",
+        "Process CWD is deliberately set to a DIFFERENT directory to prove the anchoring is not the CWD"
+      ],
+      "test_data": {
+        "workspace_root": "<tmp_path>",
+        "referenced_file": "data/a.ndjson"
+      },
+      "steps": [
+        "os.chdir to a scratch directory (not tmp_path)",
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Assert the tool successfully read the YAML and posted 10 rows"
+      ],
+      "expected_results": [
+        "Returned rows_read == 10",
+        "One POST made with 10 rows",
+        "No FileNotFoundError raised despite CWD being unrelated"
+      ],
+      "tags": [
+        "FR-4",
+        "path-resolution"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-18",
+      "title": "workspace_root omitted: paths resolve against server CWD",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-4",
+      "given": "workspace_root is None and CWD is a directory containing .harness/program.yaml",
+      "when": "push_activity() is invoked with no workspace_root",
+      "then": "the tool opens ./.harness/program.yaml relative to Path.cwd().resolve()",
+      "objective": "Verify FR-4 default-anchor rule uses Path.cwd().resolve() when workspace_root is absent.",
+      "preconditions": [
+        "tmp_path/.harness/program.yaml + tmp_path/f.ndjson (5 rows)",
+        "Process CWD monkey-patched to tmp_path via os.chdir",
+        "respx mock for POST /api/ingest/activity"
+      ],
+      "test_data": {
+        "workspace_root": null,
+        "cwd": "<tmp_path>"
+      },
+      "steps": [
+        "os.chdir(tmp_path)",
+        "Await push_activity() (no workspace_root)",
+        "Assert POST made with 5 rows"
+      ],
+      "expected_results": [
+        "Returned rows_read == 5",
+        "One POST made"
+      ],
+      "tags": [
+        "FR-4",
+        "cwd-default"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-19",
+      "title": "Non-existent workspace_root returns workspace_root_not_found before any HTTP call",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-4",
+      "given": "workspace_root points at a directory that does not exist",
+      "when": "either tool is invoked",
+      "then": "the tool returns {success:false, error:'workspace_root_not_found'} and issues zero HTTP calls",
+      "objective": "Verify FR-4 non-existent workspace_root fails fast before HTTP.",
+      "preconditions": [
+        "workspace_root='/nonexistent/path/does/not/exist'",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed (to verify no calls are made)"
+      ],
+      "test_data": {
+        "workspace_root": "/nonexistent/path/does/not/exist"
+      },
+      "steps": [
+        "Await push_activity(workspace_root='/nonexistent/path/does/not/exist')",
+        "Inspect returned dict and respx.calls.call_count"
+      ],
+      "expected_results": [
+        "Returned dict has success == False and error == 'workspace_root_not_found'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-4",
+        "negative"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-20",
+      "title": "401 unauthorized surfaces in tool result envelope, no unhandled exception",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-5",
+      "given": "the ingest endpoint returns HTTP 401 (missing/revoked/expired bearer)",
+      "when": "push_activity is invoked",
+      "then": "the tool returns {success:false, error:'unauthorized', http_status:401, inserted:0} and does not raise",
+      "objective": "Verify FR-5 401 auth failure is captured in the envelope, not raised.",
+      "preconditions": [
+        "tmp_path fixture with 100 valid activity rows",
+        "AGENTRISE_INGEST_TOKEN=stale-token",
+        "respx mock: POST /api/ingest/activity \u2192 401 JSON body {'detail':'invalid_bearer'}"
+      ],
+      "test_data": {
+        "http_status": 401,
+        "expected_error": "unauthorized"
+      },
+      "steps": [
+        "Await push_activity(program_id='p1', workspace_root=str(tmp_path)) inside a try/except that fails the test on unexpected exception",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "No exception raised to the caller",
+        "success == False, error == 'unauthorized', http_status == 401",
+        "inserted == 0",
+        "batches_sent >= 1 and batches_failed >= 1"
+      ],
+      "tags": [
+        "FR-5",
+        "auth-failure"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-21",
+      "title": "403 forbidden surfaces in tool result envelope, no unhandled exception",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-5",
+      "given": "the ingest endpoint returns HTTP 403 (envelope program_id not in the token's allowed_program_ids)",
+      "when": "push_artifacts is invoked",
+      "then": "the tool returns {success:false, error:'forbidden', http_status:403} and does not raise",
+      "objective": "Verify FR-5 403 auth failure is captured in the envelope, not raised.",
+      "preconditions": [
+        "tmp_path with a minimal artifacts{} block",
+        "AGENTRISE_INGEST_TOKEN=other-program-token",
+        "respx mock: POST /api/ingest/artifacts \u2192 403 JSON body {'detail':'program_not_allowed'}"
+      ],
+      "test_data": {
+        "http_status": 403,
+        "expected_error": "forbidden"
+      },
+      "steps": [
+        "Await push_artifacts(program_id='p1', workspace_root=str(tmp_path))",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "No exception raised",
+        "success == False, error == 'forbidden', http_status == 403",
+        "rows_upserted == 0"
+      ],
+      "tags": [
+        "FR-5",
+        "auth-failure"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-22",
+      "title": "Mid-run 401 stops further batches and returns aggregate for successful batches",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-5",
+      "given": "a 5-batch push_activity run where the backend returns 200 for batches 1 and 2 and 401 for batch 3",
+      "when": "push_activity is invoked",
+      "then": "no further batches are POSTed after the 401 and the envelope reports the two successful batches plus the failure",
+      "objective": "Verify FR-5 mid-run auth-failure discipline: stop immediately, return aggregate, no half-succeed retries on 4xx.",
+      "preconditions": [
+        "tmp_path fixture with 2500 valid activity rows (5 batches of 500)",
+        "respx side_effect sequence: [200, 200, 401, ...never reached...]"
+      ],
+      "test_data": {
+        "batches_configured": 5,
+        "expected_batches_sent": 3,
+        "expected_batches_failed": 1
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Count respx.calls and inspect the returned envelope"
+      ],
+      "expected_results": [
+        "Exactly 3 POSTs made (batches 1, 2 and the failing 3)",
+        "Returned success == False, error == 'unauthorized', http_status == 401",
+        "batches_sent == 3, batches_failed == 1",
+        "inserted reflects only the 2 successful batches (1000)"
+      ],
+      "tags": [
+        "FR-5",
+        "auth-failure",
+        "mid-run"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-23",
+      "title": "push_activity missing AGENTRISE_INGEST_TOKEN fails fast with zero HTTP calls",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-6",
+      "given": "AGENTRISE_INGEST_TOKEN is unset in the environment",
+      "when": "push_activity is invoked",
+      "then": "the tool returns {success:false, error:'missing_ingest_token'} before any httpx client construction, YAML read or filesystem enumeration",
+      "objective": "Verify FR-6 fail-fast semantics for push_activity: no HTTP, no YAML read, no glob.",
+      "preconditions": [
+        "monkeypatch.delenv('AGENTRISE_INGEST_TOKEN', raising=False)",
+        "respx mock installed to verify zero calls",
+        "Spy on the yaml.safe_load call (patch and count)"
+      ],
+      "test_data": {
+        "env_state": "AGENTRISE_INGEST_TOKEN unset"
+      },
+      "steps": [
+        "Await push_activity(program_id='p1', workspace_root=str(tmp_path))",
+        "Inspect returned dict and spy/mock call counts"
+      ],
+      "expected_results": [
+        "Returned success == False, error == 'missing_ingest_token'",
+        "Returned message includes 'Set AGENTRISE_INGEST_TOKEN before invoking this tool.'",
+        "respx.calls.call_count == 0",
+        "yaml.safe_load spy call_count == 0"
+      ],
+      "tags": [
+        "FR-6",
+        "fail-fast",
+        "missing-token"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-24",
+      "title": "push_artifacts missing AGENTRISE_INGEST_TOKEN fails fast with zero HTTP calls",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-AC-6",
+      "given": "AGENTRISE_INGEST_TOKEN is unset in the environment",
+      "when": "push_artifacts is invoked",
+      "then": "the tool returns {success:false, error:'missing_ingest_token'} before any httpx client construction, YAML read or glob traversal",
+      "objective": "Verify FR-6 fail-fast semantics for push_artifacts: no HTTP, no YAML read, no glob traversal.",
+      "preconditions": [
+        "monkeypatch.delenv('AGENTRISE_INGEST_TOKEN', raising=False)",
+        "respx mock installed",
+        "Spy on yaml.safe_load and pathlib.Path.glob"
+      ],
+      "test_data": {
+        "env_state": "AGENTRISE_INGEST_TOKEN unset"
+      },
+      "steps": [
+        "Await push_artifacts(program_id='p1', workspace_root=str(tmp_path))",
+        "Inspect returned dict and spy/mock call counts"
+      ],
+      "expected_results": [
+        "Returned success == False, error == 'missing_ingest_token'",
+        "respx.calls.call_count == 0",
+        "yaml.safe_load spy call_count == 0",
+        "pathlib.Path.glob spy call_count == 0"
+      ],
+      "tags": [
+        "FR-6",
+        "fail-fast",
+        "missing-token"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-25",
+      "title": "Glob pattern containing '..' is rejected before any filesystem read",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-7",
+      "given": "artifacts entry with glob-count kind and path='../../etc'",
+      "when": "push_artifacts is invoked",
+      "then": "the tool returns {success:false, error:'unsafe_glob_pattern', entry_key:'<type>'} and issues zero HTTP calls and zero filesystem glob calls",
+      "objective": "Verify FR-7 literal '..' rejection prevents path traversal (R-06 defence).",
+      "preconditions": [
+        ".harness/program.yaml artifacts.prd = {kind: glob-count, path: '../../etc', glob: '**/*'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed to verify zero calls",
+        "Spy on pathlib.Path.glob"
+      ],
+      "test_data": {
+        "malicious_path": "../../etc"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict, respx.calls, and glob spy"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_glob_pattern', entry_key == 'prd'",
+        "respx.calls.call_count == 0",
+        "pathlib.Path.glob spy call_count == 0"
+      ],
+      "tags": [
+        "FR-7",
+        "R-06",
+        "path-traversal"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-26",
+      "title": "Absolute path outside workspace_root is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-7",
+      "given": "artifacts entry with path='/etc' \u2014 absolute and outside workspace_root",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects the entry with unsafe_glob_pattern and aborts the whole POST",
+      "objective": "Verify FR-7 post-resolve containment check catches an absolute path escape (R-06 defence).",
+      "preconditions": [
+        ".harness/program.yaml artifacts.prd = {kind: glob-count, path: '/etc', glob: '*'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed"
+      ],
+      "test_data": {
+        "malicious_path": "/etc"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict and respx.calls"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_glob_pattern', entry_key == 'prd'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-7",
+        "R-06",
+        "absolute-path"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-27",
+      "title": "Symlink whose resolved target escapes workspace_root is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-7",
+      "given": "workspace_root/docs is a symlink to /etc",
+      "when": "push_artifacts resolves artifacts.prd = {kind: glob-count, path: 'docs', glob: '**/*'}",
+      "then": "post-resolve containment check catches the escape and the entry is rejected",
+      "objective": "Verify FR-7 symlink-escape defence: check happens AFTER Path.resolve() which follows symlinks (R-06).",
+      "preconditions": [
+        "tmp_path/docs is os.symlink to /etc",
+        ".harness/program.yaml artifacts.prd = {kind: glob-count, path: 'docs', glob: '**/*'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed"
+      ],
+      "test_data": {
+        "symlink_target": "/etc"
+      },
+      "steps": [
+        "Create the symlink",
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict and respx.calls"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_glob_pattern', entry_key == 'prd'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-7",
+        "R-06",
+        "symlink-escape"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-28",
+      "title": "Glob pattern containing shell metacharacters is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-7",
+      "given": "artifacts entry with glob='**/*.md; rm -rf /'",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects the entry \u2014 allowed metacharacters are only *, **, ?, [...]",
+      "objective": "Verify FR-7 shell-metacharacter allowlist (R-06 defence).",
+      "preconditions": [
+        ".harness/program.yaml artifacts.prd = {kind: glob-count, path: 'docs', glob: '**/*.md; rm -rf /'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed"
+      ],
+      "test_data": {
+        "malicious_glob": "**/*.md; rm -rf /"
+      },
+      "steps": [
+        "Repeat with glob values containing '`ls`', '$(whoami)', '|', '&' \u2014 one sub-case per metacharacter",
+        "Await push_artifacts for each",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "Every case returns success == False, error == 'unsafe_glob_pattern'",
+        "respx.calls.call_count == 0 across all sub-cases"
+      ],
+      "tags": [
+        "FR-7",
+        "R-06",
+        "shell-metachars"
+      ],
+      "notes": "Parametrise with pytest.mark.parametrize over the metacharacter set.",
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-29",
+      "title": "json-field-sum field name containing '$' (JSONPath root) is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-8",
+      "given": "artifacts.test_case has field='$..secret'",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects with unsafe_json_key and no JSON traversal is attempted",
+      "objective": "Verify FR-8 rejects JSONPath expressions in field names (R-06 defence).",
+      "preconditions": [
+        ".harness/program.yaml artifacts.test_case = {kind: json-field-sum, path: tc, glob: '*.json', field: '$..secret'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "Spy on json.load (should not be reached for this entry)"
+      ],
+      "test_data": {
+        "malicious_field": "$..secret"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict and json.load spy"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_json_key', entry_key == 'test_case', offending_value == '$..secret'",
+        "respx.calls.call_count == 0",
+        "json.load spy call_count == 0"
+      ],
+      "tags": [
+        "FR-8",
+        "R-06",
+        "jsonpath"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-30",
+      "title": "json-field-sum field name containing '.' (path-descent) is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-8",
+      "given": "artifacts.test_case has field='meta.owner'",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects with unsafe_json_key",
+      "objective": "Verify FR-8 rejects dotted path-descent expressions.",
+      "preconditions": [
+        ".harness/program.yaml artifacts.test_case = {kind: json-field-sum, path: tc, glob: '*.json', field: 'meta.owner'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token"
+      ],
+      "test_data": {
+        "malicious_field": "meta.owner"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_json_key', offending_value == 'meta.owner'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-8",
+        "R-06"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-31",
+      "title": "json-field-sum field name containing subscripting brackets is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-8",
+      "given": "artifacts.test_case has field='rows[0]'",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects with unsafe_json_key",
+      "objective": "Verify FR-8 rejects '[' / ']' subscripting.",
+      "preconditions": [
+        ".harness/program.yaml artifacts.test_case = {kind: json-field-sum, path: tc, glob: '*.json', field: 'rows[0]'}",
+        "AGENTRISE_INGEST_TOKEN=valid-token"
+      ],
+      "test_data": {
+        "malicious_field": "rows[0]"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_json_key', offending_value == 'rows[0]'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-8",
+        "R-06"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-32",
+      "title": "json-key-count exclude entry containing '@' (JMESPath current-node) is rejected",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-FR-8",
+      "given": "artifacts.user_story has kind=json-key-count and exclude=['@parent']",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects with unsafe_json_key",
+      "objective": "Verify FR-8 rejects JMESPath current-node syntax in exclude lists.",
+      "preconditions": [
+        ".harness/program.yaml artifacts.user_story = {kind: json-key-count, path: index.json, exclude: ['@parent']}",
+        "AGENTRISE_INGEST_TOKEN=valid-token"
+      ],
+      "test_data": {
+        "malicious_exclude": "@parent"
+      },
+      "steps": [
+        "Await push_artifacts(workspace_root=str(tmp_path))",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "success == False, error == 'unsafe_json_key', offending_value == '@parent'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-8",
+        "R-06",
+        "jmespath"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-33",
+      "title": "Empty or whitespace-only JSON key is rejected",
+      "type": "security",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-04-FR-8",
+      "given": "artifacts.test_case has field='' or field='   '",
+      "when": "push_artifacts is invoked",
+      "then": "the tool rejects with unsafe_json_key",
+      "objective": "Verify FR-8 non-empty-string requirement at the empty-input boundary.",
+      "preconditions": [
+        ".harness/program.yaml with two variants: field='' and field='   '",
+        "AGENTRISE_INGEST_TOKEN=valid-token"
+      ],
+      "test_data": {
+        "malicious_fields": [
+          "",
+          "   "
+        ]
+      },
+      "steps": [
+        "Parametrise over both variants",
+        "Await push_artifacts",
+        "Inspect returned dict"
+      ],
+      "expected_results": [
+        "Both variants return success == False, error == 'unsafe_json_key'",
+        "respx.calls.call_count == 0"
+      ],
+      "tags": [
+        "FR-8",
+        "boundary"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-34",
+      "title": "Token value never appears in log records on push_activity success path",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-security",
+      "given": "AGENTRISE_INGEST_TOKEN=super-secret-abc123 and a mocked backend that returns 200",
+      "when": "push_activity completes successfully",
+      "then": "no captured log record's message, extra dict values, or serialised form contains the token literal or the env-var name",
+      "objective": "Verify R-07 token-discipline on the happy path \u2014 token, env-var name, and any hashed derivative never surface in structured logs.",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=super-secret-abc123",
+        "tmp_path fixture with 100 valid activity rows",
+        "caplog fixture captures all log records at DEBUG level (log level intentionally MORE verbose than production INFO to catch DEBUG leaks)",
+        "respx mock returning 200"
+      ],
+      "test_data": {
+        "token": "super-secret-abc123"
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Collect every captured record's message, args, and extra dict",
+        "Concatenate them into one raw string buffer and search for the token literal, 'AGENTRISE_INGEST_TOKEN', and 'Bearer super-secret-abc123'"
+      ],
+      "expected_results": [
+        "The string 'super-secret-abc123' does not appear in any log record's message field",
+        "No log record's extra dict has any value equal to 'super-secret-abc123'",
+        "The string 'AGENTRISE_INGEST_TOKEN' does not appear in any log record field",
+        "The string 'Bearer super-secret-abc123' does not appear in any log record field"
+      ],
+      "tags": [
+        "NFR-security",
+        "R-07",
+        "token-discipline"
+      ],
+      "last_run": {
+        "status": "manual",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-35",
+      "title": "Token value never appears in log records on push_activity 401 failure path",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-security",
+      "given": "AGENTRISE_INGEST_TOKEN=super-secret-abc123 and a mocked backend that returns 401",
+      "when": "push_activity captures the auth failure into the tool envelope",
+      "then": "no captured log record contains the token literal, the env-var name, or the raw Bearer header",
+      "objective": "Verify R-07 token-discipline holds on the auth-failure path (the highest-risk logging path).",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=super-secret-abc123",
+        "tmp_path fixture with 100 valid activity rows",
+        "caplog at DEBUG",
+        "respx mock returning 401"
+      ],
+      "test_data": {
+        "token": "super-secret-abc123",
+        "http_status": 401
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Concatenate all captured records into one buffer",
+        "Search for the token literal, 'AGENTRISE_INGEST_TOKEN', 'Bearer super-secret-abc123'"
+      ],
+      "expected_results": [
+        "Returned dict has error == 'unauthorized'",
+        "No occurrence of the token literal in any captured record",
+        "No occurrence of 'AGENTRISE_INGEST_TOKEN' in any captured record",
+        "No occurrence of 'Bearer super-secret-abc123' in any captured record"
+      ],
+      "tags": [
+        "NFR-security",
+        "R-07",
+        "token-discipline",
+        "auth-failure"
+      ],
+      "last_run": {
+        "status": "manual",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-36",
+      "title": "Token value never appears in log records on push_artifacts success and 403 paths",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-security",
+      "given": "AGENTRISE_INGEST_TOKEN=super-secret-abc123 and push_artifacts is exercised on both the 200 success and 403 forbidden paths",
+      "when": "log records are captured across both runs",
+      "then": "no captured record on either run contains the token literal or 'AGENTRISE_INGEST_TOKEN'",
+      "objective": "Verify R-07 token-discipline for push_artifacts on both success and forbidden paths.",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=super-secret-abc123",
+        "tmp_path with a minimal artifacts{} block",
+        "caplog at DEBUG",
+        "respx mock: first run returns 200; second run returns 403"
+      ],
+      "test_data": {
+        "token": "super-secret-abc123",
+        "http_statuses": [
+          200,
+          403
+        ]
+      },
+      "steps": [
+        "Await push_artifacts on the 200 mock, capture records",
+        "Reset caplog, remock for 403, run push_artifacts again, capture records",
+        "For each run, search the concatenated log buffer for the token literal and env-var name"
+      ],
+      "expected_results": [
+        "Neither run's captured log buffer contains 'super-secret-abc123'",
+        "Neither run's captured log buffer contains 'AGENTRISE_INGEST_TOKEN'",
+        "Second run's returned dict has error == 'forbidden'"
+      ],
+      "tags": [
+        "NFR-security",
+        "R-07",
+        "token-discipline"
+      ],
+      "last_run": {
+        "status": "manual",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-37",
+      "title": "Retry on network failure: succeeds on 3rd attempt with exponential backoff+jitter",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-performance",
+      "given": "respx side_effect: [httpx.ConnectTimeout, httpx.ConnectTimeout, 200]",
+      "when": "push_activity is invoked",
+      "then": "the tool succeeds after 3 attempts and the backoff-with-jitter helper is invoked twice (between attempts)",
+      "objective": "Verify NFR-Performance retry policy \u2014 max 3 attempts, network failures only, backoff-with-jitter invoked between attempts.",
+      "preconditions": [
+        "tmp_path with a single-batch activity file (100 rows)",
+        "respx side_effect list: [httpx.ConnectTimeout('c'), httpx.ConnectTimeout('c'), Response(200, json=...)]",
+        "monkeypatch the backoff-with-jitter helper (e.g. asyncio.sleep or a dedicated _backoff() function) with a MagicMock",
+        "AGENTRISE_INGEST_TOKEN=valid-token"
+      ],
+      "test_data": {
+        "attempt_sequence": [
+          "timeout",
+          "timeout",
+          "success"
+        ],
+        "expected_final": "success"
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Assert the httpx client made 3 POSTs total",
+        "Assert the backoff helper mock was called exactly 2 times (between attempts 1-2 and 2-3)"
+      ],
+      "expected_results": [
+        "Returned success == True",
+        "respx.calls.call_count == 3",
+        "Backoff helper mock call_count == 2",
+        "No exception raised"
+      ],
+      "tags": [
+        "NFR-performance",
+        "retry",
+        "backoff-jitter"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-38",
+      "title": "No retry on 4xx response \u2014 tool returns immediately with error surfaced",
+      "type": "performance",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-performance",
+      "given": "respx returns 400 (bad envelope) on first attempt",
+      "when": "push_activity is invoked",
+      "then": "the tool makes exactly 1 POST and returns the error \u2014 no retry",
+      "objective": "Pin the 4xx-no-retry rule (retry only on network-level failures, per NFR-Performance and .claude/rules/performance-baseline.md).",
+      "preconditions": [
+        "tmp_path with a single-batch activity file",
+        "respx mock: POST /api/ingest/activity \u2192 400 body {'detail':'bad_envelope'}",
+        "Spy on backoff helper (should NOT be called)"
+      ],
+      "test_data": {
+        "http_status": 400,
+        "expected_attempts": 1
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect respx.calls.call_count and the backoff spy"
+      ],
+      "expected_results": [
+        "respx.calls.call_count == 1 (no retry)",
+        "Backoff helper spy call_count == 0",
+        "Returned success == False and http_status == 400"
+      ],
+      "tags": [
+        "NFR-performance",
+        "no-retry-on-4xx"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-39",
+      "title": "No retry on 5xx response \u2014 spec pins retry-on-network-failures only",
+      "type": "performance",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-04-NFR-performance",
+      "given": "respx returns 503 on first attempt",
+      "when": "push_activity is invoked",
+      "then": "the tool makes exactly 1 POST and does not retry (5xx is out of scope for retry per PRD)",
+      "objective": "Regression-pin: 5xx is NOT retried \u2014 retry is on connect errors / read timeouts / httpx.NetworkError only.",
+      "preconditions": [
+        "tmp_path with a single-batch activity file",
+        "respx mock: POST /api/ingest/activity \u2192 503",
+        "Spy on backoff helper"
+      ],
+      "test_data": {
+        "http_status": 503,
+        "expected_attempts": 1
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect respx.calls.call_count and backoff spy"
+      ],
+      "expected_results": [
+        "respx.calls.call_count == 1",
+        "Backoff helper spy call_count == 0",
+        "Returned success == False and http_status == 503"
+      ],
+      "tags": [
+        "NFR-performance",
+        "no-retry-on-5xx",
+        "spec-pin"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-40",
+      "title": "Connect timeout hard-cap: 5s connect ceiling triggers connect_timeout error",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-performance",
+      "given": "the httpx client is configured with connect=5.0s and the mocked server refuses to accept the connection",
+      "when": "push_activity attempts to POST",
+      "then": "each attempt fails with httpx.ConnectTimeout; after the 3 bounded retries the tool aborts with error='connect_timeout'",
+      "objective": "Verify the 5.0s connect timeout is honoured and the failure surfaces as connect_timeout after retries exhaust.",
+      "preconditions": [
+        "tmp_path with a single-batch activity file",
+        "respx side_effect: [httpx.ConnectTimeout, httpx.ConnectTimeout, httpx.ConnectTimeout]",
+        "Assert the httpx.AsyncClient is constructed with timeout=httpx.Timeout(connect=5.0, ...) via a spy on the client factory"
+      ],
+      "test_data": {
+        "connect_timeout_s": 5.0,
+        "attempts": 3
+      },
+      "steps": [
+        "Spy on the AsyncClient constructor and capture the timeout arg",
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Inspect the captured timeout, respx.calls.call_count, and returned envelope"
+      ],
+      "expected_results": [
+        "Captured httpx.Timeout has connect == 5.0",
+        "respx.calls.call_count == 3 (all attempts exhausted)",
+        "Returned success == False, error == 'connect_timeout'"
+      ],
+      "tags": [
+        "NFR-performance",
+        "timeout",
+        "boundary"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-41",
+      "title": "Total-request timeout: 30s total ceiling is passed to httpx client",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-04-NFR-performance",
+      "given": "the httpx client is constructed with timeout=httpx.Timeout(connect=5.0, ..., total=30.0)",
+      "when": "either tool constructs its httpx.AsyncClient",
+      "then": "the captured Timeout instance has both connect=5.0 and total (or read+write summing) sized so total request budget is 30.0s",
+      "objective": "Pin the 30.0s total timeout ceiling from NFR-Performance.",
+      "preconditions": [
+        "Spy on httpx.AsyncClient constructor",
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "respx mock installed to allow one round trip"
+      ],
+      "test_data": {
+        "total_timeout_s": 30.0
+      },
+      "steps": [
+        "Invoke push_activity with a minimal fixture",
+        "Read the captured Timeout instance"
+      ],
+      "expected_results": [
+        "Captured Timeout: connect == 5.0",
+        "Captured Timeout: total budget == 30.0 (or the equivalent read/write/pool encoding chosen at implementation time, documented in a helper)"
+      ],
+      "tags": [
+        "NFR-performance",
+        "timeout"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-42",
+      "title": "push_activity_completed log record carries only the allowlisted keys",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-observability",
+      "given": "push_activity runs to success and emits the push_activity_completed event",
+      "when": "captured log records are inspected",
+      "then": "the record's key set equals {event, program_id, files_read, rows_read, batches_sent, inserted, updated, rejected, duration_ms} \u2014 no user_email, no raw command text, no token or token_hash",
+      "objective": "Verify NFR-Observability allowlist diff for push_activity_completed (allowlist, not denylist).",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "tmp_path fixture with 100 valid activity rows including a 'command' field per row (raw command text that MUST NOT leak)",
+        "caplog captures INFO records",
+        "respx mock returning 200"
+      ],
+      "test_data": {
+        "expected_keys": [
+          "event",
+          "program_id",
+          "files_read",
+          "rows_read",
+          "batches_sent",
+          "inserted",
+          "updated",
+          "rejected",
+          "duration_ms"
+        ],
+        "forbidden_keys": [
+          "user_email",
+          "command",
+          "token",
+          "token_hash",
+          "Authorization"
+        ]
+      },
+      "steps": [
+        "Await push_activity(program_id='p1', workspace_root=str(tmp_path))",
+        "Filter caplog for the record where event == 'push_activity_completed'",
+        "Compare the record's field set (message + args + extra) to the allowlist"
+      ],
+      "expected_results": [
+        "Exactly one push_activity_completed record captured",
+        "Record's field key set equals the allowlist exactly",
+        "None of the forbidden keys appear in the record"
+      ],
+      "tags": [
+        "NFR-observability",
+        "log-allowlist"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-43",
+      "title": "push_activity_auth_failed log record carries only allowlisted keys and no token",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-04-NFR-observability",
+      "given": "push_activity hits a 401 and emits push_activity_auth_failed",
+      "when": "captured log records are inspected",
+      "then": "the record's key set equals {event, program_id, http_status} \u2014 no token, no response body",
+      "objective": "Verify NFR-Observability allowlist for the failure path (highest-risk log emission).",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=super-secret-abc123",
+        "tmp_path fixture with 100 valid rows",
+        "caplog at INFO",
+        "respx mock returning 401"
+      ],
+      "test_data": {
+        "expected_keys": [
+          "event",
+          "program_id",
+          "http_status"
+        ]
+      },
+      "steps": [
+        "Await push_activity(workspace_root=str(tmp_path))",
+        "Filter caplog for event == 'push_activity_auth_failed'",
+        "Compare the record's fields to the allowlist"
+      ],
+      "expected_results": [
+        "Exactly one push_activity_auth_failed record captured",
+        "Record's field key set equals {event, program_id, http_status}",
+        "Record does not contain any 401 response body content, token, or 'Bearer' string"
+      ],
+      "tags": [
+        "NFR-observability",
+        "NFR-security",
+        "R-07",
+        "log-allowlist",
+        "auth-failure"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-44",
+      "title": "push_artifacts_completed log record carries only the allowlisted keys",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-04-NFR-observability",
+      "given": "push_artifacts runs to success",
+      "when": "the push_artifacts_completed record is inspected",
+      "then": "its field set equals the push_artifacts_completed allowlist including types_written: list[str]",
+      "objective": "Verify NFR-Observability allowlist diff for push_artifacts_completed.",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN=valid-token",
+        "tmp_path fixture exercising all 4 source kinds (so types_written has 4 entries)",
+        "caplog at INFO",
+        "respx mock returning 200"
+      ],
+      "test_data": {
+        "expected_keys": [
+          "event",
+          "program_id",
+          "types_written",
+          "rows_upserted",
+          "duration_ms"
+        ],
+        "forbidden_keys": [
+          "token",
+          "token_hash",
+          "Authorization",
+          "user_email"
+        ]
+      },
+      "steps": [
+        "Await push_artifacts(program_id='p1', workspace_root=str(tmp_path))",
+        "Filter caplog for event == 'push_artifacts_completed'",
+        "Compare the record's key set to the allowlist"
+      ],
+      "expected_results": [
+        "Exactly one push_artifacts_completed record captured",
+        "Record field key set is a subset of the allowlist and includes {event, program_id, types_written, rows_upserted}",
+        "types_written is a list[str] and contains the 4 configured type keys",
+        "None of the forbidden keys appear"
+      ],
+      "tags": [
+        "NFR-observability",
+        "log-allowlist"
+      ],
+      "last_run": {
+        "status": "pass",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    },
+    {
+      "id": "ING-04-TC-45",
+      "title": "Live MCP client (Claude Code / MCP Inspector) exercises both tools against a stubbed backend",
+      "type": "integration",
+      "category": "positive",
+      "automatable": false,
+      "priority": "Should",
+      "requirement_id": "ING-04-AC-1",
+      "given": "the developer boots `agentrise-mcp` locally with a real MCP-capable client attached, and a stubbed ingest backend returning 200",
+      "when": "the developer invokes push_activity then push_artifacts from the MCP client's tool UI against a known .harness/program.yaml fixture",
+      "then": "both tools return the documented result envelopes and the client renders them without protocol errors",
+      "objective": "Human check that the FastMCP streamable-HTTP surface is actually consumable by a real MCP client (per story test-mapping 'Manual' bullet \u2014 no e2e framework configured).",
+      "preconditions": [
+        "AGENTRISE_INGEST_TOKEN set to a token whose allowed_program_ids covers the fixture program_id",
+        "Local `.harness/program.yaml` fixture with one file[] and one artifacts{} entry per source kind",
+        "Ingest backend reachable and returning 200 (may be the real API or a stub)"
+      ],
+      "test_data": {
+        "client": "Claude Code | MCP Inspector | Cursor",
+        "port": 3010
+      },
+      "steps": [
+        "Boot the server via `agentrise-mcp` (or `python -m agentrise_mcp.server`)",
+        "Point the MCP client at http://127.0.0.1:3010/mcp",
+        "From the client, invoke push_activity with no arguments",
+        "From the client, invoke push_artifacts with no arguments",
+        "Read the returned envelopes"
+      ],
+      "expected_results": [
+        "MCP client lists exactly push_activity and push_artifacts",
+        "push_activity result envelope shows rows_read matching the fixture and success == true",
+        "push_artifacts result envelope shows a counts dict matching the fixture and success == true",
+        "No protocol error, no MCP client-side exception"
+      ],
+      "tags": [
+        "manual",
+        "FR-1",
+        "mcp-client"
+      ],
+      "notes": "Manual because it exercises a real MCP client's protocol conformance \u2014 the automation stack does not include an MCP-client test harness (per CLAUDE.md CI:none).",
+      "last_run": {
+        "status": "manual",
+        "timestamp": "2026-09-14T15:00:58Z",
+        "run_id": "gate-step2-round2-20260914-1500"
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-04-AC-1",
+        "covered_by": [
+          "ING-04-TC-01",
+          "ING-04-TC-02",
+          "ING-04-TC-03",
+          "ING-04-TC-45"
+        ]
+      },
+      {
+        "id": "ING-04-AC-2",
+        "covered_by": [
+          "ING-04-TC-04",
+          "ING-04-TC-05",
+          "ING-04-TC-06",
+          "ING-04-TC-07",
+          "ING-04-TC-08",
+          "ING-04-TC-09",
+          "ING-04-TC-10"
+        ]
+      },
+      {
+        "id": "ING-04-AC-3",
+        "covered_by": [
+          "ING-04-TC-11",
+          "ING-04-TC-12",
+          "ING-04-TC-13",
+          "ING-04-TC-14",
+          "ING-04-TC-15",
+          "ING-04-TC-16"
+        ]
+      },
+      {
+        "id": "ING-04-AC-4",
+        "covered_by": [
+          "ING-04-TC-17",
+          "ING-04-TC-18",
+          "ING-04-TC-19"
+        ]
+      },
+      {
+        "id": "ING-04-AC-5",
+        "covered_by": [
+          "ING-04-TC-20",
+          "ING-04-TC-21",
+          "ING-04-TC-22"
+        ]
+      },
+      {
+        "id": "ING-04-AC-6",
+        "covered_by": [
+          "ING-04-TC-23",
+          "ING-04-TC-24"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-04-FR-1",
+        "covered_by": [
+          "ING-04-TC-01",
+          "ING-04-TC-02",
+          "ING-04-TC-03"
+        ]
+      },
+      {
+        "id": "ING-04-FR-2",
+        "covered_by": [
+          "ING-04-TC-04",
+          "ING-04-TC-05",
+          "ING-04-TC-06",
+          "ING-04-TC-07",
+          "ING-04-TC-08",
+          "ING-04-TC-09",
+          "ING-04-TC-10"
+        ]
+      },
+      {
+        "id": "ING-04-FR-3",
+        "covered_by": [
+          "ING-04-TC-11",
+          "ING-04-TC-12",
+          "ING-04-TC-13",
+          "ING-04-TC-14",
+          "ING-04-TC-15",
+          "ING-04-TC-16"
+        ]
+      },
+      {
+        "id": "ING-04-FR-4",
+        "covered_by": [
+          "ING-04-TC-17",
+          "ING-04-TC-18",
+          "ING-04-TC-19"
+        ]
+      },
+      {
+        "id": "ING-04-FR-5",
+        "covered_by": [
+          "ING-04-TC-20",
+          "ING-04-TC-21",
+          "ING-04-TC-22"
+        ]
+      },
+      {
+        "id": "ING-04-FR-6",
+        "covered_by": [
+          "ING-04-TC-23",
+          "ING-04-TC-24"
+        ]
+      },
+      {
+        "id": "ING-04-FR-7",
+        "covered_by": [
+          "ING-04-TC-25",
+          "ING-04-TC-26",
+          "ING-04-TC-27",
+          "ING-04-TC-28"
+        ]
+      },
+      {
+        "id": "ING-04-FR-8",
+        "covered_by": [
+          "ING-04-TC-29",
+          "ING-04-TC-30",
+          "ING-04-TC-31",
+          "ING-04-TC-32",
+          "ING-04-TC-33"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-04-NFR-performance",
+        "covered_by": [
+          "ING-04-TC-37",
+          "ING-04-TC-38",
+          "ING-04-TC-39",
+          "ING-04-TC-40",
+          "ING-04-TC-41"
+        ]
+      },
+      {
+        "id": "ING-04-NFR-security",
+        "covered_by": [
+          "ING-04-TC-34",
+          "ING-04-TC-35",
+          "ING-04-TC-36",
+          "ING-04-TC-43"
+        ]
+      },
+      {
+        "id": "ING-04-NFR-observability",
+        "covered_by": [
+          "ING-04-TC-42",
+          "ING-04-TC-43",
+          "ING-04-TC-44"
+        ]
+      }
+    ],
+    "risks_covered": [
+      {
+        "id": "R-06",
+        "covered_by": [
+          "ING-04-TC-25",
+          "ING-04-TC-26",
+          "ING-04-TC-27",
+          "ING-04-TC-28",
+          "ING-04-TC-29",
+          "ING-04-TC-30",
+          "ING-04-TC-31",
+          "ING-04-TC-32",
+          "ING-04-TC-33"
+        ]
+      },
+      {
+        "id": "R-07",
+        "covered_by": [
+          "ING-04-TC-34",
+          "ING-04-TC-35",
+          "ING-04-TC-36",
+          "ING-04-TC-43"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

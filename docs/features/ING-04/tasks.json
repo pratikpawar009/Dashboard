@@ -1,0 +1,607 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-04",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-14T10:30:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/mcp-server/pyproject.toml",
+      "reason": "D-01 / D-02 / D-06: new sibling-service project manifest. `[project].name = \"agentrise-mcp\"`, `requires-python = \">=3.11\"` (matches services/api). Dependencies: `fastmcp>=2,<3` (D-02), `httpx>=0.27` (matches services/api pin), `pyyaml>=6.0` (matches services/api pin). `[dependency-groups].dev`: `pytest>=8.3`, `pytest-asyncio>=0.24`, `ruff>=0.7`, `mypy>=1.13`, `respx>=0.20`. `[project.scripts] agentrise-mcp = \"agentrise_mcp.server:main\"` \u2014 this is the registration site for F-05 (server.py::main) per `plan-validation` \u00a7 Wiring. `[project].readme = \"README.md\"` points at F-02. `[tool.ruff]` line-length + target-version mirror services/api. `[tool.pytest.ini_options]` sets `testpaths = [\"tests\"]` and `asyncio_mode = \"auto\"`. Exact pinned minor for fastmcp chosen at implementation time from the current 2.x release; recorded in the PR body per D-02."
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/mcp-server/README.md",
+      "reason": "PRD \u00a7 Documentation requirements: quickstart for the sibling service \u2014 install (`uv sync` inside services/mcp-server/), env var (`export AGENTRISE_INGEST_TOKEN=<token>`, D-06), run (`uv run python -m agentrise_mcp` OR `uv run agentrise-mcp`; identical boot surface per FR-1), MCP client config snippet (host `127.0.0.1`, port `3010`, path `/mcp`), the two tool signatures (`push_activity(program_id?, workspace_root?)`, `push_artifacts(program_id?, workspace_root?)`), links to `.harness/program.yaml` schema, links to `docs/requirements/api.md#mcp-tools` and ADR-0014. Called out: this is a separately-deployed sibling service \u2014 NOT wired into `services/api`'s preflight (D-01 / D-07); its own tests run via `cd services/mcp-server && uv run pytest`."
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/__init__.py",
+      "reason": "Package init \u2014 declares the `agentrise_mcp` package. Exports nothing at package level (module-scoped API); a docstring records the package purpose (\"local MCP server exposing push_activity / push_artifacts\") and points at ADR-0014."
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/__main__.py",
+      "reason": "FR-1 module entry point: `python -m agentrise_mcp` boots the same FastMCP server as the console script (TC-02). One-line body: `from agentrise_mcp.server import main; main()`. The registration site for `python -m` semantics is Python's own module-runner protocol; F-04 IS the entry surface. Docstring points at F-05 (server.py::main) as the shared boot function."
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/server.py",
+      "reason": "FR-1: constructs `FastMCP(\"agentrise-mcp\")` and registers exactly two tools via `@server.tool()` \u2014 `push_activity` (imported from F-07) and `push_artifacts` (imported from F-08). No other tools, no resources, no prompts (TC-01 asserts). `main()` function (referenced by F-01's console script and F-04's `-m` entry) invokes `server.run(transport=\"streamable-http\", host=\"0.0.0.0\", port=3010, path=\"/mcp\")` \u2014 exact fastmcp v2.x call surface. Module docstring pins ADR-0014 (deployment topology), D-02 (framework pin), and ADR-0013 (downstream URL contract)."
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/tools/__init__.py",
+      "reason": "Sub-package init for the tool implementations. Exports `push_activity` and `push_artifacts` for import by F-05 (server.py). One-line re-exports."
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/tools/push_activity.py",
+      "reason": "FR-2 / FR-5 / FR-6 / D-03 / D-05 / D-06: `async def push_activity(program_id: str | None = None, workspace_root: str | None = None) -> dict`. Order of operations, verbatim: (1) load bearer token via `core.config.load_ingest_token()` \u2014 missing \u2192 return `{success: false, error: \"missing_ingest_token\", message: \"Set AGENTRISE_INGEST_TOKEN before invoking this tool.\"}` BEFORE any file I/O or HTTP client construction (FR-6, TC-23). (2) resolve `workspace_root` via `core.profile.resolve_workspace_root(workspace_root)` \u2014 non-existent \u2192 `{success: false, error: \"workspace_root_not_found\", path: <resolved>}`. (3) load `<workspace_root>/.harness/program.yaml` via `core.profile.load_program_yaml(workspace_root)` (D-04) \u2014 missing \u2192 `{success: false, error: \"program_yaml_not_found\", path: <path>}`. (4) resolve default `program_id` from `program_yaml.programId` when caller omitted it. (5) iterate `files[]` entries where `kind == \"activity\"`; for each, stream the NDJSON file line by line; skip blank lines; parse each line as JSON; malformed lines counted as `rejected` with reason `\"malformed_ndjson_line\"` and row index = 0-based position within the batch. (6) batch parsed rows at module-constant `_MCP_BATCH_SIZE = 500` (D-05); for each batch, POST `{program_id, kind: \"activity\", rows}` to `_INGEST_ACTIVITY_URL = \"<base>/api/ingest/activity\"` (D-03, module constant tied to ADR-0013 in docstring) with header `Authorization: Bearer <token>` via `core.http_client.post()`. (7) aggregate per-batch `IngestFilesResponse` fields across all batches into `{success: bool, files_read: int, rows_read: int, batches: int, inserted: int, skipped_duplicate: int, rejected: list, rollups: dict}`. (8) on 401/403 mid-run (FR-5) stop issuing further batches; return aggregate of successful batches + `{success: false, error: \"unauthorized\"|\"forbidden\", http_status: 401|403, batches_sent, batches_failed}`. Structured logging via `core.logging.get_logger()`: emit `push_activity_started` / `push_activity_completed` / `push_activity_batch_failed` / `push_activity_auth_failed` / `push_activity_missing_token` with the per-event field allowlist from NFR-Observability. Token NEVER logged, NEVER in any error message. Module docstring notes that the 500-row MCP batch cap is UNRELATED to the backend's 2730-row DB chunk (PRD \u00a7 Documentation requirements)."
+    },
+    "F-08": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/tools/push_artifacts.py",
+      "reason": "FR-3 / FR-5 / FR-6 / FR-7 / FR-8 / D-03 / D-06: `async def push_artifacts(program_id: str | None = None, workspace_root: str | None = None) -> dict`. Order of operations: (1) load bearer token (FR-6, TC-24) \u2014 same fail-fast shape as F-07. (2) resolve `workspace_root`. (3) load `program.yaml`. (4) resolve default `program_id`. (5) iterate `artifacts{}` mapping; for each key, dispatch to the source resolver named by `kind` (one of `glob-count` / `json-key-count` / `json-field-sum` / `constant` \u2014 resolvers live in F-17..F-20). BEFORE any filesystem call, pass every glob-pattern / path string through `core.allowlist.validate_glob(pattern, workspace_root)` (FR-7) and every JSON key / field name through `core.allowlist.validate_json_key(name)` (FR-8) \u2014 a rejection ABORTS the whole POST (return `{success: false, error: \"unsafe_glob_pattern\"|\"unsafe_json_key\", entry_key, offending_value?}`), no partial payload sent. (6) assemble one `counts: dict[str, int]` for all resolved entries. (7) issue exactly one POST \u2014 envelope `{program_id, kind: \"artifacts\", counts, as_of: datetime.now(UTC).isoformat()}` to `_INGEST_ARTIFACTS_URL = \"<base>/api/ingest/artifacts\"` (D-03 module constant). (8) return `{success: bool, rows_received: int, rows_upserted: int, rejections: list}` from `IngestArtifactsResponse`; on 401/403 return `{success: false, error: \"unauthorized\"|\"forbidden\", http_status}`. Structured logging: `push_artifacts_started` / `push_artifacts_completed` / `push_artifacts_auth_failed` / `push_artifacts_missing_token` per NFR-Observability allowlist. Module docstring pins the 5-canonical-type vocabulary and the ADR-0013 downstream URL contract."
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/__init__.py",
+      "reason": "Sub-package init for core utilities (config, profile, http_client, retry, allowlist, logging). Empty except a docstring."
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/config.py",
+      "reason": "FR-6 / D-06: `def load_ingest_token() -> str | None` returning `os.environ.get(\"AGENTRISE_INGEST_TOKEN\") or None` (empty string treated as missing, per FR-6 wording \"empty or unset\"). Module-level `_ENV_VAR_NAME = \"AGENTRISE_INGEST_TOKEN\"` constant so callers reference the name symbolically. Also `def get_ingest_base_url() -> str` returning `os.environ.get(\"AGENTRISE_INGEST_BASE_URL\", \"http://127.0.0.1:8000\")` \u2014 the ingest base URL is configurable but has a sensible local-dev default (documented in F-02). NO fallback file-based token source in this story (D-06)."
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/profile.py",
+      "reason": "FR-4 / D-04: (a) `def resolve_workspace_root(workspace_root: str | None) -> pathlib.Path` \u2014 normalises `pathlib.Path(workspace_root or Path.cwd()).resolve()` (symlink resolution runs BEFORE the FR-7 escape check inside the allowlist module, per FR-4). Non-existent path handled by the caller (returns `workspace_root_not_found`). (b) `def load_program_yaml(workspace_root: pathlib.Path) -> dict` \u2014 reads `workspace_root / \".harness\" / \"program.yaml\"` via `yaml.safe_load` (NEVER `yaml.load`, per NFR-Security). Missing file \u2192 raises `ProgramYamlNotFound` (caught by callers to yield the error envelope). Hard-codes `program.yaml` (D-04) \u2014 no fallback to `profile.yaml` in any code branch."
+    },
+    "F-12": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/http_client.py",
+      "reason": "NFR-Performance / FR-2 / FR-3: `httpx.AsyncClient` wrapper \u2014 `def make_client() -> httpx.AsyncClient` returns a client with `timeout=httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=30.0)` (5 s connect / 30 s total per POST, per PRD NFR-Performance verbatim). `async def post(client, url, json, token) -> httpx.Response` performs the POST with `Authorization: Bearer <token>` header and applies `retry.retry_with_backoff(max_retries=3)` around network-level failures ONLY. NEVER retries on 4xx/5xx response codes (per `.claude/rules/performance-baseline.md`). Module docstring pins the network-only retry policy explicitly."
+    },
+    "F-13": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/retry.py",
+      "reason": "NFR-Performance: `async def retry_with_backoff(fn, *, max_retries=3, initial_delay=0.1, max_delay=5.0, jitter=True)` \u2014 exponential backoff with jitter per `.claude/rules/performance-baseline.md`. Retries on `httpx.NetworkError`, `httpx.ConnectError`, `httpx.ReadTimeout`, `httpx.WriteTimeout`, `httpx.PoolTimeout` ONLY. Does NOT catch `httpx.HTTPStatusError` (a 4xx/5xx flows through unchanged). Bounded attempts asserted by TC-38 (transient 503 handling is out \u2014 no retry, response returned as-is)."
+    },
+    "F-14": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/allowlist.py",
+      "reason": "FR-7 / FR-8 / R-06 mitigation: (a) `def validate_glob(pattern: str, path: str, workspace_root: pathlib.Path) -> None` \u2014 rejects `pattern` containing `..`, backticks, `$(`, `|`, `;`, `&`; rejects `path` containing `..`; after `pathlib.Path(workspace_root / path).resolve()`, asserts the resolved path is `is_relative_to(workspace_root.resolve())` (symlink-escape defence). Raises `UnsafeGlobPattern(entry_key, offending_value)` on any rejection. (b) `def validate_json_key(name: str) -> None` \u2014 rejects strings containing `.`, `$`, `@`, `[`, `]`, `*`, whitespace; requires non-empty match against `^[A-Za-z0-9_-]+$`. Raises `UnsafeJsonKey(entry_key, offending_value)`. Exceptions are caught at the tool's outer boundary (F-07 / F-08) which returns the `{success: false, error, entry_key, offending_value}` envelope per FR-7 / FR-8."
+    },
+    "F-15": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/core/logging.py",
+      "reason": "NFR-Observability / NFR-Security / R-07 mitigation: `def get_logger(name: str) -> logging.Logger` returns a logger configured with a stdout StreamHandler at INFO level and a JSON-line formatter (`{event, ...allowlisted-fields...}` shape). Module declares a per-event `_ALLOWED_FIELDS: dict[str, frozenset[str]]` map (per NFR-Observability) \u2014 a helper `emit(logger, event: str, **fields)` asserts `set(fields.keys()) <= _ALLOWED_FIELDS[event]` and drops any unexpected key (assertion is a `logging.getLogger(\"agentrise_mcp\").warning(\"log_field_denied\", extra={\"event\": event, \"denied_key\": k})` \u2014 never emits the offending value). Token substring check enforced at `_ALLOWED_FIELDS[event]` \u2014 no event's allowlist contains `token`, `token_hash`, `Authorization`, `user_email`, or `command`. Module docstring pins the R-07 mitigation and points at F-37 (`test_logging_no_token_leak.py`)."
+    },
+    "F-16": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/sources/__init__.py",
+      "reason": "Sub-package init for the four source-kind resolvers. Exports a dispatcher `def resolve(entry: dict, workspace_root: pathlib.Path) -> int` that looks up `entry['kind']` against `{\"glob-count\": glob_count.count, \"json-key-count\": json_key_count.count, \"json-field-sum\": json_field_sum.count, \"constant\": constant.count}` and calls the resolver. Unknown `kind` raises `UnknownSourceKind(entry_kind)`. Consumed by F-08 (push_artifacts.py)."
+    },
+    "F-17": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/sources/glob_count.py",
+      "reason": "FR-3 (glob-count): `def count(entry: dict, workspace_root: pathlib.Path) -> int` \u2014 validates `entry['glob']` and `entry['path']` via `allowlist.validate_glob(...)` BEFORE any filesystem call; enumerates files matching `glob` under `<workspace_root>/<path>` via `pathlib.Path.glob`; skips any relative path matching an entry in `exclude` (fnmatch, `**` honoured per `.harness/program.yaml` comment); returns the count. NEVER traverses outside `workspace_root` (allowlist post-resolve check catches symlink escape)."
+    },
+    "F-18": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/sources/json_key_count.py",
+      "reason": "FR-3 (json-key-count): `def count(entry: dict, workspace_root: pathlib.Path) -> int` \u2014 validates `entry['path']` via `allowlist.validate_glob(...)` (path only; no glob); validates every key in `entry.get('exclude', [])` via `allowlist.validate_json_key(...)` (FR-8); reads `<workspace_root>/<path>` via `json.load`; counts top-level object keys minus those in the (validated) exclude list; returns the count. Rejects non-object JSON (arrays, primitives) with `ValueError(\"json_key_count_requires_object\")`."
+    },
+    "F-19": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/sources/json_field_sum.py",
+      "reason": "FR-3 (json-field-sum): `def count(entry: dict, workspace_root: pathlib.Path) -> int` \u2014 validates `entry['glob']`, `entry['path']`, and `entry['field']` via allowlist (glob per FR-7, field name per FR-8 \u2014 MUST be a LITERAL key name, never a JSONPath or JMESPath expression); for every JSON file matching `glob` under `<workspace_root>/<path>`, `json.load` it and add the length of the array at literal key `field` (`entry_json.get(field, [])` \u2014 missing \u2192 0); returns the sum. Non-list value at `field` counted as 0 (not an error \u2014 matches `.harness/program.yaml` comment 'missing = 0')."
+    },
+    "F-20": {
+      "action": "create",
+      "path": "services/mcp-server/src/agentrise_mcp/sources/constant.py",
+      "reason": "FR-3 (constant): `def count(entry: dict, workspace_root: pathlib.Path) -> int` \u2014 returns `int(entry['value'])`. No filesystem access; no allowlist call needed. Included for interface completeness so F-16's dispatcher can handle all four kinds uniformly."
+    },
+    "F-21": {
+      "action": "create",
+      "path": "services/mcp-server/tests/conftest.py",
+      "reason": "Shared fixtures for the test suite: (a) `tmp_program_yaml(tmp_path)` \u2014 writes a canonical `.harness/program.yaml` fixture under `tmp_path` with `files[]` + `artifacts{}` per D-04. (b) `respx_mock` \u2014 respx MockRouter scoped to the test's httpx client, pre-loaded with mock routes for `POST /api/ingest/activity` and `POST /api/ingest/artifacts`. (c) `env_ingest_token(monkeypatch)` \u2014 sets `AGENTRISE_INGEST_TOKEN=<sentinel-token>` (test sentinel, NEVER a real token) and clears it on teardown. (d) `caplog_info(caplog)` \u2014 sets caplog level to INFO."
+    },
+    "F-22": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_server_tool_registration.py",
+      "reason": "ING-04-TC-01 (tracker #305): FastMCP server exposes exactly two tools over streamable HTTP at /mcp. Constructs the FastMCP server via `agentrise_mcp.server`, enumerates registered tools via FastMCP introspection API; asserts tool-name set == `{\"push_activity\", \"push_artifacts\"}`; asserts both tools declare `program_id: str | None = None` and `workspace_root: str | None = None` parameters; asserts registered resources list is empty; asserts registered prompts list is empty."
+    },
+    "F-23": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_activity.py",
+      "reason": "ING-04-TC-04..TC-10 (tracker #308..#314): push_activity happy path + boundaries. `respx` mocks `POST /api/ingest/activity` returning canned `IngestFilesResponse`. Tests: (TC-04) 750-row two-file fixture \u2192 exactly 2 POSTs of sizes 500 + 250 with envelope `{program_id, kind:'activity', rows}` and header `Authorization: Bearer <token>` verbatim; (TC-05) aggregated envelope shape `{success, files_read, rows_read, batches, inserted, skipped_duplicate, rejected, rollups}`; (TC-06) blank NDJSON lines skipped silently; (TC-07) malformed NDJSON line counted as rejected with reason `malformed_ndjson_line`; (TC-08) empty NDJSON file \u2192 0 batches, 0 rows_read; (TC-09) envelope `kind` MUST equal literal `\"activity\"`; (TC-10) URL path is `/api/ingest/activity` verbatim (NOT `/api/ingest/files`) per D-03 / ADR-0013."
+    },
+    "F-24": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_activity_auth_failure.py",
+      "reason": "ING-04-TC-20 / TC-21 (auth-failure surfacing for push_activity, FR-5). `respx` mocks a 401 on batch 1 \u2192 asserts tool result `{success: false, error: 'unauthorized', http_status: 401, batches_sent: 0, batches_failed: 1, inserted: 0}` and NO further batches issued. Mocks a mid-run 403 on batch 3 of 5 \u2192 asserts aggregate of the first 2 batches' counts + failure record `{success: false, error: 'forbidden', http_status: 403, batches_sent: 2, batches_failed: 1}`, and NO exception raised to the caller."
+    },
+    "F-25": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_activity_missing_token.py",
+      "reason": "ING-04-TC-23 (FR-6, dedicated per-tool test mandated verbatim in PRD FR-6). `monkeypatch.delenv(\"AGENTRISE_INGEST_TOKEN\", raising=False)`, then await `push_activity(...)` \u2192 asserts return `{success: false, error: \"missing_ingest_token\", message: \"Set AGENTRISE_INGEST_TOKEN before invoking this tool.\"}` and asserts (via respx) ZERO HTTP calls were made \u2014 no DNS lookup, no client construction. Also asserts NO YAML read attempted (via a `resolve_workspace_root` spy)."
+    },
+    "F-26": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_artifacts.py",
+      "reason": "ING-04-TC-11..TC-16 (tracker equivalents): push_artifacts happy path across all 4 source kinds. `respx` mocks `POST /api/ingest/artifacts` returning canned `IngestArtifactsResponse`. Tests: (TC-11) all 5 canonical types resolved from a mixed-kind fixture \u2192 exactly ONE POST with envelope `{program_id, kind:'artifacts', counts, as_of}`; (TC-12) glob-count fixture; (TC-13) json-key-count fixture; (TC-14) json-field-sum fixture; (TC-15) constant fixture; (TC-16) URL path is `/api/ingest/artifacts` verbatim + envelope `kind` MUST equal literal `\"artifacts\"` per D-03 / ADR-0013."
+    },
+    "F-27": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_artifacts_auth_failure.py",
+      "reason": "ING-04-TC-22 (auth-failure surfacing for push_artifacts, FR-5). `respx` mocks a 401 \u2192 asserts `{success: false, error: 'unauthorized', http_status: 401}` and NO exception. Mocks a 403 \u2192 asserts `{success: false, error: 'forbidden', http_status: 403}`. Asserts backend response body is NEVER echoed in the tool result envelope (only allowlist keys)."
+    },
+    "F-28": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_push_artifacts_missing_token.py",
+      "reason": "ING-04-TC-24 (FR-6, dedicated per-tool test mandated verbatim in PRD FR-6). `monkeypatch.delenv(\"AGENTRISE_INGEST_TOKEN\", raising=False)`, then await `push_artifacts(...)` \u2192 asserts `{success: false, error: \"missing_ingest_token\"}` and asserts ZERO HTTP calls, ZERO YAML read, ZERO glob traversal via `pathlib.Path.glob` spy."
+    },
+    "F-29": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_source_glob_count.py",
+      "reason": "FR-3 unit coverage for glob-count resolver. Uses `tmp_path` to synthesise a directory tree; asserts counts match; asserts `exclude` list honoured (fnmatch, `**` honoured); asserts glob patterns triggering FR-7 rejection propagate `UnsafeGlobPattern` from the allowlist boundary."
+    },
+    "F-30": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_source_json_key_count.py",
+      "reason": "FR-3 unit coverage for json-key-count resolver. Uses `tmp_path` to write JSON fixtures; asserts key count; asserts `exclude` list honoured (validated as JSON keys per FR-8); asserts non-object JSON (list/primitive) raises `ValueError(\"json_key_count_requires_object\")`."
+    },
+    "F-31": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_source_json_field_sum.py",
+      "reason": "FR-3 unit coverage for json-field-sum resolver. Uses `tmp_path` with multiple JSON files matching a glob; asserts sum-of-array-lengths at literal key `field`; asserts missing `field` counted as 0; asserts non-list value at `field` counted as 0 (not an error); asserts JSONPath-like `field` values (e.g. `\"$..secret\"`) rejected per FR-8 BEFORE any file read."
+    },
+    "F-32": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_source_constant.py",
+      "reason": "FR-3 unit coverage for constant resolver. Asserts `count({\"value\": 42}, workspace_root) == 42`; asserts non-int `value` raises `TypeError` (or is `int(...)`-coerced); asserts no filesystem access via a `pathlib.Path` spy."
+    },
+    "F-33": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_http_client_timeout_retry.py",
+      "reason": "ING-04-TC-37..TC-41 (NFR-Performance). `respx` + `httpx.MockTransport` scenarios: (TC-37) client is constructed with `httpx.Timeout(connect=5.0, read=30.0, ...)` exactly; (TC-38) transient network error retried up to 3 times with exponential backoff + jitter (measure attempt count on a route that fails N times then succeeds); (TC-39) 4xx responses NOT retried (401 arrives once, not 4 times); (TC-40) 5xx responses NOT retried in this story (returned as-is; retry would replay a transient backend fault outside the tool's mandate per FR-5); (TC-41) retry bound cap of 3 attempts strictly enforced (a permanently-failing route yields exactly 3 attempts then propagates the last exception)."
+    },
+    "F-34": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_allowlist_glob.py",
+      "reason": "ING-04-TC-25..TC-28 (FR-7, R-06). Table-driven: (TC-25) `..` in glob rejected; (TC-26) `..` in path rejected; (TC-27) symlink-escape (create a symlink inside `tmp_path` pointing outside `workspace_root`) \u2192 resolved path is outside `workspace_root.resolve()` \u2192 rejected; (TC-28) shell metacharacters (backtick, `$(...)`, `|`, `;`, `&`) in glob rejected. Every rejection raises `UnsafeGlobPattern` with the offending value; unit test asserts the exception carries `entry_key` for downstream envelope shaping."
+    },
+    "F-35": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_allowlist_json_keys.py",
+      "reason": "ING-04-TC-29..TC-33 (FR-8, R-06). Table-driven: (TC-29) `.` in key rejected; (TC-30) `$` (JSONPath root) rejected; (TC-31) `@` (JMESPath current) rejected; (TC-32) `[` `]` `*` rejected; (TC-33) empty string + whitespace-only rejected. Asserts a field value of `\"$..secret\"` NEVER reaches any JSON traversal code (spy on `json.load`)."
+    },
+    "F-36": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_config_missing_token.py",
+      "reason": "ING-04-TC-34 (FR-6 unit coverage at the config module tier). `monkeypatch.delenv(\"AGENTRISE_INGEST_TOKEN\", raising=False)` \u2192 `load_ingest_token()` returns `None`; empty string env \u2192 returns `None` (both treated as missing per FR-6 wording). Non-empty env \u2192 returns the exact string. This is the module-tier test (F-25 / F-28 cover the tool-tier surfacing)."
+    },
+    "F-37": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_logging_no_token_leak.py",
+      "reason": "ING-04-TC-35 / TC-36 / TC-42 / TC-43 / TC-44 (NFR-Security + NFR-Observability, R-07). caplog captures records at INFO on both the happy path and the auth-failure path for both tools; asserts token substring (`\"super-secret-abc123\"` sentinel from the env fixture) NEVER appears in any record's raw message, extras, or exc_info; asserts per-event field key sets EQUAL the allowlist (allowlist diff, not denylist) \u2014 `push_activity_completed` == `{event, program_id, files_read, rows_read, batches_sent, inserted, updated, rejected, duration_ms}`; `push_activity_auth_failed` == `{event, program_id, http_status}`; `push_artifacts_completed` includes `types_written: list[str]`; NO forbidden keys (`token`, `token_hash`, `Authorization`, `user_email`) appear. This is the R-07 mitigation acceptance test."
+    },
+    "F-38": {
+      "action": "create",
+      "path": "services/mcp-server/tests/unit/test_workspace_root_resolution.py",
+      "reason": "ING-04-TC-17..TC-19 (FR-4). Table-driven: (TC-17) `workspace_root` supplied absolute \u2192 used verbatim after `.resolve()`; (TC-18) `workspace_root` supplied relative \u2192 resolved against process CWD; `workspace_root` omitted \u2192 `Path.cwd().resolve()` used; (TC-19) non-existent `workspace_root` \u2192 tool result `{success: false, error: \"workspace_root_not_found\", path: <resolved>}` BEFORE any HTTP call (respx assert_all_called=False). Symlink cases (symlinked `.harness/` dir resolving inside workspace) succeed; symlinks escaping workspace fail per FR-7 allowlist."
+    },
+    "F-39": {
+      "action": "create",
+      "path": "services/mcp-server/tests/integration/test_entry_points.py",
+      "reason": "ING-04-TC-02 (tracker #306): `python -m agentrise_mcp` boots the FastMCP server. Spawns `subprocess.Popen([sys.executable, \"-m\", \"agentrise_mcp\"])` with `AGENTRISE_INGEST_TOKEN=dummy` in env; polls TCP `127.0.0.1:3010` until accepting connections (timeout 5 s); issues an MCP ListTools request against `http://127.0.0.1:3010/mcp`; asserts tool-name set == `{\"push_activity\", \"push_artifacts\"}`; terminates the subprocess and asserts clean exit (returncode 0 or -SIGTERM)."
+    },
+    "F-40": {
+      "action": "create",
+      "path": "services/mcp-server/tests/integration/test_console_script.py",
+      "reason": "ING-04-TC-03 (tracker #307): console script `agentrise-mcp` boots the same FastMCP server as `-m`. Spawns `subprocess.Popen([\"agentrise-mcp\"])` (requires `uv sync` or `pip install -e` to have registered the entry point per F-01 `[project.scripts]`) with `AGENTRISE_INGEST_TOKEN=dummy` in env; same polling + ListTools handshake as F-39; asserts identical tool-name set. This is the audit surface for FR-1's \"same server via either entry point\" guarantee."
+    },
+    "F-41": {
+      "action": "create",
+      "path": "docs/adr/0014-mcp-server-topology.md",
+      "reason": "D-01 promotion to full ADR (`blast:system` \u2192 ADR mandatory per `plan-validation` decision-promotion rule and per `decide` skill promotion criteria). Status: Accepted. Date: 2026-09-14. Context: `services/mcp-server/` is a headless local Python service exposing two MCP tools that POST to the shipped `/api/ingest/{kind}` endpoints (ADR-0013). Sibling-package layout vs folded-into-`services/api/`. Decision: sibling package with own `pyproject.toml`, own tests, own console script; NOT wired into main API preflight. Consequences: (+) API preflight stays lean; (+) mcp-server tests never block API PRs; (\u2212) two deploy pipelines to maintain (accepted \u2014 the MCP server is a developer-machine deploy target, not a shared prod service); (\u2212) `harness carry-forward` scope check must know about the sibling. Reversible? Yes \u2014 mechanical `git mv` to fold into `services/api/` if the topology needs to change later."
+    },
+    "F-42": {
+      "action": "modify",
+      "path": "docs/adr/README.md",
+      "reason": "ADR index update \u2014 append the ADR-0014 row (`ADR-0014 | MCP server (services/mcp-server/) is a separately-deployed sibling service | Accepted`) below the existing ADR-0013 row. Matches the format of ADR-0001..ADR-0013 rows already in the table."
+    },
+    "F-43": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "Docs T2 (produced-contract fulfilment): replace the current stub `shape:` block under `### mcp-tools` (`produced_by: ING-04`, `consumed_by: [ING-05]`) with the concrete authoritative spec per DATA-DESIGN.md \u00a7 9 \u2014 `server:` (services/mcp-server, package agentrise_mcp, FastMCP streamable HTTP, `0.0.0.0:3010`, path `/mcp`, console script `agentrise-mcp` OR `python -m agentrise_mcp`, D-01 / D-02 / ADR-0014); `tools[0] push_activity(program_id?, workspace_root?) -> dict` with the full result-envelope shape (FR-2 / FR-5); `tools[1] push_artifacts(program_id?, workspace_root?) -> dict` with the full result-envelope shape (FR-3 / FR-5); `env_vars: [AGENTRISE_INGEST_TOKEN]` (required, D-06); `upstream_contracts:` bookmark to `#ingest-files-api` + `#ingest-artifacts-api` + `#ingest-token-auth`. This is the produced-contract fill that unblocks ING-05."
+    },
+    "F-44": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Docs T1 / T3 / T4: (a) `## Layout` gains a new row `services/mcp-server` \u2014 Local MCP server (agentrise_mcp, FastMCP, uv, pytest); (b) `## Getting started` gains a new fenced block for the mcp-server: `cd services/mcp-server && uv sync && export AGENTRISE_INGEST_TOKEN=<token> && uv run agentrise-mcp`; (c) `## Environment variables` table gains a new row `AGENTRISE_INGEST_TOKEN | None (unset) | Required for services/mcp-server \u2014 bearer ingest token per docs/requirements/api.md#ingest-token-auth (ING-04 D-06). Env var only; no .env fallback in this story.`; (d) `## API` prose gains a one-liner mentioning that ING-04 ships the MCP tools consuming `/api/ingest/activity` + `/api/ingest/artifacts` from a local sibling service, pointing at ADR-0014 and `docs/requirements/api.md#mcp-tools`."
+    },
+    "F-45": {
+      "action": "modify",
+      "path": "docs/config/stack-smoke.md",
+      "reason": "Config drift C2 + C3 (new sibling service + new port 3010): append a new `# mcp-server` section below the existing `# fastapi-2` section, matching the section-per-stack pattern. Bullets: `Deps: (n/a \u2014 HTTP client of services/api's already-running ingest endpoints, no direct backing service)`, `Env: export AGENTRISE_INGEST_TOKEN=<token> (required per D-06)`, `Run: cd services/mcp-server && uv sync && uv run python -m agentrise_mcp`, `Docker: (n/a \u2014 local-developer service, no docker-compose entry; ADR-0014 accepts this)`, `Check: curl -sf http://127.0.0.1:3010/mcp returns an MCP handshake or a 400; port is reachable`. This satisfies Config drift C2 (new service section) + C3 (new port documented in the section's Run/Check bullets) per `plan-validation`. Does NOT touch `docs/config/project-commands.yaml` (D-07)."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Scaffold services/mcp-server/ sibling package \u2014 pyproject.toml, README, package skeleton, tests/conftest.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02",
+        "F-03",
+        "F-06",
+        "F-09",
+        "F-16",
+        "F-21"
+      ],
+      "ac_refs": [
+        "ING-04-AC-1",
+        "ING-04-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "D-01 / D-02 / D-06. Creates the pyproject.toml with pinned deps (fastmcp>=2,<3, httpx>=0.27, pyyaml>=6.0, dev: pytest/pytest-asyncio/ruff/mypy/respx), the console-script registration, the README quickstart, empty __init__.py files for agentrise_mcp / tools / core / sources, and the shared tests/conftest.py. No FastMCP construction yet, no tool implementations \u2014 pure scaffold. Unblocks every other task. Zero-risk edit; `uv sync` inside services/mcp-server/ must succeed as the smoke check (documented in F-02).",
+      "status": "done",
+      "completed_at": "2026-09-14T13:06:44Z",
+      "files_touched": [
+        "services/mcp-server/pyproject.toml",
+        "services/mcp-server/README.md",
+        "services/mcp-server/src/agentrise_mcp/__init__.py",
+        "services/mcp-server/src/agentrise_mcp/core/__init__.py",
+        "services/mcp-server/src/agentrise_mcp/sources/__init__.py",
+        "services/mcp-server/src/agentrise_mcp/tools/__init__.py",
+        "services/mcp-server/tests/conftest.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-02",
+      "title": "Config module: AGENTRISE_INGEST_TOKEN + AGENTRISE_INGEST_BASE_URL env loading + module-tier missing-token test",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-10",
+        "F-36"
+      ],
+      "ac_refs": [
+        "ING-04-AC-6",
+        "ING-04-FR-6"
+      ],
+      "risk_refs": [],
+      "notes": "FR-6 / D-06. `load_ingest_token()` returns None for empty-or-unset env, the literal string otherwise. `get_ingest_base_url()` defaults to http://127.0.0.1:8000. TC-34 exercises the module-tier boundary (F-25 / F-28 will exercise the tool-tier surfacing after T-08 / T-09 land). No filesystem access, no HTTP client construction in this module.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:10:06Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/core/config.py",
+        "services/mcp-server/tests/unit/test_config_missing_token.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-03",
+      "title": "Allowlist module: FR-7 glob/path-traversal validator + FR-8 JSON-key-literal validator (R-06 mitigation)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-14",
+        "F-34",
+        "F-35"
+      ],
+      "ac_refs": [
+        "ING-04-FR-7",
+        "ING-04-FR-8"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "FR-7 / FR-8 / R-06 mitigation. `validate_glob(pattern, path, workspace_root)` rejects `..` in either string, shell metacharacters (backtick, $(, |, ;, &) in glob, and post-resolve symlink escape (asserts `resolved_path.is_relative_to(workspace_root.resolve())`). `validate_json_key(name)` rejects `.` `$` `@` `[` `]` `*` and whitespace; requires `^[A-Za-z0-9_-]+$`. Both raise typed exceptions carrying `entry_key` for downstream envelope shaping. TC-25..TC-33 exercise every rejection reason. This is the acceptance surface for R-06 (HIGH).",
+      "status": "done",
+      "completed_at": "2026-09-14T13:10:06Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/core/allowlist.py",
+        "services/mcp-server/tests/unit/test_allowlist_glob.py",
+        "services/mcp-server/tests/unit/test_allowlist_json_keys.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-04",
+      "title": "HTTP client wrapper: httpx.AsyncClient with 5s/30s timeout + retry-with-backoff (network failures only, max 3 attempts)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-12",
+        "F-13",
+        "F-33"
+      ],
+      "ac_refs": [
+        "ING-04-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-10"
+      ],
+      "notes": "NFR-Performance / FR-2 / FR-3. `make_client()` returns an httpx.AsyncClient with `Timeout(connect=5.0, read=30.0, write=30.0, pool=30.0)` exactly. `post(client, url, json, token)` sets the Bearer header and applies `retry_with_backoff(max_retries=3, jitter=True)` around httpx.NetworkError / ConnectError / ReadTimeout / WriteTimeout / PoolTimeout ONLY. 4xx and 5xx responses are NOT retried and flow through as httpx.Response for the caller to inspect. TC-37..TC-41 pin every retry-policy boundary. R-10 mitigation.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:10:06Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/core/http_client.py",
+        "services/mcp-server/src/agentrise_mcp/core/retry.py",
+        "services/mcp-server/tests/unit/test_http_client_timeout_retry.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-05",
+      "title": "Structured logger with per-event allowlist enforcement + token-substring absence test (R-07 mitigation)",
+      "complexity": "S",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-15",
+        "F-37"
+      ],
+      "ac_refs": [
+        "ING-04-NFR-observability",
+        "ING-04-NFR-security"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "NFR-Observability / NFR-Security / R-07. `get_logger(name)` configures a stdout StreamHandler + JSON-line formatter. `emit(logger, event, **fields)` asserts `set(fields.keys()) <= _ALLOWED_FIELDS[event]` and drops unexpected keys (never emits the offending value). Allowlist keys per event MATCH PRD NFR-Observability bullet verbatim. F-37 (test_logging_no_token_leak.py) is the R-07 acceptance test \u2014 captures records on happy path + auth-failure path for both tools; asserts token sentinel substring absence via raw-record-buffer scan; asserts per-event field key sets EQUAL the allowlist (diff, not denylist). Depends on T-02 for the token sentinel env var used by the test.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:16:07Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/core/logging.py",
+        "services/mcp-server/tests/unit/test_logging_no_token_leak.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-06",
+      "title": "Profile module: .harness/program.yaml parser + workspace_root resolver (single-source per D-04)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-11",
+        "F-38"
+      ],
+      "ac_refs": [
+        "ING-04-AC-4",
+        "ING-04-FR-4"
+      ],
+      "risk_refs": [
+        "R-09"
+      ],
+      "notes": "FR-4 / D-04. `resolve_workspace_root(workspace_root)` returns `pathlib.Path(workspace_root or Path.cwd()).resolve()` (symlink resolution BEFORE the escape check in T-03). `load_program_yaml(workspace_root)` reads `<workspace_root>/.harness/program.yaml` via `yaml.safe_load` \u2014 hard-coded, NO fallback to profile.yaml (D-04). Missing file raises ProgramYamlNotFound. TC-17..TC-19 exercise absolute / relative / omitted / non-existent workspace_root cases. Depends on T-03 because the resolved workspace_root feeds the allowlist's `is_relative_to` check downstream (interface coupling).",
+      "status": "done",
+      "completed_at": "2026-09-14T13:16:07Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/core/profile.py",
+        "services/mcp-server/tests/unit/test_workspace_root_resolution.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-07",
+      "title": "Source-kind resolvers: glob-count + json-key-count + json-field-sum + constant (all four kinds + dispatch)",
+      "complexity": "M",
+      "predecessors": [
+        "T-03",
+        "T-06"
+      ],
+      "files": [
+        "F-17",
+        "F-18",
+        "F-19",
+        "F-20",
+        "F-29",
+        "F-30",
+        "F-31",
+        "F-32"
+      ],
+      "ac_refs": [
+        "ING-04-AC-3",
+        "ING-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "FR-3. Four small resolvers implementing the vocabulary defined in `.harness/program.yaml` comment block. Every resolver calls the allowlist BEFORE touching the filesystem or json.load (FR-7 / FR-8 gate). The F-16 sub-package dispatcher lookup-dispatches by `entry['kind']`. TC-25..TC-33 tests already covered by T-03 at the allowlist tier; F-29..F-32 add per-resolver behavioural coverage (counting semantics, exclude-list honoured, missing-field=0, non-list-value=0). Depends on T-06 because resolvers take a resolved `workspace_root` argument.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:24:00Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/sources/constant.py",
+        "services/mcp-server/src/agentrise_mcp/sources/glob_count.py",
+        "services/mcp-server/src/agentrise_mcp/sources/json_key_count.py",
+        "services/mcp-server/src/agentrise_mcp/sources/json_field_sum.py",
+        "services/mcp-server/tests/unit/test_source_constant.py",
+        "services/mcp-server/tests/unit/test_source_glob_count.py",
+        "services/mcp-server/tests/unit/test_source_json_key_count.py",
+        "services/mcp-server/tests/unit/test_source_json_field_sum.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-08",
+      "title": "push_activity tool: NDJSON parse + 500-row batch + POST /api/ingest/activity + auth-failure surfacing + missing-token fail-fast",
+      "complexity": "L",
+      "predecessors": [
+        "T-02",
+        "T-04",
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-07",
+        "F-23",
+        "F-24",
+        "F-25"
+      ],
+      "ac_refs": [
+        "ING-04-AC-2",
+        "ING-04-AC-5",
+        "ING-04-AC-6",
+        "ING-04-FR-2",
+        "ING-04-FR-5",
+        "ING-04-FR-6"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-08"
+      ],
+      "notes": "FR-2 / FR-5 / FR-6 / D-03 / D-05 / D-06. Complete tool implementation. Order verbatim: token check (FR-6) \u2192 workspace resolve \u2192 YAML load (D-04) \u2192 default program_id fill \u2192 iterate `files[]` where `kind==activity` \u2192 stream NDJSON \u2192 500-row batches (D-05, module constant) \u2192 POST to `_INGEST_ACTIVITY_URL` (D-03 module constant, URL `/api/ingest/activity` verbatim \u2014 NEVER `/api/ingest/files`) with Bearer header \u2192 aggregate per-batch IngestFilesResponse across all batches \u2192 return tool envelope. On mid-run 401/403 stop issuing further batches; return aggregate + failure record. Structured logging via T-05's logger with per-event allowlist. Tests: F-23 (happy path TC-04..TC-10, URL correctness pinned per D-03), F-24 (auth-failure TC-20/21, mid-run failure aggregation), F-25 (missing-token TC-23 \u2014 the FR-6-mandated dedicated per-tool test). R-01 mitigation via the D-03 URL constant + F-23's explicit URL assertion; R-08 mitigation via the FR-6-mandated result envelope shape asserted in F-25.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:24:00Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/tools/push_activity.py",
+        "services/mcp-server/tests/unit/test_push_activity.py",
+        "services/mcp-server/tests/unit/test_push_activity_auth_failure.py",
+        "services/mcp-server/tests/unit/test_push_activity_missing_token.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-09",
+      "title": "push_artifacts tool: assemble counts across 4 source kinds + single POST /api/ingest/artifacts + auth-failure surfacing + missing-token fail-fast",
+      "complexity": "L",
+      "predecessors": [
+        "T-02",
+        "T-04",
+        "T-05",
+        "T-07"
+      ],
+      "files": [
+        "F-08",
+        "F-26",
+        "F-27",
+        "F-28"
+      ],
+      "ac_refs": [
+        "ING-04-AC-3",
+        "ING-04-AC-5",
+        "ING-04-AC-6",
+        "ING-04-FR-3",
+        "ING-04-FR-5",
+        "ING-04-FR-6",
+        "ING-04-FR-7",
+        "ING-04-FR-8"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-06",
+        "R-08"
+      ],
+      "notes": "FR-3 / FR-5 / FR-6 / FR-7 / FR-8 / D-03 / D-06. Complete tool implementation. Order verbatim: token check (FR-6) \u2192 workspace resolve \u2192 YAML load (D-04) \u2192 default program_id fill \u2192 iterate `artifacts{}` mapping \u2192 for each entry, dispatch to source resolver via F-16 dispatcher (all glob/path strings pre-validated by T-03 allowlist per FR-7; all JSON key/field names pre-validated per FR-8) \u2192 assemble one counts dict \u2192 issue exactly ONE POST to `_INGEST_ARTIFACTS_URL` (D-03, URL `/api/ingest/artifacts` verbatim) with envelope `{program_id, kind:'artifacts', counts, as_of: datetime.now(UTC).isoformat()}` and Bearer header \u2192 return `IngestArtifactsResponse` fields wrapped in tool envelope. Any FR-7 / FR-8 rejection ABORTS the whole POST (no partial payload sent) \u2014 return `{success: false, error: 'unsafe_glob_pattern'|'unsafe_json_key', entry_key, offending_value?}`. Auth-failure per FR-5. Tests: F-26 (happy path across all 4 source kinds, URL correctness per D-03), F-27 (auth-failure TC-22), F-28 (missing-token TC-24 \u2014 the FR-6-mandated dedicated per-tool test). R-01 mitigation via URL constant; R-06 mitigation via the FR-7 / FR-8 abort discipline; R-08 mitigation via the tool envelope shape.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:28:10Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/tools/push_artifacts.py",
+        "services/mcp-server/tests/unit/test_push_artifacts.py",
+        "services/mcp-server/tests/unit/test_push_artifacts_auth_failure.py",
+        "services/mcp-server/tests/unit/test_push_artifacts_missing_token.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-10",
+      "title": "FastMCP server construction + tool registration + entry points (console script + python -m) + boot-smoke integration tests",
+      "complexity": "M",
+      "predecessors": [
+        "T-08",
+        "T-09"
+      ],
+      "files": [
+        "F-04",
+        "F-05",
+        "F-22",
+        "F-39",
+        "F-40"
+      ],
+      "ac_refs": [
+        "ING-04-AC-1",
+        "ING-04-FR-1"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "FR-1 / D-02. Constructs `FastMCP('agentrise-mcp')` and registers exactly two tools via `@server.tool()` \u2014 push_activity (imported from F-07 built in T-08) and push_artifacts (imported from F-08 built in T-09). `main()` starts streamable-HTTP transport on `0.0.0.0:3010` at `/mcp`. F-04 (`__main__.py`) provides the `python -m agentrise_mcp` entry (calls `main()`); F-01's `[project.scripts]` provides the `agentrise-mcp` console script (same entry). Tests: F-22 (TC-01 \u2014 exactly 2 tools registered, no resources, no prompts), F-39 (TC-02 \u2014 `python -m` subprocess boot + ListTools handshake), F-40 (TC-03 \u2014 console-script subprocess boot + identical handshake). R-02 mitigation via the pin recorded in F-01's dependency list and the docstring citation of D-02.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:31:18Z",
+      "files_touched": [
+        "services/mcp-server/src/agentrise_mcp/server.py",
+        "services/mcp-server/src/agentrise_mcp/__main__.py",
+        "services/mcp-server/tests/unit/test_server_tool_registration.py",
+        "services/mcp-server/tests/integration/test_entry_points.py",
+        "services/mcp-server/tests/integration/test_console_script.py"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-11",
+      "title": "Docs: fill the mcp-tools produced contract + root README (layout / env / getting started / API) + stack-smoke.md mcp-server section",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-43",
+        "F-44",
+        "F-45"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Docs T1 (new runnable surface) + T2 (produced-contract fill) + T3 (new env var) + T4 (new service) all resolved in this single task per `plan-validation`. F-43 replaces the current `#mcp-tools` stub in `docs/requirements/api.md` with the concrete authoritative contract (server / tools / env_vars / upstream_contracts) \u2014 this is the blocking write that unblocks ING-05. F-44 updates the root README's Layout table + Getting started section + Environment variables table + one-line API mention. F-45 appends the `# mcp-server` section to `docs/config/stack-smoke.md` (Config drift C2 + C3 mitigation per D-07 \u2014 root project-commands.yaml stays UNTOUCHED). Depends on T-10 so the actual boot surface (console script vs `-m`, port 3010, path `/mcp`) is described from the verified implementation, not from a plan-time guess.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:34:32Z",
+      "files_touched": [
+        "README.md",
+        "docs/config/stack-smoke.md",
+        "docs/requirements/api.md"
+      ],
+      "reason": ""
+    },
+    {
+      "task_id": "T-12",
+      "title": "ADR-0014 (MCP server deployment topology) + docs/adr/README.md index update \u2014 D-01 promotion",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-41",
+        "F-42"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "D-01 promotion to full ADR (`blast:system` triggers the promotion rule per `plan-validation` decision-promotion + `decide` skill). Authors `docs/adr/0014-mcp-server-topology.md` per `adr-template`: Status Accepted, Date 2026-09-14, Context (sibling-package vs folded-into-services/api), Decision (sibling package, own pyproject, own tests, own console script, NOT wired into main API preflight), Consequences (positive: API preflight stays lean; negative: two deploy pipelines to maintain \u2014 accepted; two audit points for `harness carry-forward`), Reversible (yes \u2014 mechanical git mv). F-42 appends the ADR-0014 row to `docs/adr/README.md` matching the format of ADR-0001..ADR-0013. Depends on T-10 so the ADR's Consequences section can quote the verified boot surface.",
+      "status": "done",
+      "completed_at": "2026-09-14T13:34:32Z",
+      "files_touched": [
+        "docs/adr/0014-mcp-server-topology.md",
+        "docs/adr/README.md"
+      ],
+      "reason": ""
+    }
+  ]
+}
