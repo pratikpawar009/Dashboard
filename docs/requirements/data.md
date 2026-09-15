@@ -87,7 +87,7 @@ shape:
 
 ```yaml
 produced_by: BED-03
-consumed_by: [ING-02, ING-06, BED-05]
+consumed_by: [ING-02, BED-05]  # ING-06 removed 2026-09-15 (WONTFIX, RTM Decisions) -- see RTM Decisions 2026-09-15 for reasoning; historical narrative below may still name it
 shape:
   contract: |
     @dataclass(frozen=True)
