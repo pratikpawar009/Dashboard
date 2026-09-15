@@ -12,9 +12,9 @@
   "design_artifact": "docs/features/ING-05/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "plan-implementation",
+  "phase": "validate-review",
   "needs_clarification_count": 0,
-  "last_updated": "2026-09-15T03:52:15Z",
+  "last_updated": "2026-09-15T05:33:39Z",
   "tracker_prd": "pratikpawar009/Dashboard#323",
   "gate": "APPROVE",
   "plan": "complete",
@@ -29,5 +29,67 @@
   "data_design": {
     "file": "docs/features/ING-05/DATA-DESIGN.md"
   },
-  "tracker_plan": "pratikpawar009/Dashboard#327"
+  "tracker_plan": "pratikpawar009/Dashboard#327",
+  "impl_evidence": {
+    "typecheck": {
+      "result": "PASS",
+      "log": "docs/features/ING-05/evidence/typecheck.log"
+    },
+    "unit": {
+      "result": "PASS",
+      "log": "docs/features/ING-05/evidence/unit-tests.log",
+      "counts": {
+        "total": 23,
+        "pass": 23,
+        "fail": 0
+      }
+    },
+    "lint": {
+      "result": "NA",
+      "reason": "hooks outside eslint scope"
+    },
+    "runtime": {
+      "result": "PASS",
+      "log": "docs/features/ING-05/evidence/runtime.log"
+    },
+    "compile": {
+      "result": "NA",
+      "reason": "Node ESM \u2014 no compile step"
+    },
+    "design": {
+      "result": "NA",
+      "reason": "backend hook, no UI (design_mode=none)"
+    },
+    "rounds": 1,
+    "verdict": "READY",
+    "at": "2026-09-15T05:03:14Z"
+  },
+  "validation": {
+    "result": "PARTIAL",
+    "reason": "Product-Gate-approved 3-TC cap; deliberate coverage gap on FRs > TC count. T-07 doc gap (## Verify + ## Manual E2E walkthrough) closed post-gate at 2026-09-15T05:32Z.",
+    "tcs": {
+      "total": 3,
+      "pass": 3,
+      "fail": 0,
+      "partial": 0
+    },
+    "report_path": "docs/features/ING-05/VALIDATION-20260915-0524.md",
+    "report_secondary": "docs/features/ING-05/validation/report.md",
+    "at": "2026-09-15T05:33:39Z"
+  },
+  "review": {
+    "result": "PASS WITH WARNINGS",
+    "findings": {
+      "critical": 0,
+      "high": 0,
+      "medium": 2,
+      "low": 5
+    },
+    "scope_creep": 0,
+    "adr_violations": 0,
+    "contract_drift": 1,
+    "report_path": "docs/features/ING-05/REVIEW.md",
+    "at": "2026-09-15T05:33:39Z"
+  },
+  "gate_outcome": "GREEN"
 }

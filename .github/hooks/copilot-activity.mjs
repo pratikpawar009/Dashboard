@@ -22,6 +22,16 @@
 // Known limitations (documented in the emitted record):
 //   - cache_read / cache_write = 0 (Copilot journal does not split cache tokens)
 //   - lines_added = 0 (journal records file paths, not diff volume)
+//
+// Journal codec pin (D-01): JOURNAL_CODEC_VERSION = "1". Observed Copilot Chat
+// journal schema shape, as of 2026-09-15:
+//   - kind 0 = snapshot (rec.v is the full state object with `requests[]`)
+//   - kind 1 = set     (rec.k is a path, rec.v is the scalar to set)
+//   - kind 2 = push    (rec.k is a path, rec.v is an array to append)
+//   Nested `requests[]` carry per-request `modelId`, `promptTokens`,
+//   `completionTokens`, `copilotCredits`. Any other `kind` value is skipped
+//   with a single `journal_codec_unknown_kind` log line and the batch
+//   continues — see FR-2.
 
 import {
   readFileSync,
@@ -36,6 +46,8 @@ import { resolve, dirname, join } from "node:path";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 
+const JOURNAL_CODEC_VERSION = "1";
+
 function safe(fn, fallback) {
   try {
     return fn();
@@ -49,6 +61,55 @@ const projectDir =
   process.env.WORKSPACE_FOLDER ||
   process.env.GITHUB_WORKSPACE ||
   process.cwd();
+
+// Structured single-shot writer for docs/activity/.mcp-push.log. See
+// DATA-DESIGN.md § 1 log-line allowlist — never include program_id, user, or
+// journal contents in extras.
+const MCP_PUSH_LOG = resolve(projectDir, "docs/activity/.mcp-push.log");
+const _loggedOnce = new Set();
+function writeLog(event, extra = {}) {
+  const line =
+    JSON.stringify({ event, ts: new Date().toISOString(), ...extra }) + "\n";
+  safe(() => {
+    mkdirSync(dirname(MCP_PUSH_LOG), { recursive: true });
+    appendFileSync(MCP_PUSH_LOG, line);
+  }, null);
+}
+function logOnce(event, extra = {}) {
+  const key = event + ":" + String(extra.kind ?? "");
+  if (_loggedOnce.has(key)) return;
+  _loggedOnce.add(key);
+  writeLog(event, extra);
+}
+
+// D-03 / ADR-0015. Precedence: env → program.yaml `program_id` → legacy
+// `programId` → null. Hand-rolled top-level YAML scan (no npm dep) mirrors
+// the shape read by services/mcp-server/src/agentrise_mcp/core/profile.py.
+function resolveProgramId(projectDir) {
+  const env = process.env.HARNESS_PROGRAM_ID;
+  if (typeof env === "string" && env.trim().length > 0) return env.trim();
+  const yamlPath = resolve(projectDir, ".harness/program.yaml");
+  if (!existsSync(yamlPath)) return null;
+  const text = safe(() => readFileSync(yamlPath, "utf8"), "");
+  let programId = null;
+  let legacyId = null;
+  for (const line of text.split("\n")) {
+    if (/^\s*#/.test(line)) continue;
+    const m = line.match(/^\s*(program_id|programId)\s*:\s*(.+?)\s*$/);
+    if (!m) continue;
+    let val = m[2].trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (!val) continue;
+    if (m[1] === "program_id" && programId === null) programId = val;
+    else if (m[1] === "programId" && legacyId === null) legacyId = val;
+  }
+  return programId ?? legacyId ?? null;
+}
 
 const input = safe(() => JSON.parse(readFileSync(0, "utf8")), {});
 let sessionIdInput =
@@ -182,6 +243,18 @@ if (existsSync(journalPath)) {
       safe(() => setAtPath(state, rec.k, rec.v));
     } else if (rec.kind === 2 && Array.isArray(rec.k)) {
       safe(() => pushAtPath(state, rec.k, rec.v));
+    } else if (
+      typeof rec.kind === "number" &&
+      rec.kind !== 0 &&
+      rec.kind !== 1 &&
+      rec.kind !== 2
+    ) {
+      // FR-2: unknown journal kind — skip the record, log once per (event,kind)
+      // within this process, never abort the batch.
+      logOnce("journal_codec_unknown_kind", {
+        kind: rec.kind,
+        codec_version: JOURNAL_CODEC_VERSION,
+      });
     }
   }
 }
@@ -239,7 +312,11 @@ const prevCmdMs = prevCommandEvent
 
 let feature = null;
 {
-  const m = String(commandEvent?.data?.content || "").match(/([A-Z]{2,}-\d+)/);
+  // FR-4: bare-token positional only — `/cmd FEAT-01`. Reject `--feature <id>`
+  // and any other form by yielding null.
+  const m = String(commandEvent?.data?.content || "").match(
+    /^\/\S+\s+([A-Z]{2,4}-\d+)\b/,
+  );
   if (m) feature = m[1];
 }
 
@@ -432,6 +509,15 @@ let user =
   ) || "unknown";
 
 // --- 13. Compose + upsert into docs/activity/activity.jsonl ---------------
+// D-03 / ADR-0015: resolve program_id BEFORE composing the row. Unresolved →
+// skip the append + skip the push spawn; the row would be rejected at the
+// ingest tier (envelope↔row `program_id` mismatch), so silent-drop is safer.
+const programIdResolved = resolveProgramId(projectDir);
+if (programIdResolved === null) {
+  logOnce("program_id_unresolved");
+  process.exit(0);
+}
+
 const record = {
   ts: commandTs,
   user,
@@ -456,6 +542,7 @@ const record = {
   copilot_credits: Math.round(copilotCredits * 1000) / 1000,
   source: "copilot",
 };
+record.program_id = programIdResolved;
 
 const outPath = resolve(projectDir, "docs/activity/activity.jsonl");
 mkdirSync(dirname(outPath), { recursive: true });
@@ -499,26 +586,23 @@ writeFileSync(outPath, out.join("\n") + "\n");
 // the hook returns quickly even if the MCP server is down. Prefer the
 // Copilot-native script under .github/hooks; fall back to the Claude path if
 // only that one exists (e.g. mid-migration).
-// Debug log at docs/activity/.mcp-push.log records spawn attempts + child
-// stdout/stderr so we can confirm the fire-and-forget push actually ran.
+// Spawn attempts + child stdout/stderr land in docs/activity/.mcp-push.log as
+// structured JSON lines (DATA-DESIGN.md § 1 allowlist — no program_id, user,
+// or journal contents).
 try {
   const candidates = [
     resolve(projectDir, ".github/hooks/harness-mcp-push.mjs"),
     resolve(projectDir, ".claude/hooks/harness-mcp-push.mjs"),
   ];
   const mcpPush = candidates.find((p) => existsSync(p));
-  const debugLog = resolve(projectDir, "docs/activity/.mcp-push.log");
-  const stamp = new Date().toISOString();
   if (!mcpPush) {
-    appendFileSync(
-      debugLog,
-      `${stamp} NO_SCRIPT_FOUND candidates=${JSON.stringify(candidates)}\n`,
-    );
+    logOnce("no_script_found");
   } else {
-    appendFileSync(debugLog, `${stamp} SPAWN ${mcpPush}\n`);
+    logOnce("spawn");
     const { spawn } = await import("node:child_process");
     const { openSync } = await import("node:fs");
-    const fd = openSync(debugLog, "a");
+    mkdirSync(dirname(MCP_PUSH_LOG), { recursive: true });
+    const fd = openSync(MCP_PUSH_LOG, "a");
     // process.execPath, not "node" — the hook's PATH may not include Node when
     // launched by VS Code/Copilot; this reuses the exact running Node binary.
     const child = spawn(process.execPath, [mcpPush], {
@@ -527,19 +611,12 @@ try {
       cwd: projectDir,
     });
     child.on("error", (err) => {
-      try {
-        appendFileSync(debugLog, `${stamp} SPAWN_ERROR ${err.message}\n`);
-      } catch {}
+      writeLog("spawn_error", { error_code: err?.code || "unknown" });
     });
     child.unref();
   }
 } catch (err) {
-  try {
-    appendFileSync(
-      resolve(projectDir, "docs/activity/.mcp-push.log"),
-      `${new Date().toISOString()} OUTER_ERROR ${err?.message || err}\n`,
-    );
-  } catch {}
+  writeLog("outer_error", { error_code: err?.code || "unknown" });
 }
 
 console.log(

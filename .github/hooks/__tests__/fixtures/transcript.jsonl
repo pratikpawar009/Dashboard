@@ -1,0 +1,6 @@
+{"type":"session.start","timestamp":"2026-09-15T10:00:00.000Z"}
+{"type":"user.message","timestamp":"2026-09-15T10:00:01.000Z","data":{"content":"/plan BED-01"}}
+{"type":"tool.execution_start","timestamp":"2026-09-15T10:00:02.000Z","data":{"toolCallId":"tc1","toolName":"create_file","arguments":"{\"filePath\":\"src/x.ts\",\"content\":\"line1\\nline2\\n\"}"}}
+{"type":"tool.execution_complete","timestamp":"2026-09-15T10:00:03.000Z","data":{"toolCallId":"tc1","success":true}}
+{"type":"assistant.message","timestamp":"2026-09-15T10:00:04.000Z","data":{"content":"Done."}}
+{"type":"session.end","timestamp":"2026-09-15T10:00:04.000Z"}

@@ -1,0 +1,4 @@
+{"kind":0,"v":{"requests":[{"timestamp":1710000000000,"modelId":"gpt-4o","promptTokens":120,"completionTokens":45,"copilotCredits":0.15}]}}
+{"kind":1,"k":["requests",0,"promptTokens"],"v":150}
+{"kind":2,"k":["requests"],"v":[{"timestamp":1710000001000,"modelId":"gpt-4o","promptTokens":80,"completionTokens":30,"copilotCredits":0.10}]}
+{"kind":99,"k":["unknownFuturePath"],"v":"whatever"}

@@ -48,7 +48,20 @@
         "program-id-resolution",
         "copilot-activity"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#324"
+      "tracker_test": "pratikpawar009/Dashboard#324",
+      "last_run": {
+        "started_at": "2026-09-15T05:22:03Z",
+        "duration_ms": 1189,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 1189, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "docs/features/ING-05/validation/node-test.log",
+        "runner": "node:test",
+        "rerun_count": 0
+      }
     },
     {
       "id": "ING-05-TC-02",
@@ -103,7 +116,25 @@
         "non-blocking-spawn",
         "regression-ING-05-AC-2"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#325"
+      "tracker_test": "pratikpawar009/Dashboard#325",
+      "last_run": {
+        "started_at": "2026-09-15T05:22:04Z",
+        "duration_ms": 10710,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 10710, "reason": null}
+        ],
+        "budget": {
+          "target": "TIMEOUT_MS=10_000 per RPC, wall_clock_ceiling_ms=10500",
+          "measured": "abort_at_ms\u224810108; parent_spawn_non_blocking=true",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "docs/features/ING-05/validation/node-test.log",
+        "runner": "node:test",
+        "rerun_count": 0
+      }
     },
     {
       "id": "ING-05-TC-03",
@@ -180,7 +211,20 @@
         "log-shape",
         "no-pii"
       ],
-      "tracker_test": "pratikpawar009/Dashboard#326"
+      "tracker_test": "pratikpawar009/Dashboard#326",
+      "last_run": {
+        "started_at": "2026-09-15T05:22:15Z",
+        "duration_ms": 10593,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 10593, "reason": null}
+        ],
+        "failure_reason": null,
+        "artefact": "docs/features/ING-05/validation/node-test.log",
+        "runner": "node:test",
+        "rerun_count": 0
+      }
     }
   ],
   "coverage_audit": {
