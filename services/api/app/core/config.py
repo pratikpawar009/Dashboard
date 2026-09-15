@@ -97,6 +97,17 @@ class Settings(BaseSettings):
     # falls back to the resolver's own hardcoded default order.
     persona_precedence_order: Annotated[list[str] | None, NoDecode] = None
 
+    # ING-07-FR-5 / AC-4: GitHub org + PAT for POST /api/admin/scan-repos.
+    # Both optional at import time (so app startup never depends on either
+    # being set); the router checks presence at request time and returns 500
+    # `missing configuration: GITHUB_ORG|GITHUB_TOKEN` when unset/empty, BEFORE
+    # any GitHub API call and BEFORE any DB write. `github_token` is treated
+    # as a secret per `.claude/rules/security-baseline.md`: read from env only,
+    # never echoed in responses, log fields, or exception messages (enforced
+    # in the router / `app/services/repo_scan.py`, not here).
+    github_org: str | None = None
+    github_token: str | None = None
+
     @field_validator("environment", mode="after")
     @classmethod
     def _normalize_environment(cls, value: str) -> str:

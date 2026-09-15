@@ -1,0 +1,413 @@
+{
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/api/admin.py",
+      "reason": "Router mounting `POST /api/admin/scan-repos`. Owns auth chain (bearer via router-owned `HTTPBearer(auto_error=False)`, `get_ingest_token()` invoked directly with sentinel `program_id='*'`, wildcard-strict re-check per D-05/FR-2), missing-config 500 mapping (FR-5), and `GitHubScanError` \u2192 502 mapping (FR-3/FR-4). Delegates the scan itself to `app/services/repo_scan.py`."
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/services/repo_scan.py",
+      "reason": "Service layer. Encapsulates the ONLY `httpx.AsyncClient` use for GitHub calls (D-03), two operations (`list_org_repos` paginated 100/page, `probe_program_yaml` GET /contents on default branch), 10s per-call timeout (`httpx.Timeout(10.0)`), retries via `app.core.retry.retry_with_backoff` on 429/5xx/`httpx.ReadTimeout` (D-04), typed `GitHubScanError` on retry exhaustion, `admin_scan_completed` structlog event with the FR field allowlist, per-request atomic `INSERT ... ON CONFLICT (org_id) DO UPDATE` on `OrgSummaryRollup` (FR-4). Module docstring cites D-02 at the upsert call site."
+    },
+    "F-03": {
+      "action": "create",
+      "path": "services/api/app/schemas/repo_scan.py",
+      "reason": "`ScanReposResponse` pydantic v2 DTO \u2014 `{repos_total: int, repos_with_harness_installed: int, as_of_timestamp: datetime}` serialised with `model_config = ConfigDict(json_encoders=...)` or default pydantic ISO-8601-UTC to satisfy FR-1 / TC-12."
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/main.py",
+      "reason": "Import `admin_router` and add `app.include_router(admin_router)` inside `create_app()`. Placement: after `personal_usage_router`, before `oidc_router` \u2014 mirrors existing ordering discipline (ADR-0013 note on `manifest_router` precedence) and keeps admin routes clearly grouped."
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/core/config.py",
+      "reason": "Add `github_org: str | None = None` and `github_token: str | None = None` to `Settings`. Both optional at import time; missing/empty at request time \u2192 500 per FR-5. NOT logged verbatim \u2014 same discipline as `oidc_client_secret` (`Settings.model_config`'s `extra='ignore'` is unchanged)."
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/.env.example",
+      "reason": "Append commented-out `GITHUB_ORG=` and `GITHUB_TOKEN=` entries with a one-line pointer to GitHub PAT-generation docs (PRD Documentation requirements). Left empty on purpose, matching the OIDC-triple precedent \u2014 empty means unset (500 at request time), NOT a placeholder that reads as configured."
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "Add two rows to the `## Environment variables` table (line 62 onwards) \u2014 `GITHUB_ORG` and `GITHUB_TOKEN` \u2014 with `services/api/.env.example` as the source file. Satisfies plan-validation Docs T3 (env var \u2192 root README env table). No new `## Admin scan` section here; API docs live in `services/api/README.md`."
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "services/api/README.md",
+      "reason": "Add a `## Admin scan` sub-section under the existing `## Ingest token auth` section documenting `POST /api/admin/scan-repos`: required wildcard-only token scope, `GITHUB_ORG` / `GITHUB_TOKEN` settings pointer, `ScanReposResponse` shape, and a cross-link to `docs/stories/ING-07.md`. Satisfies plan-validation Docs T2 (new HTTP route \u2192 service-nested README, primary API doc)."
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_admin_repo_scan.py",
+      "reason": "Endpoint tests covering TC-01..TC-15 and TC-17..TC-20. Colocated under `tests/unit/` per D-06 (existing repo convention \u2014 every endpoint test lives here). Uses `migrated_db`, `build_app`, `async_client_for` (existing conftest fixtures) plus the new fixtures added by T-06. Tags: auth (TC-04/05/06/13), config (TC-07/08), external-failure (TC-09/10/11/14/15), classification (TC-01/02/03), contract (TC-12), security (TC-17), observability (TC-18), idempotency (TC-19), concurrency (TC-20)."
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_admin_repo_scan_perf.py",
+      "reason": "Performance test TC-16 \u2014 200-repo mocked org, 20 ms per-call respx latency via `asyncio.sleep(0.02)` side_effect, N=30 iterations, p95 \u2264 10 000 ms. Located under `tests/perf/` and decorated with the existing `@pytest.mark.perf` marker (declared in `services/api/pyproject.toml`); NOT collected in the default run, opt-in via `-m perf`."
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "services/api/tests/conftest.py",
+      "reason": "Add fixtures required by T-07 / T-08 and referenced verbatim by `docs/test-cases/ING-07.json`: (a) ingest-token variants \u2014 `ingest_token_wildcard` (`['*']`), `ingest_token_program_scoped` (`['dashboard']`), `ingest_token_allow_all_empty` (`[]`); (b) rollup seeds \u2014 `org_summary_rollup_seed` (sentinel `repos_total=99, repos_with_harness_installed=1, as_of_timestamp='2000-01-01T00:00:00Z'`) and `org_summary_rollup_prior_values` (`42/17/2026-08-01T00:00:00Z`); (c) settings overrides \u2014 `settings_github_configured`, `settings_missing_github_token`, `settings_missing_github_org`, `settings_github_configured_sentinel_pat`; (d) respx GitHub route factories \u2014 list-repos variants (200 mixed / all-installed / none-installed / 503 / timeout / 429-then-200 / paginated-2pages) and probe variants (200 / 404 / 500 / mixed / secret-bearing-body); (e) infra \u2014 `no_sleep` (patch `app.core.retry.asyncio.sleep`), `structlog_capture` (extend if missing), `openapi_schema` (GET /openapi.json wrapper), `background_rebuild_task` (schedules `rebuild_org_rollups` against the same test session for TC-20). No existing fixture is modified \u2014 additions only, per surgical-changes."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add GITHUB_ORG / GITHUB_TOKEN to Settings and .env.example",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-05",
+        "F-06"
+      ],
+      "ac_refs": [
+        "ING-07-AC-4",
+        "ING-07-FR-5"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "tc_refs": [
+        "ING-07-TC-07",
+        "ING-07-TC-08"
+      ],
+      "notes": "Both optional at import; missing/empty produces the 500 branch at request time. `.env.example` entries stay commented so a plain `cp` reproduces the default-disabled 500 state.",
+      "status": "done",
+      "completed_at": "2026-09-15T07:27:30Z",
+      "files_touched": [
+        "services/api/app/core/config.py",
+        "services/api/.env.example"
+      ],
+      "reason": "Settings.github_org/github_token added (Optional[str]=None). .env.example gained commented GITHUB_ORG/GITHUB_TOKEN block."
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add ScanReposResponse schema",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "ING-07-AC-6",
+        "ING-07-FR-1"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "tc_refs": [
+        "ING-07-TC-12"
+      ],
+      "notes": "Pydantic v2 model with exactly three fields per D-01. Serialises `as_of_timestamp` as ISO-8601 UTC ending in `Z` (TC-12 rejects `+05:30`).",
+      "status": "done",
+      "completed_at": "2026-09-15T07:27:30Z",
+      "files_touched": [
+        "services/api/app/schemas/repo_scan.py"
+      ],
+      "reason": "ScanReposResponse DTO created with Z-suffixed UTC serializer per D-01 + TC-12."
+    },
+    {
+      "task_id": "T-03",
+      "title": "Implement repo_scan service (GitHub client, retry/timeout, structured logging, rollup upsert)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "ING-07-AC-1",
+        "ING-07-AC-5",
+        "ING-07-FR-3",
+        "ING-07-FR-4",
+        "ING-07-NFR-security",
+        "ING-07-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-3",
+        "R-4",
+        "R-8"
+      ],
+      "tc_refs": [
+        "ING-07-TC-01",
+        "ING-07-TC-02",
+        "ING-07-TC-03",
+        "ING-07-TC-09",
+        "ING-07-TC-10",
+        "ING-07-TC-11",
+        "ING-07-TC-14",
+        "ING-07-TC-15",
+        "ING-07-TC-17",
+        "ING-07-TC-18",
+        "ING-07-TC-19"
+      ],
+      "notes": "Sole `httpx` importer for GitHub (D-03). Uses `app.core.retry.retry_with_backoff` (D-04). Per-request atomicity \u2014 the caller (T-04) owns the transaction boundary; this service performs the upsert on the passed `AsyncSession` and raises `GitHubScanError` on retry exhaustion so the router aborts without commit. Emits `admin_scan_completed` on success only, with fields exactly `{repos_total, repos_with_harness_installed, duration_ms, github_api_calls}`; never logs the PAT, `Authorization` header, or raw GitHub response bodies. Cites D-02 in a one-line comment at the upsert call site.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:38:39Z",
+      "files_touched": [
+        "services/api/app/services/repo_scan.py"
+      ],
+      "reason": "scan_org_repos service with GitHub Link-pagination, 4-attempt retry, field-allowlist logger, atomic org_summary_rollup upsert (D-02 comment at call site)."
+    },
+    {
+      "task_id": "T-04",
+      "title": "Implement admin router (auth chain, wildcard-strict, status mapping)",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "ING-07-AC-2",
+        "ING-07-AC-3",
+        "ING-07-AC-4",
+        "ING-07-AC-6",
+        "ING-07-FR-2",
+        "ING-07-FR-5"
+      ],
+      "risk_refs": [
+        "R-3"
+      ],
+      "tc_refs": [
+        "ING-07-TC-04",
+        "ING-07-TC-05",
+        "ING-07-TC-06",
+        "ING-07-TC-07",
+        "ING-07-TC-08",
+        "ING-07-TC-12",
+        "ING-07-TC-13"
+      ],
+      "notes": "Follows `app/api/manifest.py`'s pattern (D-05): router-owned `HTTPBearer(auto_error=False)`, `get_ingest_token()` invoked as a plain coroutine with sentinel `program_id='*'`, then a router-level `'*' in token.allowed_program_ids` re-check (rejects allow-all-empty). Missing-config 500 check (FR-5) runs BEFORE any GitHub call and BEFORE any DB write. On success returns `ScanReposResponse`; on `GitHubScanError` returns 502 without committing the rollup. Never logs the bearer.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:55:33Z",
+      "files_touched": [
+        "services/api/app/api/admin.py"
+      ],
+      "reason": "Admin router \u2014 HTTPBearer + get_ingest_token(program_id=\"*\"), wildcard-strict 403, ordered missing-config 500, scan_org_repos delegation, GitHubScanError\u2192502, response_model + OpenAPI responses metadata."
+    },
+    {
+      "task_id": "T-05",
+      "title": "Wire admin_router in main.py",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "ING-07-AC-1"
+      ],
+      "risk_refs": [],
+      "tc_refs": [
+        "ING-07-TC-01"
+      ],
+      "notes": "One-line `app.include_router(admin_router)` in `create_app()`. Placement noted in F-04 reason.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:55:33Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": "admin_router imported + mounted in create_app() after me_router, before oidc_router. /api/admin/scan-repos reachable."
+    },
+    {
+      "task_id": "T-06",
+      "title": "Add test fixtures for ingest tokens, rollup seeds, settings overrides, respx github routes, no_sleep, structlog_capture, openapi_schema, background_rebuild_task",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "ING-07-AC-1",
+        "ING-07-AC-2",
+        "ING-07-AC-3",
+        "ING-07-AC-4",
+        "ING-07-AC-5",
+        "ING-07-AC-6"
+      ],
+      "risk_refs": [
+        "R-2"
+      ],
+      "tc_refs": [
+        "ING-07-TC-01",
+        "ING-07-TC-02",
+        "ING-07-TC-03",
+        "ING-07-TC-04",
+        "ING-07-TC-05",
+        "ING-07-TC-06",
+        "ING-07-TC-07",
+        "ING-07-TC-08",
+        "ING-07-TC-09",
+        "ING-07-TC-10",
+        "ING-07-TC-11",
+        "ING-07-TC-12",
+        "ING-07-TC-13",
+        "ING-07-TC-14",
+        "ING-07-TC-15",
+        "ING-07-TC-17",
+        "ING-07-TC-18",
+        "ING-07-TC-19",
+        "ING-07-TC-20"
+      ],
+      "notes": "Additive edits only \u2014 no existing fixture is modified (surgical-changes). Fixture names match `docs/test-cases/ING-07.json`'s `fixtures[]` verbatim. `no_sleep` patches `app.core.retry`'s `asyncio.sleep` so retry timing is deterministic in CI.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:38:39Z",
+      "files_touched": [
+        "services/api/tests/conftest.py"
+      ],
+      "reason": "27 ING-07 fixtures added (tokens, DB seeds, Settings overrides, respx routes, infra). 681/685 collected."
+    },
+    {
+      "task_id": "T-07",
+      "title": "Write integration + contract + security + observability tests (TC-01..15, 17..20)",
+      "complexity": "L",
+      "predecessors": [
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "ING-07-AC-1",
+        "ING-07-AC-2",
+        "ING-07-AC-3",
+        "ING-07-AC-4",
+        "ING-07-AC-5",
+        "ING-07-AC-6",
+        "ING-07-FR-1",
+        "ING-07-FR-2",
+        "ING-07-FR-3",
+        "ING-07-FR-4",
+        "ING-07-FR-5",
+        "ING-07-NFR-security",
+        "ING-07-NFR-observability"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-3",
+        "R-4"
+      ],
+      "tc_refs": [
+        "ING-07-TC-01",
+        "ING-07-TC-02",
+        "ING-07-TC-03",
+        "ING-07-TC-04",
+        "ING-07-TC-05",
+        "ING-07-TC-06",
+        "ING-07-TC-07",
+        "ING-07-TC-08",
+        "ING-07-TC-09",
+        "ING-07-TC-10",
+        "ING-07-TC-11",
+        "ING-07-TC-12",
+        "ING-07-TC-13",
+        "ING-07-TC-14",
+        "ING-07-TC-15",
+        "ING-07-TC-17",
+        "ING-07-TC-18",
+        "ING-07-TC-19",
+        "ING-07-TC-20"
+      ],
+      "notes": "Groups tests by section header matching AC/FR/NFR ids for reviewer navigation. Uses `migrated_db` for DB assertions; uses `respx.mock(assert_all_called=False, assert_all_mocked=True)` matching the existing keycloak fixture idiom. TC-17 sentinel-PAT test IS included (the tracker-push scanner drops it from tracker sync but the test itself is standard and adds no code change \u2014 see PLAN \u00a77 note).",
+      "status": "done",
+      "completed_at": "2026-09-15T08:55:33Z",
+      "files_touched": [
+        "services/api/tests/unit/test_admin_repo_scan.py"
+      ],
+      "reason": "19 unit tests authored (TC-01..TC-15, TC-17..TC-20). 18 pass, 1 fail: TC-20 hits T-06 fixture-design flaw (AsyncSession-sharing race). Spec-drift on TC-07/08/13 body shape \u2014 flagged."
+    },
+    {
+      "task_id": "T-08",
+      "title": "Write performance test (TC-16)",
+      "complexity": "M",
+      "predecessors": [
+        "T-05",
+        "T-06"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "ING-07-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-7"
+      ],
+      "tc_refs": [
+        "ING-07-TC-16"
+      ],
+      "notes": "Uses `time.perf_counter()` around 30 requests against a 200-repo mocked org with 20 ms per-call respx latency. Marked `@pytest.mark.perf` per existing `services/api/pyproject.toml` marker \u2014 excluded from default run.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:55:33Z",
+      "files_touched": [
+        "services/api/tests/perf/test_admin_repo_scan_perf.py"
+      ],
+      "reason": "TC-16 perf test @pytest.mark.perf; deterministic respx side-effect + asyncio.sleep(0.02); measured p95=4655ms << 10s budget over 30 iterations \u00d7 200 repos."
+    },
+    {
+      "task_id": "T-09",
+      "title": "docs(readme): add GITHUB_ORG / GITHUB_TOKEN rows to root README env-var table",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "ING-07-FR-5"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "tc_refs": [],
+      "notes": "Satisfies plan-validation Docs dimension T3 (new env var \u2192 root README env table + .env.example \u2014 .env.example is F-06 in T-01). Two rows, matching the table's existing shape (Name | Default | Notes).",
+      "status": "done",
+      "completed_at": "2026-09-15T08:38:39Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": "GITHUB_ORG / GITHUB_TOKEN rows appended to Environment variables table."
+    },
+    {
+      "task_id": "T-10",
+      "title": "docs(readme): add `## Admin scan` sub-section to services/api/README.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "ING-07-AC-1",
+        "ING-07-AC-6"
+      ],
+      "risk_refs": [],
+      "tc_refs": [],
+      "notes": "Satisfies plan-validation Docs dimension T2 (new HTTP route \u2192 service-nested README as the primary API doc \u2014 root README does not carry a route table). Documents endpoint path, required wildcard-only token scope, `GITHUB_ORG` / `GITHUB_TOKEN` settings pointer, `ScanReposResponse` shape, and cross-links to `docs/stories/ING-07.md`.",
+      "status": "done",
+      "completed_at": "2026-09-15T08:55:33Z",
+      "files_touched": [
+        "services/api/README.md"
+      ],
+      "reason": "Appended ## Admin scan section \u2014 endpoint intro + status matrix (200/401/403\u00d72/500/502) + operational bullets."
+    }
+  ]
+}

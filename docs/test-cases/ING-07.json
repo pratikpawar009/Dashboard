@@ -1,0 +1,1492 @@
+{
+  "story_id": "ING-07",
+  "test_cases": [
+    {
+      "id": "ING-07-TC-01",
+      "title": "Happy path: mixed org classifies each repo by .harness/program.yaml presence and upserts rollup",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-1",
+      "given": "wildcard-scoped bearer token, GITHUB_ORG=acme, GITHUB_TOKEN set, org has 3 repos of which 2 carry .harness/program.yaml on default branch",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "endpoint returns 200 and org_summary_rollup for org-1 is upserted to repos_total=3, repos_with_harness_installed=2, as_of_timestamp=now",
+      "objective": "Verify the mixed-classification happy path: repo listing + per-repo contents probe → correct counts written to the singleton rollup row.",
+      "preconditions": [
+        "Ingest token row exists with allowed_program_ids=['*'] and token_hash matching the fixture bearer",
+        "org_summary_rollup row for org_id='org-1' seeded with sentinel values (repos_total=99, repos_with_harness_installed=1, as_of_timestamp='2000-01-01T00:00:00Z')",
+        "Settings: GITHUB_ORG='acme', GITHUB_TOKEN='<TEST_GITHUB_TOKEN>'"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "list_repos_response_repos": [
+          "repo-a",
+          "repo-b",
+          "repo-c"
+        ],
+        "installed_repos": [
+          "repo-a",
+          "repo-b"
+        ],
+        "not_installed_repos": [
+          "repo-c"
+        ]
+      },
+      "steps": [
+        "Mount respx routes: GET https://api.github.com/orgs/acme/repos?per_page=100&page=1 → 200 with default_branch='main' for all three",
+        "Mount respx routes: GET /repos/acme/repo-a/contents/.harness/program.yaml?ref=main → 200",
+        "Mount respx routes: GET /repos/acme/repo-b/contents/.harness/program.yaml?ref=main → 200",
+        "Mount respx routes: GET /repos/acme/repo-c/contents/.harness/program.yaml?ref=main → 404",
+        "Issue POST /api/admin/scan-repos with the Authorization header"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "Response JSON has keys repos_total=3, repos_with_harness_installed=2, and as_of_timestamp parses as ISO-8601 UTC",
+        "org_summary_rollup row for org_id='org-1' has repos_total=3, repos_with_harness_installed=2, and as_of_timestamp equals the response's as_of_timestamp",
+        "Content of .harness/program.yaml is NEVER fetched/parsed — only the GET /contents 200/404 is used"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_200",
+        "github_contents_program_yaml_404",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "happy-path",
+        "classification"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#332",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc01_happy_path_mixed_org_classifies_and_upserts_rollup"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc01_happy_path_mixed_org_classifies_and_upserts_rollup — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-02",
+      "title": "AC1 branch: all repos Harness-installed → repos_with_harness_installed == repos_total",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-1",
+      "given": "org with 3 repos, .harness/program.yaml present on the default branch of every repo",
+      "when": "client POSTs /api/admin/scan-repos with a wildcard-scoped bearer",
+      "then": "rollup is upserted with repos_total=3 and repos_with_harness_installed=3",
+      "objective": "Guarantee the classification loop does not undercount when every probe returns 200.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seed row exists",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "list_repos_response_repos": [
+          "repo-a",
+          "repo-b",
+          "repo-c"
+        ]
+      },
+      "steps": [
+        "Mount respx: list-repos returns 3 repos, default_branch='main'",
+        "Mount respx: /contents/.harness/program.yaml?ref=main → 200 for all three repo paths",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "Response repos_total=3, repos_with_harness_installed=3",
+        "org_summary_rollup persisted with repos_total=3, repos_with_harness_installed=3"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_all_installed",
+        "github_contents_program_yaml_200",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "classification",
+        "boundary-all"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#333",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc02_all_repos_installed_full_count"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc02_all_repos_installed_full_count — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-03",
+      "title": "AC1 branch: no repos Harness-installed → repos_with_harness_installed == 0",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-1",
+      "given": "org with 3 repos where every probe returns 404",
+      "when": "client POSTs /api/admin/scan-repos with a wildcard-scoped bearer",
+      "then": "rollup is upserted with repos_total=3 and repos_with_harness_installed=0",
+      "objective": "Guarantee the classification loop treats every 404 as not-installed and the write path handles the zero-count boundary.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seed row exists",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "list_repos_response_repos": [
+          "repo-a",
+          "repo-b",
+          "repo-c"
+        ]
+      },
+      "steps": [
+        "Mount respx: list-repos returns 3 repos, default_branch='main'",
+        "Mount respx: /contents/.harness/program.yaml?ref=main → 404 for all three repo paths",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "Response repos_total=3, repos_with_harness_installed=0",
+        "org_summary_rollup persisted with repos_total=3, repos_with_harness_installed=0"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_none_installed",
+        "github_contents_program_yaml_404",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "classification",
+        "boundary-none"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#334",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc03_no_repos_installed_zero_count"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc03_no_repos_installed_zero_count — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-04",
+      "title": "AC2: missing Authorization header → 401, no GitHub call, rollup untouched",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-2",
+      "given": "request with no Authorization header",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "endpoint returns 401, no request is issued to api.github.com, and org_summary_rollup is unchanged",
+      "objective": "Verify the ingest-token-auth dependency short-circuits before any external I/O when the bearer is absent.",
+      "preconditions": [
+        "org_summary_rollup seeded with sentinel values (repos_total=99, repos_with_harness_installed=1, as_of_timestamp='2000-01-01T00:00:00Z')",
+        "respx is armed but no route matches api.github.com"
+      ],
+      "test_data": {
+        "authorization_header": null
+      },
+      "steps": [
+        "POST /api/admin/scan-repos with no Authorization header",
+        "Capture respx call log"
+      ],
+      "expected_results": [
+        "HTTP 401",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup row equals the seeded sentinel values (bytes-identical)"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "org_summary_rollup_seed",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "authn",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#335",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc04_missing_authorization_header_returns_401_no_side_effects"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc04_missing_authorization_header_returns_401_no_side_effects — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-05",
+      "title": "AC2: revoked / unknown token → 401, no GitHub call, rollup untouched",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-2",
+      "given": "bearer whose SHA-256 hash does not resolve to any ingest_token row (or resolves to a revoked/expired one)",
+      "when": "client POSTs /api/admin/scan-repos with that bearer",
+      "then": "endpoint returns 401, no GitHub call is made, and the rollup row is unchanged",
+      "objective": "Cover the 401 branch of ingest-token-auth for the two non-missing failure modes (unknown + revoked/expired) so AC2's coverage is not just no-header.",
+      "preconditions": [
+        "No ingest_token row is seeded for the fixture bearer",
+        "org_summary_rollup seeded with sentinel values",
+        "respx has no api.github.com routes registered"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_UNKNOWN>"
+      },
+      "steps": [
+        "POST /api/admin/scan-repos with the unknown bearer"
+      ],
+      "expected_results": [
+        "HTTP 401",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup unchanged from seeded sentinel values"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "org_summary_rollup_seed",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "authn",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#336",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc05_unknown_bearer_returns_401_no_side_effects"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc05_unknown_bearer_returns_401_no_side_effects — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-06",
+      "title": "AC3: valid token without '*' wildcard → 403, no GitHub call",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-3",
+      "given": "authenticated bearer whose allowed_program_ids is ['dashboard'] (program-scoped, not wildcard)",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "endpoint returns 403, no GitHub call is made, and the rollup row is unchanged",
+      "objective": "Verify router-level wildcard-only enforcement rejects a program-scoped token even though it authenticates successfully.",
+      "preconditions": [
+        "Ingest token row exists with allowed_program_ids=['dashboard']",
+        "org_summary_rollup seeded with sentinel values",
+        "respx has no api.github.com routes registered"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_PROGRAM_SCOPED>"
+      },
+      "steps": [
+        "POST /api/admin/scan-repos with the program-scoped bearer"
+      ],
+      "expected_results": [
+        "HTTP 403",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup unchanged"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_program_scoped",
+        "org_summary_rollup_seed",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "authz",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#337",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc06_program_scoped_bearer_returns_403"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc06_program_scoped_bearer_returns_403 — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-07",
+      "title": "AC4: missing GITHUB_TOKEN → 500, no GitHub call, rollup and log untouched",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-4",
+      "given": "GITHUB_ORG='acme' is set but GITHUB_TOKEN is empty/unset",
+      "when": "client POSTs /api/admin/scan-repos with a wildcard-scoped bearer",
+      "then": "endpoint returns 500 with body {\"detail\": \"missing configuration: GITHUB_TOKEN\"}, no GitHub call is made, and org_summary_rollup + admin_scan_completed are untouched",
+      "objective": "Enforce FR-5's ordering: missing-config check runs BEFORE any GitHub call and BEFORE any DB write.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "Settings override: GITHUB_ORG='acme', GITHUB_TOKEN=''",
+        "org_summary_rollup seeded with sentinel values",
+        "structlog capture list is empty at test start"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>"
+      },
+      "steps": [
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 500 with body body[\"error\"] == {\"code\": \"http_500\", \"message\": \"missing configuration: GITHUB_TOKEN\", \"details\": null} (per ADR-0002 error envelope: `body == {\"error\": {\"code\": \"http_<status>\", \"message\": <detail>, \"details\": null}}`; assert `body[\"error\"][\"code\"]` + `body[\"error\"][\"message\"]`)",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup unchanged from seeded sentinel values",
+        "No structlog record with event='admin_scan_completed' emitted"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "settings_missing_github_token",
+        "structlog_capture"
+      ],
+      "tags": [
+        "config",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#338",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc07_missing_github_token_returns_500_no_side_effects"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc07_missing_github_token_returns_500_no_side_effects — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-08",
+      "title": "AC4: missing GITHUB_ORG → 500, no GitHub call, rollup and log untouched",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-4",
+      "given": "GITHUB_TOKEN is set but GITHUB_ORG is empty/unset",
+      "when": "client POSTs /api/admin/scan-repos with a wildcard-scoped bearer",
+      "then": "endpoint returns 500 with body {\"detail\": \"missing configuration: GITHUB_ORG\"}, no GitHub call is made, and org_summary_rollup + admin_scan_completed are untouched",
+      "objective": "Cover the second FR-5 branch so the ordering rule applies symmetrically to both required settings.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "Settings override: GITHUB_ORG='', GITHUB_TOKEN='<TEST_GITHUB_TOKEN>'",
+        "org_summary_rollup seeded with sentinel values"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>"
+      },
+      "steps": [
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 500 with body body[\"error\"] == {\"code\": \"http_500\", \"message\": \"missing configuration: GITHUB_ORG\", \"details\": null} (per ADR-0002 error envelope: `body == {\"error\": {\"code\": \"http_<status>\", \"message\": <detail>, \"details\": null}}`; assert `body[\"error\"][\"code\"]` + `body[\"error\"][\"message\"]`)",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup unchanged",
+        "No admin_scan_completed structlog record emitted"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "settings_missing_github_org",
+        "structlog_capture"
+      ],
+      "tags": [
+        "config",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#339",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc08_missing_github_org_returns_500_no_side_effects"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc08_missing_github_org_returns_500_no_side_effects — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-09",
+      "title": "AC5: GitHub list-repos returns 5xx after retries exhausted → 502, rollup unchanged",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-5",
+      "given": "list-repos returns HTTP 503 on all 4 attempts (1 initial + 3 retries)",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "endpoint returns 502 and org_summary_rollup keeps its prior values",
+      "objective": "Verify the router converts retry-exhaustion on list-repos to 502 without touching the rollup row.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set",
+        "org_summary_rollup seeded with sentinel values"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "retry_budget_attempts": 4
+      },
+      "steps": [
+        "Mount respx: GET /orgs/acme/repos?per_page=100&page=1 → 503 (registered as always-503 route)",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 502",
+        "respx recorded exactly 4 calls to /orgs/acme/repos (1 initial + 3 retries)",
+        "org_summary_rollup row bytes-identical to the seeded sentinel values"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_500",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "external-failure",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#340",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc09_list_repos_5xx_after_retries_returns_502"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc09_list_repos_5xx_after_retries_returns_502 — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-10",
+      "title": "AC5: GitHub call exceeds 10 s timeout → 502, rollup unchanged",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-5",
+      "given": "list-repos never responds and the per-call 10 s timeout fires on every attempt",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "endpoint returns 502 and the rollup is unchanged",
+      "objective": "Prove the explicit-timeout budget converts a hung upstream into a bounded 502, not an unbounded wait.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "Test uses respx side_effect=httpx.ReadTimeout to raise timeout deterministically without sleeping"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "per_call_timeout_seconds": 10
+      },
+      "steps": [
+        "Mount respx: GET /orgs/acme/repos?per_page=100&page=1 → side_effect = httpx.ReadTimeout('timed out')",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 502",
+        "The endpoint call completes in test-wall-clock < 1 s (timeout is raised, not slept)",
+        "respx recorded 4 attempts",
+        "org_summary_rollup unchanged from seeded sentinel values"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_timeout",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "external-failure",
+        "timeout",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#341",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc10_list_repos_timeout_returns_502_within_1s"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc10_list_repos_timeout_returns_502_within_1s — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-11",
+      "title": "AC5: rollup non-mutation on 502 — repos_total / repos_with_harness_installed / as_of_timestamp all preserved",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-AC-5",
+      "given": "org_summary_rollup already has real prior values (repos_total=42, repos_with_harness_installed=17, as_of_timestamp='2026-08-01T00:00:00Z') and GitHub list-repos returns 502 after retries",
+      "when": "the failed scan finishes",
+      "then": "the three repo_*/timestamp columns are byte-identical to their pre-request values",
+      "objective": "Focused assertion on FR-4 atomicity + AC5 no-partial-write: not just 'row unchanged' but every mutable column asserted individually to catch a partial commit that happens to preserve some columns.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup for org_id='org-1' seeded with repos_total=42, repos_with_harness_installed=17, as_of_timestamp='2026-08-01T00:00:00Z'",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "prior_repos_total": 42,
+        "prior_repos_with_harness_installed": 17,
+        "prior_as_of_timestamp": "2026-08-01T00:00:00Z"
+      },
+      "steps": [
+        "Mount respx: GET /orgs/acme/repos?per_page=100&page=1 → 503 on all 4 attempts",
+        "Snapshot the org_summary_rollup row before the request",
+        "POST /api/admin/scan-repos",
+        "Re-read the org_summary_rollup row after the response"
+      ],
+      "expected_results": [
+        "HTTP 502",
+        "repos_total == 42 (unchanged)",
+        "repos_with_harness_installed == 17 (unchanged)",
+        "as_of_timestamp == '2026-08-01T00:00:00Z' (unchanged)"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_prior_values",
+        "github_list_repos_500",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "atomicity",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#342",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc11_502_preserves_each_prior_column_individually"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc11_502_preserves_each_prior_column_individually — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-12",
+      "title": "AC6 / FR-1: response body is exactly {repos_total: int, repos_with_harness_installed: int, as_of_timestamp: ISO-8601 UTC}",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-FR-1",
+      "given": "successful scan against an org with 1 installed and 1 not-installed repo",
+      "when": "client POSTs /api/admin/scan-repos with a wildcard-scoped bearer",
+      "then": "response body validates against ScanReposResponse — exactly three keys, int types, and as_of_timestamp is ISO-8601 UTC matching the persisted rollup",
+      "objective": "Pin the PRD D-01 assumption: the OpenAPI schema exports the DTO and the runtime body matches it — no extra keys, no missing keys, no non-int counts, no non-UTC timestamp.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "expected_body_keys": [
+          "repos_total",
+          "repos_with_harness_installed",
+          "as_of_timestamp"
+        ]
+      },
+      "steps": [
+        "Mount respx: list-repos returns [repo-a, repo-b], default_branch='main'",
+        "Mount respx: /contents/.harness/program.yaml?ref=main → 200 for repo-a, 404 for repo-b",
+        "POST /api/admin/scan-repos",
+        "Fetch OpenAPI schema (GET /openapi.json) and locate the ScanReposResponse component"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "Response JSON has exactly the keys {repos_total, repos_with_harness_installed, as_of_timestamp} — no extras",
+        "repos_total and repos_with_harness_installed are integers (not floats or strings)",
+        "as_of_timestamp parses as ISO-8601 and ends with 'Z' (UTC) — reject any offset like '+05:30'",
+        "OpenAPI schema exports component 'ScanReposResponse' with the same three properties and types",
+        "as_of_timestamp equals the org_summary_rollup.as_of_timestamp persisted for org_id='org-1'"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_mixed",
+        "settings_github_configured",
+        "openapi_schema"
+      ],
+      "tags": [
+        "contract",
+        "response-shape"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#343",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc12_response_and_openapi_pin_scan_repos_response_contract"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc12_response_and_openapi_pin_scan_repos_response_contract — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-13",
+      "title": "FR-2: allow-all-empty token (allowed_program_ids=[]) is rejected 403 by the router",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-FR-2",
+      "given": "a legacy ingest token whose allowed_program_ids is [] (the ADR-0006 allow-all-empty default) — this token satisfies get_ingest_token()'s shared scope check because the admin router passes the '*' sentinel",
+      "when": "client POSTs /api/admin/scan-repos with that token",
+      "then": "the router's own re-check rejects with 403 because the resolved token does NOT carry a literal '*' in allowed_program_ids",
+      "objective": "Enforce FR-2's split-responsibility rule — the shared dependency's semantics stay unchanged for ING-02/ING-03, and admin-only wildcard-strict enforcement lives in app/api/admin.py.",
+      "preconditions": [
+        "Ingest token row exists with allowed_program_ids=[] and matching token_hash",
+        "org_summary_rollup seeded with sentinel values",
+        "respx has no api.github.com routes registered",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN set"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_ALLOW_ALL_EMPTY>"
+      },
+      "steps": [
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 403",
+        "respx recorded 0 calls to api.github.com",
+        "org_summary_rollup unchanged from seeded sentinel values",
+        "The 403 originates from the router (unit-visible via the response body/detail or a router-specific structlog event), not from get_ingest_token()"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_allow_all_empty",
+        "org_summary_rollup_seed",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "authz",
+        "router-enforced"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#344",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc13_allow_all_empty_bearer_rejected_by_router_wildcard_recheck"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc13_allow_all_empty_bearer_rejected_by_router_wildcard_recheck — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-14",
+      "title": "FR-3: 429 rate-limit is retried with backoff+jitter and the scan succeeds within budget",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-07-FR-3",
+      "given": "list-repos returns 429 on attempt 1, then 200 on attempt 2",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "the wrapper retries once, the scan completes 200, and the rollup is upserted normally",
+      "objective": "Prove the retry policy is bounded (<=3 retries) and covers 429/5xx per FR-3.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "Backoff sleep is patched to a no-op so the test does not wait real seconds"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "attempt_sequence": [
+          "429",
+          "200"
+        ]
+      },
+      "steps": [
+        "Mount respx: GET /orgs/acme/repos?per_page=100&page=1 → side_effect returning [Response(429, headers={'Retry-After': '1'}), Response(200, json=[{'name':'repo-a','default_branch':'main'}])]",
+        "Mount respx: /contents/.harness/program.yaml?ref=main → 200 for repo-a",
+        "Patch the wrapper's sleep function to no-op",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "respx recorded exactly 2 calls to /orgs/acme/repos (1 initial + 1 retry)",
+        "Response repos_total=1, repos_with_harness_installed=1",
+        "org_summary_rollup persisted with repos_total=1, repos_with_harness_installed=1"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_429_then_200",
+        "github_contents_program_yaml_200",
+        "settings_github_configured",
+        "no_sleep"
+      ],
+      "tags": [
+        "retry",
+        "rate-limit"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#345",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc14_429_then_200_retries_once_and_succeeds"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc14_429_then_200_retries_once_and_succeeds — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-15",
+      "title": "FR-4: mid-scan failure (probe 5xx after list succeeds) → 502 and rollup untouched (no partial write)",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-FR-4",
+      "given": "list-repos succeeds with 3 repos, but the probe of repo-b returns 503 on all attempts (retry exhaustion)",
+      "when": "the scan fails partway through",
+      "then": "endpoint returns 502 and org_summary_rollup is NOT updated with a partial count",
+      "objective": "Verify the upsert is atomic per request — even a plausible partial state (list succeeded, probes half-done) MUST NOT commit any write.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with prior real values (repos_total=42, repos_with_harness_installed=17, as_of_timestamp='2026-08-01T00:00:00Z')"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>"
+      },
+      "steps": [
+        "Mount respx: list-repos → 200 with [repo-a, repo-b, repo-c], default_branch='main'",
+        "Mount respx: probe repo-a → 200",
+        "Mount respx: probe repo-b → 503 on all 4 attempts",
+        "Mount respx: probe repo-c → route registered but MAY not be called (depending on iteration order)",
+        "POST /api/admin/scan-repos"
+      ],
+      "expected_results": [
+        "HTTP 502",
+        "org_summary_rollup row equals prior real values (repos_total=42, repos_with_harness_installed=17, as_of_timestamp='2026-08-01T00:00:00Z') — bytes-identical",
+        "No admin_scan_completed structlog record emitted"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_prior_values",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_500",
+        "settings_github_configured",
+        "structlog_capture"
+      ],
+      "tags": [
+        "atomicity",
+        "no-partial-write"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#346",
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc15_mid_scan_probe_failure_returns_502_no_partial_write"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc15_mid_scan_probe_failure_returns_502_no_partial_write — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-16",
+      "title": "NFR-performance: p95 <= 10 s for 200-repo org with per-call timeout 10 s and <=3 retries",
+      "type": "performance",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-NFR-performance",
+      "given": "a simulated 200-repo org (2 list pages of 100 each) and per-call GitHub latency of 20 ms",
+      "when": "the scan endpoint is invoked N=30 times over the mocked upstream",
+      "then": "measured p95 end-to-end latency of /api/admin/scan-repos is <= 10 000 ms",
+      "objective": "Enforce the NFR budget — p95 <= 10 s per scan for up to 200 repos — using deterministic mocked latency so the check is reproducible in CI.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "respx routes emit a 20 ms latency per call via side_effect that awaits asyncio.sleep(0.02) then returns 200",
+        "N iteration count fixed at 30 for reproducible p95"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "repo_count": 200,
+        "iterations": 30,
+        "per_call_latency_ms": 20,
+        "budget_p95_ms": 10000
+      },
+      "steps": [
+        "Mount respx: list-repos page 1 → 200 with 100 repos, Link header pointing at page=2",
+        "Mount respx: list-repos page 2 → 200 with 100 repos, no next link",
+        "Mount respx: /contents/.harness/program.yaml?ref=main → 200 for every repo path with 20 ms simulated latency",
+        "Record perf_counter around POST /api/admin/scan-repos and repeat 30 times",
+        "Compute p95 of the collected durations"
+      ],
+      "expected_results": [
+        "All 30 requests return 200",
+        "p95(latency_ms) <= 10000",
+        "Final rollup has repos_total=200"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_paginated_2pages",
+        "github_contents_program_yaml_200_latency",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "performance",
+        "budget"
+      ],
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 <= 10 000 ms @ 200 repos, 20ms/probe, N=30",
+          "measured": "p95 = 4613.28ms @ 30 iterations (200 repos, 20ms/probe)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-perf-tc16.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/perf/test_admin_repo_scan_perf.py::test_scan_repos_p95_under_10s_at_200_repo_baseline_tc16"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/perf/test_admin_repo_scan_perf.py::test_scan_repos_p95_under_10s_at_200_repo_baseline_tc16 — PASSED; p95 = 4613.28ms @ 30 iterations (200 repos, 20ms/probe)",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-17",
+      "title": "NFR-security: PAT and raw GitHub payloads never appear in logs or exception messages",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-NFR-security",
+      "given": "GITHUB_TOKEN='ghp_SENTINEL_DO_NOT_LOG_ABC123' is configured and one probe returns 503 with a body containing that same string (simulating a mis-echoed upstream error)",
+      "when": "the endpoint fails with 502",
+      "then": "no captured log record and no exception message contains the sentinel or any Authorization header value or the raw upstream body",
+      "objective": "Guard the security-baseline rule per PRD NFR: PAT never logged/echoed, raw GitHub response bodies and request headers never logged.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "Settings GITHUB_ORG='acme', GITHUB_TOKEN='ghp_SENTINEL_DO_NOT_LOG_ABC123'",
+        "structlog capture list attached",
+        "caplog attached at level DEBUG"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "sentinel_secret": "ghp_SENTINEL_DO_NOT_LOG_ABC123",
+        "sentinel_body": "upstream error mentioning ghp_SENTINEL_DO_NOT_LOG_ABC123"
+      },
+      "steps": [
+        "Mount respx: list-repos → 503 with body containing 'ghp_SENTINEL_DO_NOT_LOG_ABC123' on all 4 attempts",
+        "POST /api/admin/scan-repos",
+        "Capture (a) all structlog records via structlog_capture, (b) caplog.records, and (c) the exception chain surfaced via the FastAPI response"
+      ],
+      "expected_results": [
+        "HTTP 502",
+        "No captured log record (structlog OR caplog) contains the substring 'ghp_SENTINEL_DO_NOT_LOG_ABC123'",
+        "No captured log record contains the Authorization header value '<TEST_INGEST_TOKEN_WILDCARD>' or the substring 'Bearer '",
+        "No captured log record contains the raw upstream body 'upstream error mentioning ghp_SENTINEL_DO_NOT_LOG_ABC123'",
+        "The 502 response body does not contain the sentinel or the Authorization header"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_500_secret_bearing_body",
+        "settings_github_configured_sentinel_pat",
+        "structlog_capture",
+        "caplog"
+      ],
+      "tags": [
+        "security",
+        "no-secret-logging"
+      ],
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc17_pat_and_upstream_body_never_leak_into_logs_or_response"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc17_pat_and_upstream_body_never_leak_into_logs_or_response — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-18",
+      "title": "NFR-observability: admin_scan_completed emitted on success with exact field set",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-07-NFR-observability",
+      "given": "a successful scan of a 2-repo mixed org",
+      "when": "the endpoint responds 200",
+      "then": "exactly one structlog record is emitted with event='admin_scan_completed' carrying fields {repos_total, repos_with_harness_installed, duration_ms, github_api_calls}",
+      "objective": "Pin the NFR-observability event contract and its four required fields per PRD NFR.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "structlog capture list attached"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>",
+        "expected_log_event": "admin_scan_completed",
+        "expected_log_fields": [
+          "repos_total",
+          "repos_with_harness_installed",
+          "duration_ms",
+          "github_api_calls"
+        ]
+      },
+      "steps": [
+        "Mount respx: list-repos → 200 with [repo-a, repo-b], default_branch='main'",
+        "Mount respx: probe repo-a → 200, probe repo-b → 404",
+        "POST /api/admin/scan-repos",
+        "Filter captured records by event='admin_scan_completed'"
+      ],
+      "expected_results": [
+        "HTTP 200",
+        "Exactly one record has event='admin_scan_completed'",
+        "That record's keys include all four required fields (superset allowed for standard structlog fields like timestamp/level, but the four MUST be present)",
+        "repos_total == 2 and repos_with_harness_installed == 1 in the record",
+        "duration_ms is an int >= 0",
+        "github_api_calls is an int >= 3 (1 list + 2 probes)"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_mixed",
+        "settings_github_configured",
+        "structlog_capture"
+      ],
+      "tags": [
+        "observability"
+      ],
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc18_admin_scan_completed_emitted_once_with_required_fields"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc18_admin_scan_completed_emitted_once_with_required_fields — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-19",
+      "title": "Idempotency: two consecutive successful scans over unchanged repo state produce identical repo counts",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-07-AC-1",
+      "given": "org and probe outcomes are unchanged between two calls",
+      "when": "client POSTs /api/admin/scan-repos twice in sequence",
+      "then": "both responses report the same repos_total and repos_with_harness_installed, and the persisted row equals the last scan's result (last-write-wins semantics tolerated)",
+      "objective": "Prove the scan is idempotent on unchanged upstream state — repo counts do not drift between consecutive scans. The as_of_timestamp is expected to advance and is NOT part of the equality assertion.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with sentinel values",
+        "respx routes are persistent (return the same response for repeated calls)"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>"
+      },
+      "steps": [
+        "Mount respx: list-repos → 200 with [repo-a, repo-b, repo-c]",
+        "Mount respx: probe repo-a → 200, repo-b → 200, repo-c → 404 (all persistent)",
+        "POST /api/admin/scan-repos → capture response body A",
+        "POST /api/admin/scan-repos → capture response body B",
+        "Read org_summary_rollup row"
+      ],
+      "expected_results": [
+        "Both responses return HTTP 200",
+        "A.repos_total == B.repos_total == 3",
+        "A.repos_with_harness_installed == B.repos_with_harness_installed == 2",
+        "Persisted org_summary_rollup.repos_total == 3 and .repos_with_harness_installed == 2 (equals both response values)",
+        "Persisted as_of_timestamp == B.as_of_timestamp (last write wins) and >= A.as_of_timestamp"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_seed",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_mixed",
+        "settings_github_configured"
+      ],
+      "tags": [
+        "idempotency",
+        "last-write-wins"
+      ],
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc19_two_consecutive_scans_produce_identical_counts"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc19_two_consecutive_scans_produce_identical_counts — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    },
+    {
+      "id": "ING-07-TC-20",
+      "title": "Concurrent-rebuild tolerance: endpoint completes 200 while BED-03 rebuild races on the same row",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "ING-07-AC-1",
+      "given": "BED-03's rebuild_org_rollups() concurrently writes to org_summary_rollup during the scan (via an asyncio.create_task before the endpoint call, both against the same test DB)",
+      "when": "client POSTs /api/admin/scan-repos",
+      "then": "the endpoint returns 200 without deadlock or serialization error, per PRD D-02's accepted last-write-wins race",
+      "objective": "Assert the endpoint completes successfully under a racing writer, per the user's brief. Does NOT assert serialization or ordering — either scan or rebuild MAY have the final row and both outcomes are valid.",
+      "preconditions": [
+        "Ingest token wildcard fixture loaded",
+        "org_summary_rollup seeded with prior real values (repos_total=42, repos_with_harness_installed=17)",
+        "Test-scoped rebuild_org_rollups() variant is registered and safe to invoke against the test DB session"
+      ],
+      "test_data": {
+        "authorization_header": "Bearer <TEST_INGEST_TOKEN_WILDCARD>"
+      },
+      "steps": [
+        "Mount respx: list-repos → 200 with [repo-a, repo-b], default_branch='main'",
+        "Mount respx: probe repo-a → 200, repo-b → 404",
+        "Schedule asyncio.create_task(rebuild_org_rollups(session)) targeting the same org_summary_rollup row",
+        "Immediately POST /api/admin/scan-repos",
+        "await both tasks"
+      ],
+      "expected_results": [
+        "Endpoint returns HTTP 200",
+        "No DB-level deadlock / SerializationFailure / IntegrityError is raised",
+        "org_summary_rollup singleton row still exists (proves no rollback aborted either writer) — per D-02 no assertion is made on which writer wins or on the final row's `repos_total` value; the earlier claim that `rebuild left repos_total at 42` was factually wrong (rebuild_org_rollups hard-codes `repos_total=0` per BED-03 D-03 because usage_events has no analog for it), and ordering varies between isolated vs full-suite runs so any value assertion would encode timing"
+      ],
+      "fixtures": [
+        "respx_mock",
+        "ingest_token_wildcard",
+        "org_summary_rollup_prior_values",
+        "github_list_repos_200_mixed",
+        "github_contents_program_yaml_mixed",
+        "settings_github_configured",
+        "background_rebuild_task"
+      ],
+      "tags": [
+        "concurrency",
+        "last-write-wins"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-15T11:01:46Z",
+        "duration_ms": null,
+        "status": "PASSED",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASSED",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "tmp/validation-ing07/pytest-ing07-unit-verbose.log",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "node_id": "services/api/tests/unit/test_admin_repo_scan.py::test_tc20_scan_completes_while_bed03_rebuild_races"
+      },
+      "execution_status": "PASS",
+      "execution_evidence": "services/api/tests/unit/test_admin_repo_scan.py::test_tc20_scan_completes_while_bed03_rebuild_races — PASSED",
+      "executed_at": "2026-09-15T11:01:46Z"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-07-AC-1",
+        "covered_by": [
+          "ING-07-TC-01",
+          "ING-07-TC-02",
+          "ING-07-TC-03",
+          "ING-07-TC-19",
+          "ING-07-TC-20"
+        ]
+      },
+      {
+        "id": "ING-07-AC-2",
+        "covered_by": [
+          "ING-07-TC-04",
+          "ING-07-TC-05"
+        ]
+      },
+      {
+        "id": "ING-07-AC-3",
+        "covered_by": [
+          "ING-07-TC-06"
+        ]
+      },
+      {
+        "id": "ING-07-AC-4",
+        "covered_by": [
+          "ING-07-TC-07",
+          "ING-07-TC-08"
+        ]
+      },
+      {
+        "id": "ING-07-AC-5",
+        "covered_by": [
+          "ING-07-TC-09",
+          "ING-07-TC-10",
+          "ING-07-TC-11"
+        ]
+      },
+      {
+        "id": "ING-07-AC-6",
+        "covered_by": [
+          "ING-07-TC-12"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-07-FR-1",
+        "covered_by": [
+          "ING-07-TC-12"
+        ]
+      },
+      {
+        "id": "ING-07-FR-2",
+        "covered_by": [
+          "ING-07-TC-13"
+        ]
+      },
+      {
+        "id": "ING-07-FR-3",
+        "covered_by": [
+          "ING-07-TC-14",
+          "ING-07-TC-10"
+        ]
+      },
+      {
+        "id": "ING-07-FR-4",
+        "covered_by": [
+          "ING-07-TC-15",
+          "ING-07-TC-11"
+        ]
+      },
+      {
+        "id": "ING-07-FR-5",
+        "covered_by": [
+          "ING-07-TC-07",
+          "ING-07-TC-08"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-07-NFR-performance",
+        "covered_by": [
+          "ING-07-TC-16"
+        ]
+      },
+      {
+        "id": "ING-07-NFR-security",
+        "covered_by": [
+          "ING-07-TC-17",
+          "ING-07-TC-13"
+        ]
+      },
+      {
+        "id": "ING-07-NFR-observability",
+        "covered_by": [
+          "ING-07-TC-18"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

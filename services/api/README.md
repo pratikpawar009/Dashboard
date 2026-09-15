@@ -294,3 +294,22 @@ class FreshnessAccessor:
 Full contract: `docs/requirements/api.md#freshness-api`.
 
 Not wired into any route yet — wiring is each consumer story's own scope.
+
+## Admin scan
+
+`POST /api/admin/scan-repos` (`app/api/admin.py`) refreshes `org_summary_rollup.repos_total` and `.repos_with_harness_installed` by scanning the configured `GITHUB_ORG` for `.harness/program.yaml` on each repo's default branch. The router delegates to `app/services/repo_scan.py`; the router's module docstring covers the retry-budget, PII, and transaction-ownership rules.
+
+| Outcome | Status | `detail` |
+|---|---|---|
+| Success | 200 | *(response body below)* |
+| Missing / malformed / unknown / revoked / expired bearer | 401 | *(from `get_ingest_token`)* |
+| Token authenticates but its `allowed_program_ids` lacks the literal `"*"` | 403 | `wildcard scope required` |
+| Any other scope denial from `get_ingest_token` | 403 | `scope` |
+| `GITHUB_ORG` or `GITHUB_TOKEN` unset (empty counts as unset) | 500 | `missing configuration: GITHUB_ORG` / `... GITHUB_TOKEN` |
+| GitHub upstream failed after the retry budget | 502 | `github upstream failed` |
+
+- **Bearer, wildcard-strict** — `Authorization: Bearer <ingest-token>` against the same `app.core.ingest_auth.get_ingest_token` dependency documented above. This endpoint requires the strictest form of scope: the router re-checks that `allowed_program_ids` contains the literal `"*"` and rejects the allow-all-empty legacy default (ADR-0006 § Consequences) with a distinct 403 (`detail: "wildcard scope required"`). Mint one with `scripts/mint_ingest_token.py --program-ids '*'`; an unqualified mint (no `--program-ids`) produces an allow-all-empty token that authenticates against `get_ingest_token` but is rejected here.
+- **Config** — both `GITHUB_ORG` and `GITHUB_TOKEN` must be set. Empty string counts as unset. The config check runs in the handler body **after** the bearer check, so a missing bearer still 401s on a misconfigured service.
+- **Response body** — `{"repos_total": int, "repos_with_harness_installed": int, "as_of_timestamp": str}`, where `as_of_timestamp` is ISO-8601 UTC with a `Z` suffix — never `+00:00` and never a non-UTC offset.
+- **Race with BED-03 rollup rebuild** — this endpoint's upsert on the singleton `org_summary_rollup` row races with `rebuild_org_rollups()` on the same row. The race is accepted **last-write-wins** per DECISIONS.md D-02, not mitigated: no advisory lock, no serialisation, no version column. Short staleness on a lost update refreshes on the next scan or ingest.
+- **No-partial-write on 502** — the upsert is queued on the request-scoped session but committed only on the success path. A `GitHubScanError` closes the session without a commit, so a 502 leaves the rollup untouched.
