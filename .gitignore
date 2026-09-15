@@ -56,3 +56,6 @@ dashboards/
 # Harness scratch — agent memory and throwaway git worktrees (multi-GB).
 .claude/agent-memory/
 .claude/worktrees/
+
+# Harness validation-agent per-run working directory (see /arh-validate-feature).
+tmp/

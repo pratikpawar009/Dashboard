@@ -1,0 +1,143 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": "docs/features/ING-07/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "gate": "APPROVE",
+  "tracker_story": "pratikpawar009/Dashboard#46",
+  "tracker_research": "pratikpawar009/Dashboard#330",
+  "rtm_source_sha": "b3cd0523ae59",
+  "phase": "review",
+  "last_updated": "2026-09-15T09:45:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#331",
+  "plan": "complete",
+  "tasks": {
+    "file": "docs/features/ING-07/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/ING-07/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/ING-07/DATA-DESIGN.md"
+  },
+  "plan_validation": {
+    "result": "PASS",
+    "rounds": 1,
+    "dimensions": {
+      "wiring": "PASS",
+      "docs": "PASS",
+      "runner_setup": "PASS",
+      "cross_section": "PASS",
+      "config_drift": "PASS",
+      "decision_promotion": "PASS"
+    }
+  },
+  "tracker_plan": "pratikpawar009/Dashboard#347",
+  "impl_evidence": {
+    "verdict": "READY",
+    "rounds": 2,
+    "completed_at": "2026-09-15T09:29:31Z",
+    "rounds_log": "docs/features/ING-07/EVIDENCE-ROUNDS.md",
+    "dimensions": {
+      "typecheck": {
+        "status": "PASS",
+        "log": "docs/features/ING-07/evidence/typecheck.log",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy ."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "log": "docs/features/ING-07/evidence/unit-tests.log",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/"
+      },
+      "lint": {
+        "status": "PASS",
+        "log": "docs/features/ING-07/evidence/lint.log",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check ."
+      },
+      "runtime": {
+        "status": "PASS",
+        "log": "docs/features/ING-07/evidence/runtime-fastapi-2.log; docs/features/ING-07/evidence/runtime-nextjs.log",
+        "command": "per-stack per docs/config/stack-smoke.md (fastapi-2 uvicorn /health probe; nextjs pnpm dev boot smoke)"
+      },
+      "compile": {
+        "status": "PASS",
+        "log": "docs/features/ING-07/evidence/compile.log",
+        "command": "pnpm -C apps/web build"
+      },
+      "design_check": {
+        "status": "N/A",
+        "reason": "project-commands.yaml \u00a7 design_check is empty; no accessibility / mockup-diff tool declared",
+        "flag": "AF-22"
+      }
+    },
+    "anti_suppression_notes": [
+      "No # noqa, # type: ignore, @pytest.mark.skip, xfail, or blanket except used.",
+      "TC-20 fix targeted assertion correctness against DECISIONS.md D-02 (no writer-wins guess) \u2014 assertion strengthened by matching design intent, not weakened.",
+      "No production code touched during evidence pass; changes limited to test file + conftest fixture + test-case JSON."
+    ],
+    "flags_raised_during_evidence": [
+      "AF-22",
+      "AF-23"
+    ],
+    "artifacts_touched_during_evidence": [
+      "services/api/tests/conftest.py (background_rebuild_task rebinding \u2014 Round 1)",
+      "services/api/tests/unit/test_admin_repo_scan.py (TC-20 docstring + assertion \u2014 Round 2)",
+      "docs/test-cases/ING-07.json (ING-07-TC-20 expected_results \u2014 Round 2)",
+      "docs/features/ING-07/FLAGS.md (AF-22, AF-23 appended)",
+      "docs/features/ING-07/EVIDENCE-ROUNDS.md (Round 1 result finalised, Round 2 added)",
+      "docs/features/ING-07/evidence/unit-tests.log (Round 2 refresh)"
+    ]
+  },
+  "review": {
+    "verdict": "PASS WITH WARNINGS",
+    "report": "docs/features/ING-07/REVIEW.md",
+    "completed_at": "2026-09-15T11:50:59Z",
+    "counts": {
+      "critical": 0,
+      "high": 0,
+      "medium": 4,
+      "low": 4,
+      "info": 2
+    },
+    "medium_findings_dispositions": {
+      "F-1": "accepted deferral \u2014 recorded in DECISIONS.md \u00a7 D-08; F-U1 unchanged in PLAN \u00a76.",
+      "F-2": "fixed \u2014 moved `scripts/push-test-cases-ING-07.py` to `services/api/scripts/` (matches sibling scripts + repo convention). Script `TC_PATH` now resolves relative to file via `parents[3]`.",
+      "F-3": "fixed \u2014 added DECISIONS.md \u00a7 D-07 recording service-return shape; PLAN.md \u00a73 updated to reference D-07.",
+      "F-4": "fixed \u2014 `docs/test-cases/ING-07.json` TC-07/08/13 `expected_results` updated to assert ADR-0002 wrapped shape `body[\"error\"] == {\"code\": \"http_<status>\", \"message\": <detail>, \"details\": null}`. Tracker sub-issues re-push scheduled at Step 6."
+    },
+    "info_dispositions": {
+      "I-1": "fixed \u2014 `tmp/validation-ing07/` deleted; `tmp/` appended to `.gitignore` with comment referencing /arh-validate-feature."
+    }
+  },
+  "review_report": "docs/features/ING-07/REVIEW.md",
+  "review_counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 4,
+    "low": 4,
+    "info": 2
+  },
+  "review_completed_at": "2026-09-15T09:45:00Z",
+  "flags_triaged": {
+    "total": 23,
+    "resolved": 23,
+    "open": 0,
+    "sweep": "evidence + review-follow-up",
+    "completed_at": "2026-09-15T11:50:59Z"
+  },
+  "implementation": {
+    "branch": "feature/ING-07",
+    "commit": "f5ac4be",
+    "pr": "https://github.com/pratikpawar009/Dashboard/pull/348",
+    "pr_number": 348,
+    "tracker_comment": "https://github.com/pratikpawar009/Dashboard/issues/46#issuecomment-5679733956",
+    "completed_at": "2026-09-15T11:54:49Z"
+  }
+}

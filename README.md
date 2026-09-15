@@ -56,7 +56,7 @@ Every existing `redirect("/login")` call site keeps working unchanged and improv
 
 ## Environment variables
 
-New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02; `OIDC_REDIRECT_URI`, new in AUTH-05; `FRONTEND_LOGIN_URL` and `PERSONA_PRECEDENCE_ORDER`, new in AUTH-07; and `NEXT_PUBLIC_API_URL`, new in PGD-01 (`apps/web/.env.example` — the first `apps/web` env var; every other row below is `services/api/.env.example`):
+New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PERSONA_CONFIG_FILE`, new in AUTH-02; `OIDC_REDIRECT_URI`, new in AUTH-05; `FRONTEND_LOGIN_URL` and `PERSONA_PRECEDENCE_ORDER`, new in AUTH-07; `GITHUB_ORG` and `GITHUB_TOKEN`, new in ING-07; and `NEXT_PUBLIC_API_URL`, new in PGD-01 (`apps/web/.env.example` — the first `apps/web` env var; every other row below is `services/api/.env.example`):
 
 | Name | Default | Notes |
 |---|---|---|
@@ -72,6 +72,8 @@ New in AUTH-01 (`services/api/.env.example`), except `PERSONA_ROLE_MAP` and `PER
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | `apps/web/.env.example`, not `services/api/.env.example`. The frontend's FastAPI base URL, used for both the Program Detail page's server-rendered initial fetch and the client-side program-switcher reload. |
 | `FRONTEND_LOGIN_URL` | `None` (unset) | The frontend's own `/login` absolute URL, used as `post_logout_redirect_uri`. A **fourth** required value for `GET /auth/logout` specifically, alongside the OIDC triple — unset, that one route returns `501` while every other route is unaffected. Not derived from `OIDC_REDIRECT_URI`, which names a different route (`/callback`). |
 | `PERSONA_PRECEDENCE_ORDER` | `None` (unset) | Optional. JSON array of persona strings, e.g. `["cio","architect","product-manager","engineering-manager","developer"]`. Tier-1 of the persona-precedence order. Resolution is Tier-1 (this var) → Tier-2 (`precedence:` key in `services/api/config/persona_role_map.yaml`) → Tier-3 (the `persona_precedence` table, `ORDER BY rank`); all three unset falls back to that same hardcoded default order, so no working deployment must configure anything. Invalid JSON, a non-array, or a non-string element logs `persona_precedence_order_parse_error` and is treated as unset — fail-open parse, mirroring `PERSONA_ROLE_MAP`'s existing behaviour. |
+| `GITHUB_ORG` | `None` (unset) | Optional. GitHub organisation whose repos `POST /api/admin/scan-repos` (ING-07) probes for `.harness/program.yaml` to compute install-status. Required only by that endpoint — missing or empty raises `500 missing configuration: GITHUB_ORG` at request time, checked before any GitHub API call and before any DB write. Every other route is unaffected. |
+| `GITHUB_TOKEN` | `None` (unset) | Optional. Fine-grained PAT paired with `GITHUB_ORG`, minimum scope read-only Contents on those repos, used by the same `POST /api/admin/scan-repos` endpoint. Env/secret store only — never commit a real value. Same request-time failure mode: missing or empty raises `500 missing configuration: GITHUB_TOKEN` before any GitHub API call or DB write. |
 
 ## Keycloak client requirements
 

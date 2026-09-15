@@ -6,6 +6,9 @@
 **Owner**: —
 **Updated**: 2026-08-26
 **Tracker**: pratikpawar009/Dashboard#46 (https://github.com/pratikpawar009/Dashboard/issues/46)
+**Tracker Research:** pratikpawar009/Dashboard#330 (https://github.com/pratikpawar009/Dashboard/issues/330)
+**Tracker Plan Requirements:** pratikpawar009/Dashboard#331 (https://github.com/pratikpawar009/Dashboard/issues/331)
+**Tracker Plan Implementation:** pratikpawar009/Dashboard#347 (https://github.com/pratikpawar009/Dashboard/issues/347)
 
 ## User story
 
@@ -13,7 +16,7 @@ As an org admin (via an authenticated ingest token, not the browser UI), I want 
 
 ## Acceptance criteria
 
-1. Given a bearer-token-authenticated `POST /api/admin/scan-repos` request whose token carries the `"*"` wildcard in `allowed_program_ids`, when the endpoint processes it, then it lists every repository in the configured GitHub org via the GitHub REST API (PAT auth), classifies each as [NEEDS CLARIFICATION: what marks a repo "Harness-installed" — presence of `.harness/profile.yaml` on the default branch, a GitHub App/webhook installation record, a repo topic tag, or another signal?], and upserts `org_summary_rollup.repos_with_harness_installed`, `.repos_total`, and `.as_of_timestamp` with the result (per FR-ING-09, `admin-scan-api` contract).
+1. Given a bearer-token-authenticated `POST /api/admin/scan-repos` request whose token carries the `"*"` wildcard in `allowed_program_ids`, when the endpoint processes it, then it lists every repository in the configured GitHub org via the GitHub REST API (PAT auth), classifies each as **Harness-installed iff `.harness/program.yaml` exists on the repo's default branch** (probed via `GET /repos/{org}/{repo}/contents/.harness/program.yaml?ref={default_branch}` — `200` = installed, `404` = not installed; mere presence is sufficient, content is not parsed or validated at scan time), and upserts `org_summary_rollup.repos_with_harness_installed`, `.repos_total`, and `.as_of_timestamp` with the result (per FR-ING-09, `admin-scan-api` contract).
 2. Given a request with a missing, revoked, or expired bearer token, when the endpoint authenticates it, then it returns `401`, makes no GitHub API call, and leaves `org_summary_rollup` unchanged (per `ingest-token-auth` contract).
 3. Given a request with a valid token whose `allowed_program_ids` does not include the `"*"` wildcard, when the endpoint authorizes it, then it returns `403` and makes no GitHub API call — a repo-scan is org-wide, not scoped to any single program, so only a wildcard-scoped token may run it (per `ingest-token-auth` contract; scope rule is an assumption, see Decision log).
 4. Given the server has no `GITHUB_ORG` or `GITHUB_TOKEN` configured, when the endpoint is invoked, then it returns `500` with a configuration-error body and makes no GitHub API call (per FR-ING-09, "requires GitHub org + token settings").
@@ -40,10 +43,11 @@ As an org admin (via an authenticated ingest token, not the browser UI), I want 
 
 ## Clarifications
 
-- [NEEDS CLARIFICATION: what marks a repo "Harness-installed" — presence of `.harness/profile.yaml` on the default branch, a GitHub App/webhook installation record, a repo topic tag, or another signal?]
+- 2026-09-15 (RESOLVED) **Harness-installed signal** = presence of `.harness/program.yaml` on the repo's default branch. Probed via `GET /repos/{org}/{repo}/contents/.harness/program.yaml?ref={default_branch}` — `200` = installed, `404` = not installed. Mere presence is the signal; the file's YAML content is not parsed or validated at scan time (that is ING-10's `POST /api/ingest/manifest` job). Ruled out: (a) `.harness/profile.yaml` — this file is LOCAL / gitignored (per-developer, one per laptop, holds the operator's `email`/`name`/`role`; used at push time by the MCP `push_activity` tool as an allow-list gate against `program.yaml`'s `team[]` — it IS trusted by MCP at push time, just not by the dashboard's own scan). Because it is gitignored by design, it is not on any default branch and cannot be probed by a GitHub `GET /contents` scan; different job, different location; (b) GitHub App / webhook installation — no such App exists for this project, would require net-new infra; (c) repo topic tag — nothing enforces alignment with actual `.harness/` presence, drifts silently. Verified against repo truth 2026-09-15: `.harness/program.yaml` exists on `main`, committed with `programId: dashboard`, holds `team[]` (roster/gate source) and `files[]` (activity-file paths MCP reads from). The two-file layout referenced as an open carry-forward in RTM Decisions 2026-09-08 has since been completed on disk for this repo. Consequence for scan cost: one `GET /contents` call per repo in the org listing (well within the p95 <= 10s / 200-repo NFR budget).
 
 ## Decision log
 
+- 2026-09-15 (RESOLVED, was NEEDS CLARIFICATION) Harness-installed signal — see Clarifications block above. AC1 updated in place to name `.harness/program.yaml` on default branch, probed via `GET /contents` (200/404). Rejected `.harness/profile.yaml` (LOCAL/gitignored by design, RTM 2026-09-08), GitHub App (no infra), repo topic (no enforcement).
 - 2026-08-26 Auth scope for repo-scan: requires a bearer token with `"*"` wildcard `allowed_program_ids`; a program-scoped-only token is rejected `403` — assumption, `ingest-token-auth` contract defines a program-scope check but the scan operation isn't program-scoped so no program id can satisfy it.
 - 2026-08-26 Missing-config failure code: `500` — assumption, FR-ING-09 says the endpoint "requires GitHub org + token settings" but doesn't name a status code.
 - 2026-08-26 GitHub-API-failure code: `502`, rollup left unchanged — assumption, sourced from the PRD's stated effect ("repo counts go stale until manually corrected or retried") but the PRD doesn't name a status code.

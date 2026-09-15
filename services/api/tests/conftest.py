@@ -42,13 +42,17 @@ count.
 """
 
 import asyncio
+import hashlib
+import logging
 import os
 import re
+import secrets
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -69,6 +73,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import Settings, settings
+from app.models.ingestion import IngestToken
+from app.models.rollup import OrgSummaryRollup
 from app.services.rollup_rebuild import RebuildResult, rebuild_org_rollups, rebuild_program_rollups
 
 API_ROOT = Path(__file__).resolve().parent.parent
@@ -796,6 +802,18 @@ _HERMETIC_SETTINGS_DEFAULTS: dict[str, Any] = {
     # override per-call, exactly as the two `oidc_redirect_uri` tests do.
     "frontend_login_url": None,
     "persona_precedence_order": None,
+    # ING-07 (T-06): same AUTH-05-style hermetic pin discipline documented
+    # above. `Settings.github_org` / `github_token` are optional-at-import
+    # (`None` = unset -> 500 at request time per FR-5); pinning them to None
+    # as constructor kwargs keeps a stray `GITHUB_ORG` / `GITHUB_TOKEN` in
+    # the developer's shell or `services/api/.env` from silently unlocking
+    # the "GitHub configured" branch of every `build_app()` test that did
+    # not explicitly override. Tests that need a configured value override
+    # per-call via `build_app(github_org=..., github_token=...)`, exactly as
+    # the `oidc_redirect_uri` and `frontend_login_url` cases above do; see
+    # the ING-07 `settings_github_configured` fixture family below.
+    "github_org": None,
+    "github_token": None,
 }
 
 
@@ -868,3 +886,614 @@ def async_client_for() -> Callable[..., AbstractAsyncContextManager[httpx.AsyncC
             yield client
 
     return _client_for
+
+
+# =============================================================================
+# ING-07 (T-06, F-12) — Admin repo-scan endpoint test fixtures.
+#
+# Names and shapes mirror `docs/test-cases/ING-07.json`'s `fixtures[]` arrays
+# verbatim (audited before authoring): every fixture referenced by a TC exists
+# here, and every fixture here is referenced by at least one TC (excluding
+# `caplog`, which is a built-in pytest fixture). Consumed by T-07's
+# `tests/unit/test_admin_repo_scan.py` and T-08's
+# `tests/perf/test_admin_repo_scan_perf.py`.
+#
+# Log-capture note (naming vs. implementation): `structlog_capture` below
+# hooks the STDLIB `logging` module, not structlog. `app/services/repo_scan.py`
+# (T-03) emits via `logging.getLogger(__name__).info/.warning` with `extra={}`;
+# there is no structlog anywhere under `services/api/**`. The JSON test-case
+# names were chosen at plan-authoring time for consistency with earlier
+# stories' fixture vocabulary; the T-06 dispatch directive requires matching
+# them exactly and flagging the mismatch (see AF flag emitted by this task).
+#
+# `pytest-patterns/SKILL.md` is a scaffold placeholder ("fill body with team
+# conventions"); the idioms here follow pytest v8 + respx v0.21+ documented
+# patterns plus the existing keycloak_mock/build_access_token precedent above.
+# =============================================================================
+
+
+_ADMIN_SCAN_ORG_ID: str = "org-1"
+_ADMIN_SCAN_TEST_ORG: str = "acme"
+_ADMIN_SCAN_TEST_PAT: str = "ghp_TEST_GITHUB_TOKEN_DO_NOT_LOG"  # noqa: S105 - synthetic test fixture value
+_ADMIN_SCAN_SENTINEL_PAT: str = "ghp_SENTINEL_DO_NOT_LOG_ABC123"  # noqa: S105 - TC-17 sentinel
+_ADMIN_SCAN_GITHUB_LIST_URL: str = (
+    f"https://api.github.com/orgs/{_ADMIN_SCAN_TEST_ORG}/repos"
+)
+_ADMIN_SCAN_GITHUB_LIST_PAGE1: str = f"{_ADMIN_SCAN_GITHUB_LIST_URL}?per_page=100&page=1"
+_ADMIN_SCAN_GITHUB_LIST_PAGE2: str = f"{_ADMIN_SCAN_GITHUB_LIST_URL}?per_page=100&page=2"
+
+
+def _github_probe_url(repo: str, default_branch: str = "main") -> str:
+    """Match the URL shape `app.services.repo_scan._probe_program_yaml` builds."""
+    return (
+        f"https://api.github.com/repos/{_ADMIN_SCAN_TEST_ORG}/{repo}"
+        f"/contents/.harness/program.yaml?ref={default_branch}"
+    )
+
+
+def _list_repos_body(names: tuple[str, ...], default_branch: str = "main") -> list[dict[str, str]]:
+    """Just the two fields `_list_org_repos` reads; the rest of GitHub's payload
+    is deliberately absent so a regression that starts reading additional
+    fields will fail here rather than pass mocked-but-wrong."""
+    return [{"name": name, "default_branch": default_branch} for name in names]
+
+
+# -----------------------------------------------------------------------------
+# (a) Ingest-token fixtures — seed one `ingest_tokens` row per fixture, return
+# the raw bearer + the row. Mirrors the local `_seed_token` helper in
+# `tests/unit/test_ingest_token_auth.py` (that file keeps its own copy per
+# this repo's per-file-ownership precedent; this fixture family is shared
+# because ING-07 needs the same seed shape across T-07's whole test file).
+# `hrn_pat_` prefix + `secrets.token_hex(32)` matches ADR-0006 SS1.
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class SeededIngestToken:
+    """Raw bearer string + the persisted `IngestToken` row it hashes to.
+
+    `bearer` is what tests put on the `Authorization: Bearer …` header;
+    `row` is the ORM instance already committed to `test_session`.
+    """
+
+    bearer: str
+    row: IngestToken
+
+
+async def _seed_ingest_token(
+    session: AsyncSession, *, label: str, allowed_program_ids: list[str]
+) -> SeededIngestToken:
+    raw_bearer = "hrn_pat_" + secrets.token_hex(32)
+    row = IngestToken(
+        token_hash=hashlib.sha256(raw_bearer.encode()).hexdigest(),
+        label=label,
+        user_email="ing-07-fixture@example.com",
+        allowed_program_ids=allowed_program_ids,
+    )
+    session.add(row)
+    await session.commit()
+    return SeededIngestToken(bearer=raw_bearer, row=row)
+
+
+@pytest_asyncio.fixture
+async def ingest_token_wildcard(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> SeededIngestToken:
+    """`allowed_program_ids=['*']` — the wildcard-strict path FR-2 requires."""
+    return await _seed_ingest_token(
+        test_session, label="ing-07-wildcard", allowed_program_ids=["*"]
+    )
+
+
+@pytest_asyncio.fixture
+async def ingest_token_program_scoped(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> SeededIngestToken:
+    """`allowed_program_ids=['dashboard']` — program-scoped, TC-06 asserts 403."""
+    return await _seed_ingest_token(
+        test_session, label="ing-07-program-scoped", allowed_program_ids=["dashboard"]
+    )
+
+
+@pytest_asyncio.fixture
+async def ingest_token_allow_all_empty(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> SeededIngestToken:
+    """`allowed_program_ids=[]` — ADR-0006 allow-all-empty; TC-13 asserts the
+    router's wildcard-strict re-check rejects it with 403 even though
+    `get_ingest_token()`'s shared scope check passes."""
+    return await _seed_ingest_token(
+        test_session, label="ing-07-allow-all-empty", allowed_program_ids=[]
+    )
+
+
+# -----------------------------------------------------------------------------
+# (b) `org_summary_rollup` seed fixtures. Non-owned NOT-NULL columns are set
+# to 0 (matches `repo_scan._upsert_org_rollup`'s own INSERT bootstrap and
+# BED-03's `_build_org_summary`). Owned columns take the fixture's values.
+# -----------------------------------------------------------------------------
+
+
+async def _seed_org_summary_rollup(
+    session: AsyncSession,
+    *,
+    repos_total: int,
+    repos_with_harness_installed: int,
+    as_of_timestamp: datetime,
+) -> OrgSummaryRollup:
+    row = OrgSummaryRollup(
+        org_id=_ADMIN_SCAN_ORG_ID,
+        programs_using_ai_count=0,
+        programs_total=0,
+        total_token_consumption=0,
+        lines_of_code_generated=0,
+        releases_using_harness=0,
+        repos_with_harness_installed=repos_with_harness_installed,
+        repos_total=repos_total,
+        as_of_timestamp=as_of_timestamp,
+        created_at=as_of_timestamp,
+        updated_at=as_of_timestamp,
+    )
+    session.add(row)
+    await session.commit()
+    return row
+
+
+@pytest_asyncio.fixture
+async def org_summary_rollup_seed(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> OrgSummaryRollup:
+    """Sentinel-valued row (99 / 1 / 2000-01-01T00Z). Any TC that ends with
+    "rollup unchanged" asserts against these values bytes-identically."""
+    return await _seed_org_summary_rollup(
+        test_session,
+        repos_total=99,
+        repos_with_harness_installed=1,
+        as_of_timestamp=datetime(2000, 1, 1, 0, 0, 0, tzinfo=UTC),
+    )
+
+
+@pytest_asyncio.fixture
+async def org_summary_rollup_prior_values(
+    migrated_db: AlembicRunner, test_session: AsyncSession
+) -> OrgSummaryRollup:
+    """Realistic prior values (42 / 17 / 2026-08-01T00Z) — TC-11 / TC-15 /
+    TC-20 assert every mutable column individually against these to catch a
+    partial commit that happens to preserve some columns but not others."""
+    return await _seed_org_summary_rollup(
+        test_session,
+        repos_total=42,
+        repos_with_harness_installed=17,
+        as_of_timestamp=datetime(2026, 8, 1, 0, 0, 0, tzinfo=UTC),
+    )
+
+
+# -----------------------------------------------------------------------------
+# (c) Settings-override kwarg dicts. Tests spread these into `build_app(...)`
+# so `Settings.github_org` / `github_token` land as constructor kwargs — the
+# highest-precedence tier, above the hermetic `None` pins in
+# `_HERMETIC_SETTINGS_DEFAULTS`. See that dict's ING-07 comment above.
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def settings_github_configured() -> dict[str, Any]:
+    """Fully-configured GitHub settings — happy-path TCs."""
+    return {"github_org": _ADMIN_SCAN_TEST_ORG, "github_token": _ADMIN_SCAN_TEST_PAT}
+
+
+@pytest.fixture
+def settings_missing_github_token() -> dict[str, Any]:
+    """Empty PAT — FR-5 500 branch (TC-07)."""
+    return {"github_org": _ADMIN_SCAN_TEST_ORG, "github_token": ""}
+
+
+@pytest.fixture
+def settings_missing_github_org() -> dict[str, Any]:
+    """Empty org — FR-5 500 branch (TC-08)."""
+    return {"github_org": "", "github_token": _ADMIN_SCAN_TEST_PAT}
+
+
+@pytest.fixture
+def settings_github_configured_sentinel_pat() -> dict[str, Any]:
+    """PAT is the TC-17 sentinel — the assertion is that this exact string
+    never appears in captured logs, response body, or exception messages."""
+    return {"github_org": _ADMIN_SCAN_TEST_ORG, "github_token": _ADMIN_SCAN_SENTINEL_PAT}
+
+
+# -----------------------------------------------------------------------------
+# (d) respx GitHub route factories. `respx_mock` is the router; each named
+# factory below is a callable fixture that mounts its route(s) on that
+# router and returns the mounted `respx.Route` for `.call_count` assertions.
+#
+# `assert_all_mocked=True`: any outbound call whose URL doesn't match a
+# mounted route raises immediately — the "no GitHub call was made" assertion
+# in TC-04/05/06/07/08/13 relies on this trap firing rather than silently
+# passing a fall-through to the real network.
+# `assert_all_called=False`: TC-15 deliberately mounts a probe route that
+# may or may not be hit depending on iteration order.
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def respx_mock() -> Iterator[respx.MockRouter]:
+    """Standalone respx MockRouter — GitHub-only. Do NOT combine with
+    `keycloak_mock` in the same test; that fixture opens its own router."""
+    with respx.mock(assert_all_called=False, assert_all_mocked=True) as router:
+        yield router
+
+
+def _mount_list_repos_json(
+    router: respx.MockRouter,
+    *,
+    names: tuple[str, ...],
+    name: str,
+) -> respx.Route:
+    """Mount `GET /orgs/{org}/repos?per_page=100&page=1` → 200 with the given repos."""
+    return router.get(_ADMIN_SCAN_GITHUB_LIST_PAGE1, name=name).mock(
+        return_value=httpx.Response(200, json=_list_repos_body(names))
+    )
+
+
+@pytest.fixture
+def github_list_repos_200_mixed(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """Mount the list-repos route with a customizable repo tuple; default is
+    the 3-repo mixed set the classification TCs use (TC-01 / TC-12 / TC-15 /
+    TC-18 / TC-19 / TC-20)."""
+
+    def _mount(names: tuple[str, ...] = ("repo-a", "repo-b", "repo-c")) -> respx.Route:
+        return _mount_list_repos_json(respx_mock, names=names, name="list_repos_mixed")
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_200_all_installed(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """TC-02: every repo will be probed to 200 — same list shape as `_mixed`,
+    named separately so the TC's fixtures[] traces to a distinct helper."""
+
+    def _mount(names: tuple[str, ...] = ("repo-a", "repo-b", "repo-c")) -> respx.Route:
+        return _mount_list_repos_json(respx_mock, names=names, name="list_repos_all_installed")
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_200_none_installed(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """TC-03: every repo will be probed to 404 — same list shape."""
+
+    def _mount(names: tuple[str, ...] = ("repo-a", "repo-b", "repo-c")) -> respx.Route:
+        return _mount_list_repos_json(respx_mock, names=names, name="list_repos_none_installed")
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_500(respx_mock: respx.MockRouter) -> Callable[[], respx.Route]:
+    """TC-09 / TC-11 / TC-15: list-repos returns 503 on every attempt — the
+    retry wrapper exhausts (`max_attempts=4`, one initial + three retries)
+    and `_get_with_retry` raises `GitHubScanError('upstream_5xx')`."""
+
+    def _mount() -> respx.Route:
+        return respx_mock.get(_ADMIN_SCAN_GITHUB_LIST_PAGE1, name="list_repos_500").mock(
+            return_value=httpx.Response(503, json={"message": "service unavailable"})
+        )
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_timeout(respx_mock: respx.MockRouter) -> Callable[[], respx.Route]:
+    """TC-10: every attempt raises `httpx.ReadTimeout` — deterministic, no real
+    sleep. Pair with `no_sleep` if you want the whole test wall-clock under 1 s."""
+
+    def _mount() -> respx.Route:
+        return respx_mock.get(_ADMIN_SCAN_GITHUB_LIST_PAGE1, name="list_repos_timeout").mock(
+            side_effect=httpx.ReadTimeout("timed out")
+        )
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_429_then_200(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """TC-14: attempt 1 → 429 (retryable), attempt 2 → 200 with the given
+    repos. Pair with `no_sleep` so the backoff between the two attempts is
+    a coroutine no-op."""
+
+    def _mount(names: tuple[str, ...] = ("repo-a",)) -> respx.Route:
+        return respx_mock.get(
+            _ADMIN_SCAN_GITHUB_LIST_PAGE1, name="list_repos_429_then_200"
+        ).mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "1"}, json={"message": "slow down"}),
+                httpx.Response(200, json=_list_repos_body(names)),
+            ]
+        )
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_paginated_2pages(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., tuple[respx.Route, respx.Route]]:
+    """TC-16 perf: 200 repos across 2 pages of 100 each. Page 1 carries a
+    `Link: <page-2-url>; rel="next"` header that `_next_page_url` follows
+    (`app/services/repo_scan.py::_next_page_url`); page 2 carries no `Link`
+    so pagination terminates."""
+
+    def _mount(
+        page1: tuple[str, ...] | None = None,
+        page2: tuple[str, ...] | None = None,
+    ) -> tuple[respx.Route, respx.Route]:
+        p1 = page1 if page1 is not None else tuple(f"repo-p1-{i:03d}" for i in range(100))
+        p2 = page2 if page2 is not None else tuple(f"repo-p2-{i:03d}" for i in range(100))
+        route1 = respx_mock.get(
+            _ADMIN_SCAN_GITHUB_LIST_PAGE1, name="list_repos_paginated_page1"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json=_list_repos_body(p1),
+                headers={"Link": f'<{_ADMIN_SCAN_GITHUB_LIST_PAGE2}>; rel="next"'},
+            )
+        )
+        route2 = respx_mock.get(
+            _ADMIN_SCAN_GITHUB_LIST_PAGE2, name="list_repos_paginated_page2"
+        ).mock(return_value=httpx.Response(200, json=_list_repos_body(p2)))
+        return route1, route2
+
+    return _mount
+
+
+@pytest.fixture
+def github_list_repos_500_secret_bearing_body(
+    respx_mock: respx.MockRouter,
+) -> Callable[[], respx.Route]:
+    """TC-17: 503 with a body containing the sentinel PAT — proves
+    `_get_with_retry` does not surface response bodies via `str(exc)` or
+    logs. Pair with `settings_github_configured_sentinel_pat`."""
+
+    def _mount() -> respx.Route:
+        return respx_mock.get(
+            _ADMIN_SCAN_GITHUB_LIST_PAGE1, name="list_repos_500_secret_bearing"
+        ).mock(
+            return_value=httpx.Response(
+                503,
+                text=f"upstream error mentioning {_ADMIN_SCAN_SENTINEL_PAT}",
+            )
+        )
+
+    return _mount
+
+
+@pytest.fixture
+def github_contents_program_yaml_200(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """Probe → 200 for one repo. Call once per repo whose probe should be
+    installed. TC-01 / TC-02 / TC-14 / TC-18."""
+
+    def _mount(repo: str, *, default_branch: str = "main") -> respx.Route:
+        return respx_mock.get(
+            _github_probe_url(repo, default_branch), name=f"probe_200_{repo}"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+    return _mount
+
+
+@pytest.fixture
+def github_contents_program_yaml_404(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """Probe → 404 for one repo (not installed). TC-01 / TC-03 / TC-18."""
+
+    def _mount(repo: str, *, default_branch: str = "main") -> respx.Route:
+        return respx_mock.get(
+            _github_probe_url(repo, default_branch), name=f"probe_404_{repo}"
+        ).mock(return_value=httpx.Response(404, json={"message": "Not Found"}))
+
+    return _mount
+
+
+@pytest.fixture
+def github_contents_program_yaml_500(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """Probe → 503 on every attempt for one repo (retry exhaustion). TC-15."""
+
+    def _mount(repo: str, *, default_branch: str = "main") -> respx.Route:
+        return respx_mock.get(
+            _github_probe_url(repo, default_branch), name=f"probe_500_{repo}"
+        ).mock(return_value=httpx.Response(503, json={"message": "service unavailable"}))
+
+    return _mount
+
+
+@pytest.fixture
+def github_contents_program_yaml_mixed(
+    github_contents_program_yaml_200: Callable[..., respx.Route],
+    github_contents_program_yaml_404: Callable[..., respx.Route],
+) -> Callable[..., dict[str, respx.Route]]:
+    """Mount 200 for `installed` repos and 404 for `not_installed` repos in
+    one call. Returns `{repo: route}` so a test can look up counts per repo.
+    TC-12 / TC-18 / TC-19 / TC-20."""
+
+    def _mount(
+        installed: tuple[str, ...] = ("repo-a",),
+        not_installed: tuple[str, ...] = ("repo-b",),
+        *,
+        default_branch: str = "main",
+    ) -> dict[str, respx.Route]:
+        routes: dict[str, respx.Route] = {}
+        for repo in installed:
+            routes[repo] = github_contents_program_yaml_200(repo, default_branch=default_branch)
+        for repo in not_installed:
+            routes[repo] = github_contents_program_yaml_404(repo, default_branch=default_branch)
+        return routes
+
+    return _mount
+
+
+@pytest.fixture
+def github_contents_program_yaml_200_latency(
+    respx_mock: respx.MockRouter,
+) -> Callable[..., respx.Route]:
+    """TC-16 perf: probe → 200 after `latency_s` of `asyncio.sleep`. Deterministic
+    per-call latency so the p95 measurement is reproducible in CI. Default
+    20 ms matches the PLAN test-data figure. Registers ONE catch-all route
+    matching every probe URL for this org via a URL regex."""
+
+    def _mount(
+        latency_s: float = 0.02, *, default_branch: str = "main"
+    ) -> respx.Route:
+        async def _delayed(request: httpx.Request) -> httpx.Response:
+            await asyncio.sleep(latency_s)
+            return httpx.Response(200, json={})
+
+        pattern = re.compile(
+            r"^https://api\.github\.com/repos/"
+            + re.escape(_ADMIN_SCAN_TEST_ORG)
+            + r"/[^/]+/contents/\.harness/program\.yaml\?ref="
+            + re.escape(default_branch)
+            + r"$"
+        )
+        return respx_mock.get(url__regex=pattern, name="probe_200_latency").mock(
+            side_effect=_delayed
+        )
+
+    return _mount
+
+
+# -----------------------------------------------------------------------------
+# (e) Infrastructure fixtures.
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch `app.core.retry`'s view of `asyncio.sleep` to a coroutine no-op
+    so backoff-retry TCs (TC-14) do not spend real wall-clock on the
+    exponential+jitter delay. Scoped to `app.core.retry`'s module-level
+    `asyncio` name: the global `asyncio.sleep` is untouched, and other
+    async code (respx, httpx, the test's own event loop) still sleeps as
+    normal.
+    """
+    import types
+
+    import app.core.retry as _retry_module
+
+    async def _noop_sleep(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    shim = types.SimpleNamespace(sleep=_noop_sleep)
+    monkeypatch.setattr(_retry_module, "asyncio", shim)
+
+
+class _RepoScanLogHandler(logging.Handler):
+    """Stores emitted `LogRecord`s verbatim so tests can inspect
+    `record.msg` (the event name) and `record.__dict__` (the `extra={}`
+    fields `app.services.repo_scan` attaches — `repos_total`,
+    `github_api_calls`, `error_kind`, etc.)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+@pytest.fixture
+def structlog_capture() -> Iterator[list[logging.LogRecord]]:
+    """Capture every `LogRecord` emitted by `app.services.repo_scan` for the
+    test's duration.
+
+    Naming caveat: the fixture is called `structlog_capture` to match the
+    verbatim reference in `docs/test-cases/ING-07.json`, but the codebase
+    uses stdlib `logging` (no structlog anywhere in `services/api/**`).
+    Records are plain `logging.LogRecord` — inspect `.msg` for the event
+    name and `.__dict__` for the `extra={...}` fields the service attaches.
+
+    Resets `.disabled = False` because `migrations/env.py`'s
+    `fileConfig(disable_existing_loggers=True)` permanently disables every
+    already-existing logger the first time `tests/test_migrations.py` runs
+    in the same pytest session — the ambient `caplog` handler and any root-
+    attached listener are blind to a disabled logger regardless of test
+    order. Same trap `_isolated_ingest_auth_logger` in
+    `tests/unit/test_ingest_token_auth.py` documents.
+
+    `propagate` is preserved (not forced to False) so `caplog` — which
+    attaches at the root — can also observe the same records; TC-17 asserts
+    against BOTH `structlog_capture` and `caplog`.
+    """
+    scan_logger = logging.getLogger("app.services.repo_scan")
+    original_disabled = scan_logger.disabled
+    original_level = scan_logger.level
+    scan_logger.disabled = False
+    scan_logger.setLevel(logging.DEBUG)
+    handler = _RepoScanLogHandler()
+    scan_logger.addHandler(handler)
+    try:
+        yield handler.records
+    finally:
+        scan_logger.removeHandler(handler)
+        scan_logger.disabled = original_disabled
+        scan_logger.setLevel(original_level)
+
+
+@pytest.fixture
+def openapi_schema() -> Callable[[httpx.AsyncClient], Awaitable[dict[str, Any]]]:
+    """`await openapi_schema(client)` → parsed `/openapi.json` dict. TC-12
+    uses this to look up the `ScanReposResponse` component and assert its
+    property set matches the runtime response body."""
+
+    async def _fetch(client: httpx.AsyncClient) -> dict[str, Any]:
+        response = await client.get("/openapi.json")
+        response.raise_for_status()
+        return response.json()  # type: ignore[no-any-return]
+
+    return _fetch
+
+
+@pytest.fixture
+def background_rebuild_task(
+    test_engine: AsyncEngine,
+) -> Callable[[], "asyncio.Task[RebuildResult]"]:
+    """Schedule BED-03's `rebuild_org_rollups(...)` as an `asyncio.Task` on
+    its OWN independently-connected `AsyncSession` bound to `test_engine`
+    (mirroring `four_program_concurrent_sessions` above) — TC-20 uses this
+    to race the rebuild against the scan endpoint on the same
+    `org_summary_rollup` row.
+
+    A single `AsyncSession` cannot be `commit()`ed by two coroutines at once
+    (SQLAlchemy `IllegalStateChangeError`), so the rebuild task must NOT
+    share the endpoint's session. Both writers still hit the same Postgres
+    database, so the caller's post-scan read on its own session observes
+    whichever writer committed last (D-02's accepted last-write-wins race).
+
+    The task owns its session's lifecycle (the `async with` closes it on
+    completion or exception). The caller MUST `await` the returned task
+    after the endpoint POST completes so any exception surfaces at the
+    test boundary rather than being swallowed by the task's
+    `Task exception was never retrieved` warning.
+    """
+
+    session_factory = async_sessionmaker(bind=test_engine, expire_on_commit=False)
+
+    async def _rebuild_on_own_session() -> RebuildResult:
+        async with session_factory() as session:
+            return await rebuild_org_rollups(session)
+
+    def _launch() -> "asyncio.Task[RebuildResult]":
+        return asyncio.create_task(_rebuild_on_own_session())
+
+    return _launch
