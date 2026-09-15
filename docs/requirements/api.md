@@ -276,7 +276,7 @@ shape:
 
 ```yaml
 produced_by: ING-02
-consumed_by: [ING-04, ING-06, ING-09]
+consumed_by: [ING-04, ING-09]  # ING-06 removed 2026-09-15 (WONTFIX, RTM Decisions) -- see RTM Decisions 2026-09-15 for reasoning; historical references above may still name it
 shape:
   endpoint: "POST /api/ingest/files"
   ing03_router_topology: >
