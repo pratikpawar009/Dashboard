@@ -9,8 +9,8 @@
     "tracker_story": "pratikpawar009/Dashboard#11",
     "tracker_research": "pratikpawar009/Dashboard#49",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-08-27T10:40:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T12:55:49Z",
     "tracker_prd": "pratikpawar009/Dashboard#50",
     "gate": "APPROVE",
     "plan": "complete",
@@ -48,7 +48,8 @@
     },
     "validation": "passed",
     "review": "PASS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "BED-02": {
     "story": "validated",
@@ -58,8 +59,8 @@
     "research_verdict": "GO-WITH-CONDITIONS",
     "prd": "complete",
     "design": "n/a",
-    "phase": "review",
-    "last_updated": "2026-08-27T19:35:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T12:59:41Z",
     "tracker_story": "pratikpawar009/Dashboard#12",
     "tracker_research": "pratikpawar009/Dashboard#63",
     "tracker_prd": "pratikpawar009/Dashboard#64",
@@ -68,7 +69,8 @@
     "tracker_plan": "pratikpawar009/Dashboard#82",
     "validation": "passed",
     "review": "PASS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "BED-03": {
     "story": "validated",
@@ -78,8 +80,8 @@
     "prd": "complete",
     "design": "n/a",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-08-27T13:10:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:04:22Z",
     "tracker_story": "pratikpawar009/Dashboard#13",
     "tracker_research": "pratikpawar009/Dashboard#65",
     "tracker_prd": "pratikpawar009/Dashboard#84",
@@ -88,7 +90,8 @@
     "tracker_plan": "pratikpawar009/Dashboard#85",
     "validation": "passed",
     "review": "PASS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "BED-04": {
     "story": "validated",
@@ -96,8 +99,8 @@
     "rtm_source_sha": "b3cd0523ae59",
     "research": "complete",
     "research_verdict": "GO",
-    "phase": "review",
-    "last_updated": "2026-09-03T16:35:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:15:00Z",
     "tracker_story": "pratikpawar009/Dashboard#14",
     "tracker_research": "pratikpawar009/Dashboard#183",
     "prd": "complete",
@@ -108,7 +111,8 @@
     "tracker_plan": "pratikpawar009/Dashboard#185",
     "impl": "complete",
     "validation": "passed",
-    "review": "PASS"
+    "review": "PASS",
+    "security": "PASS"
   },
   "AUTH-01": {
     "story": "validated",
@@ -120,15 +124,16 @@
     "tracker_story": "pratikpawar009/Dashboard#15",
     "tracker_research": "pratikpawar009/Dashboard#87",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-08-28T03:41:21Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T12:32:31Z",
     "tracker_prd": "pratikpawar009/Dashboard#88",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#105",
     "gate": "APPROVE",
     "validation": "passed",
     "review": "PASS WITH WARNINGS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "AUTH-02": {
     "story": "validated",
@@ -183,8 +188,8 @@
     "tracker_story": "pratikpawar009/Dashboard#18",
     "tracker_research": "pratikpawar009/Dashboard#131",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-08-31T14:15:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T12:40:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#132",
     "gate": "APPROVE",
     "plan": "complete",
@@ -192,7 +197,8 @@
     "validation": "passed",
     "review": "PASS",
     "impl": "complete",
-    "pr": 130
+    "pr": 130,
+    "security": "PASS"
   },
   "OVW-01": {
     "story": "validated",
@@ -200,8 +206,8 @@
     "rtm_source_sha": "b3cd0523ae59",
     "research": "complete",
     "research_verdict": "GO-WITH-CONDITIONS",
-    "phase": "review",
-    "last_updated": "2026-09-10T08:01:40Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:35:00Z",
     "tracker_story": "pratikpawar009/Dashboard#19",
     "tracker_research": "pratikpawar009/Dashboard#263",
     "tracker_prd": "pratikpawar009/Dashboard#264",
@@ -213,7 +219,8 @@
     "tracker_plan": "pratikpawar009/Dashboard#273",
     "validation": "passed",
     "review": "PASS",
-    "impl": "branch:feature/OVW-01"
+    "impl": "branch:feature/OVW-01",
+    "security": "PASS"
   },
   "OVW-02": {
     "story": "validated",
@@ -255,15 +262,16 @@
     "tracker_story": "pratikpawar009/Dashboard#23",
     "tracker_research": "pratikpawar009/Dashboard#196",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-09-04T04:49:18Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T00:00:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#197",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#202",
     "impl": "complete",
     "validation": "passed",
-    "review": "PASS"
+    "review": "PASS",
+    "security": "PASS"
   },
   "PGD-02": {
     "story": "validated",
@@ -325,15 +333,16 @@
     "tracker_story": "pratikpawar009/Dashboard#29",
     "tracker_research": "pratikpawar009/Dashboard#187",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-09-03T22:25:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:35:05Z",
     "tracker_prd": "pratikpawar009/Dashboard#188",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#193",
     "impl": "complete",
     "validation": "passed",
-    "review": "PASS WITH WARNINGS"
+    "review": "PASS WITH WARNINGS",
+    "security": "PASS"
   },
   "SHP-02": {
     "story": "validated",
@@ -345,15 +354,16 @@
     "tracker_story": "pratikpawar009/Dashboard#30",
     "tracker_research": "pratikpawar009/Dashboard#213",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-09-08T03:52:10Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:45:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#214",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#233",
     "validation": "passed",
     "review": "PASS WITH WARNINGS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "SHP-03": {
     "story": "validated",
@@ -572,35 +582,35 @@
         "task": "T-17",
         "kind": "risky-pattern",
         "status": "triaged-accept-reviewer",
-        "summary": "F-22 invariant vs commit_boundary_note scope mismatch — footnote sufficient per do-not-rewrite-contract-field-text precedent"
+        "summary": "F-22 invariant vs commit_boundary_note scope mismatch \u2014 footnote sufficient per do-not-rewrite-contract-field-text precedent"
       },
       {
         "id": "AF-02",
         "task": "T-16",
         "kind": "risky-pattern",
         "status": "triaged-accept",
-        "summary": "400 vs 422 envelope-invalid — 400 matches PLAN.md T-05 + api.md"
+        "summary": "400 vs 422 envelope-invalid \u2014 400 matches PLAN.md T-05 + api.md"
       },
       {
         "id": "AF-03",
         "task": "T-04",
         "kind": "plan-drift",
         "status": "triaged-accept-reviewer",
-        "summary": "Dedup inline instead of _dedup_intra_batch helper — accepted as MEDIUM F-2 in review; integration TC-01/02 covers DB side"
+        "summary": "Dedup inline instead of _dedup_intra_batch helper \u2014 accepted as MEDIUM F-2 in review; integration TC-01/02 covers DB side"
       },
       {
         "id": "AF-04",
         "task": "T-18",
         "kind": "doc-drift",
         "status": "triaged-accept-reviewer",
-        "summary": "services/api/README.md ingest-token-dep wording — carry-forward to ingest-docs consolidation"
+        "summary": "services/api/README.md ingest-token-dep wording \u2014 carry-forward to ingest-docs consolidation"
       },
       {
         "id": "AF-05",
         "task": "T-15",
         "kind": "nfr-miss",
         "status": "triaged-accept",
-        "summary": "NFR perf ≤3s not met on local dev (3.67-3.98s) — accepted per D-04 (perf marker); carry-forward to CI provisioning"
+        "summary": "NFR perf \u22643s not met on local dev (3.67-3.98s) \u2014 accepted per D-04 (perf marker); carry-forward to CI provisioning"
       }
     ],
     "pr": {
@@ -628,8 +638,8 @@
     "design": "n/a",
     "plan": "complete",
     "plan_validation": "PASS",
-    "phase": "review",
-    "last_updated": "2026-09-14T16:59:56Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T13:35:00Z",
     "tracker_story": "pratikpawar009/Dashboard#43",
     "tracker_research": "pratikpawar009/Dashboard#303",
     "tracker_prd": "pratikpawar009/Dashboard#304",
@@ -711,7 +721,7 @@
       "TC-03 skipped (agentrise-mcp not on caller PATH in dev; python -m variant TC-02 covers same boot surface; re-runs in CI post pip install -e)",
       "TC-34/35/36 manual (secret-scan audit; automated coverage in test_logging_no_token_leak passed)",
       "TC-45 manual (live MCP client handshake; automatable=false)",
-      "F-6 MEDIUM: sync tool bodies vs PLAN §3 async pin — accept sync (functional + tested) OR record a new DECISIONS entry before an async refactor",
+      "F-6 MEDIUM: sync tool bodies vs PLAN \u00a73 async pin \u2014 accept sync (functional + tested) OR record a new DECISIONS entry before an async refactor",
       "F-10 MEDIUM: FR-5 auth-fail aggregate fields + 403 branch under-asserted in tests (code correct; contract not locked)",
       "F-7 LOW: 3 tracker-header lines in docs/stories/ING-04.md outside PLAN file_plan (harness-orchestrator side edit)",
       "F-8 LOW: docs/activity/activity.jsonl auto-appended by Copilot activity hook (auto-generated, not implementation output)",
@@ -719,7 +729,8 @@
     ],
     "impl": "complete",
     "impl_branch": "feature/ING-04",
-    "pr_url": "https://github.com/pratikpawar009/Dashboard/pull/321"
+    "pr_url": "https://github.com/pratikpawar009/Dashboard/pull/321",
+    "security": "PASS"
   },
   "ING-07": {
     "story": "validated",
@@ -773,15 +784,16 @@
     "rtm_source_sha": "b3cd0523ae59",
     "prd": "complete",
     "design": "n/a",
-    "phase": "review",
-    "last_updated": "2026-09-04T09:51:23Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T00:00:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#206",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#211",
     "validation": "passed",
     "review": "PASS",
-    "impl": "complete"
+    "impl": "complete",
+    "security": "PASS"
   },
   "ING-10": {
     "story": "validated",
@@ -822,15 +834,16 @@
     "tracker_story": "pratikpawar009/Dashboard#237",
     "tracker_research": "pratikpawar009/Dashboard#245",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-09-09T12:10:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T00:00:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#246",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#251",
     "impl": "complete",
     "validation": "passed",
-    "review": "PASS WITH WARNINGS"
+    "review": "PASS WITH WARNINGS",
+    "security": "PASS"
   },
   "BED-05": {
     "story": "validated",
@@ -899,13 +912,14 @@
     "tracker_story": "pratikpawar009/Dashboard#276",
     "tracker_research": "pratikpawar009/Dashboard#285",
     "rtm_source_sha": "b3cd0523ae59",
-    "phase": "review",
-    "last_updated": "2026-09-11T08:00:00Z",
+    "phase": "security-reviewed",
+    "last_updated": "2026-09-15T14:05:00Z",
     "tracker_prd": "pratikpawar009/Dashboard#286",
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#289",
     "validation": "passed",
-    "review": "PASS"
+    "review": "PASS",
+    "security": "PASS"
   }
 }

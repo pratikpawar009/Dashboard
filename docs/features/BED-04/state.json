@@ -20,7 +20,7 @@
   "impl": "complete",
   "validation": "passed",
   "review": "PASS",
-  "security": null,
+  "security": "PASS",
   "tracker_prd": "pratikpawar009/Dashboard#184",
   "tracker_plan": "pratikpawar009/Dashboard#185",
   "tasks": {
@@ -32,8 +32,8 @@
   "data_design": {
     "file": "docs/features/BED-04/DATA-DESIGN.md"
   },
-  "phase": "review",
-  "last_updated": "2026-09-03T16:35:00Z",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-15T13:15:00Z",
   "impl_evidence": {
     "session_ended_at": "2026-09-03T09:26:12Z",
     "rounds": 1,
@@ -124,14 +124,14 @@
     {
       "id": "CF-BED-04-01",
       "severity": "MED",
-      "source": "docs/research/BED-04.md \u00a7 Path Drift Identified",
-      "summary": "Systemic stale `backend/` path drift from the reference implementation: `backend/` appears 90 times in docs/prd/ai-sdlc-adoption-dashboards.md and across 25 story files, while the real tree is services/api/app/. Only BED-02 has been corrected. No gate catches it \u2014 /arh-validate-story BED-04 explicitly ruled it out of scope on 2026-09-03 because the value is cited to the PRD and the provenance rubric catches invented values, not stale-but-cited ones. Durable fix is at the source (the PRD implementation-mapping table) or a path-existence check in the story template; both are outside BED-04's scope. BED-04's own PRD records the corrected path in \u00a7 Constraints."
+      "source": "docs/research/BED-04.md § Path Drift Identified",
+      "summary": "Systemic stale `backend/` path drift from the reference implementation: `backend/` appears 90 times in docs/prd/ai-sdlc-adoption-dashboards.md and across 25 story files, while the real tree is services/api/app/. Only BED-02 has been corrected. No gate catches it — /arh-validate-story BED-04 explicitly ruled it out of scope on 2026-09-03 because the value is cited to the PRD and the provenance rubric catches invented values, not stale-but-cited ones. Durable fix is at the source (the PRD implementation-mapping table) or a path-existence check in the story template; both are outside BED-04's scope. BED-04's own PRD records the corrected path in § Constraints."
     },
     {
       "id": "CF-BED-04-02",
       "severity": "MED",
-      "source": "docs/features/BED-04/REQUIREMENTS.md \u00a7 Constraints (design check, this phase)",
-      "summary": "No mockup binds a freshness value. All six mockups in docs/design/mockups/ were decoded per docs/design/README.md and searched: no lastUpdated / asOf / updatedAt / freshness binding exists in any of them. BED-04's story states the timestamp is rendered on every dashboard view and five stories (OVW-01, ARC-01, DEV-01, PMD-01, EMD-01) depend on the freshness-api contract to do it, but the authoritative design has nowhere to put it. BED-04 is unaffected \u2014 the contract pins a raw datetime, so there is no pre-formatted display form to satisfy \u2014 but the consuming stories cannot render what the mockups do not show. Owner decision needed before those five reach /arh-plan-requirements: add the element to the mockups, or drop the render obligation from their scope."
+      "source": "docs/features/BED-04/REQUIREMENTS.md § Constraints (design check, this phase)",
+      "summary": "No mockup binds a freshness value. All six mockups in docs/design/mockups/ were decoded per docs/design/README.md and searched: no lastUpdated / asOf / updatedAt / freshness binding exists in any of them. BED-04's story states the timestamp is rendered on every dashboard view and five stories (OVW-01, ARC-01, DEV-01, PMD-01, EMD-01) depend on the freshness-api contract to do it, but the authoritative design has nowhere to put it. BED-04 is unaffected — the contract pins a raw datetime, so there is no pre-formatted display form to satisfy — but the consuming stories cannot render what the mockups do not show. Owner decision needed before those five reach /arh-plan-requirements: add the element to the mockups, or drop the render obligation from their scope."
     },
     {
       "id": "CF-BED-04-03",
@@ -187,19 +187,19 @@
       "at": "2026-09-03T00:00:00Z",
       "by": "/arh-plan-requirements",
       "phase_transition": "research -> plan-requirements-approved",
-      "note": "PRD drafted at docs/features/BED-04/REQUIREMENTS.md (12 pinned sections; \u00a7 Addressing Research Conditions omitted \u2014 verdict GO, no conditions; \u00a7 Screen inventory omitted \u2014 backend-only). Test cases at docs/test-cases/BED-04.json, count capped at 3 by user instruction, coverage_audit.uncovered == []. Product Gate APPROVE."
+      "note": "PRD drafted at docs/features/BED-04/REQUIREMENTS.md (12 pinned sections; § Addressing Research Conditions omitted — verdict GO, no conditions; § Screen inventory omitted — backend-only). Test cases at docs/test-cases/BED-04.json, count capped at 3 by user instruction, coverage_audit.uncovered == []. Product Gate APPROVE."
     },
     {
       "at": "2026-09-03T00:00:00Z",
       "by": "/arh-plan-implementation",
       "phase_transition": "plan-requirements-approved -> plan-implementation",
-      "note": "PLAN.md written (5 tasks: T-01..T-03 M, T-04..T-05 S; 5 files, 3 create + 2 modify; 1 module: app/services/freshness.py). DECISIONS.md: 3 entries (D-01..D-03), all blast:feature/rev:mechanical, none promoted to ADR. DATA-DESIGN.md written (read-only accessor over BED-01's system_metadata; no migration). freshness-api contract filled with concrete shape at docs/requirements/api.md#freshness-api (plan-authoring step 10). No config-drift, no new runnable surface/route/env var/service \u2014 docs(readme) task (T-05) included regardless per REQUIREMENTS.md \u00a7 Documentation requirements. plan-validation: PASS, round 1/2, all 6 dimensions green. pending_carry_forward CF-BED-04-01/02 preserved unchanged, untouched by this plan."
+      "note": "PLAN.md written (5 tasks: T-01..T-03 M, T-04..T-05 S; 5 files, 3 create + 2 modify; 1 module: app/services/freshness.py). DECISIONS.md: 3 entries (D-01..D-03), all blast:feature/rev:mechanical, none promoted to ADR. DATA-DESIGN.md written (read-only accessor over BED-01's system_metadata; no migration). freshness-api contract filled with concrete shape at docs/requirements/api.md#freshness-api (plan-authoring step 10). No config-drift, no new runnable surface/route/env var/service — docs(readme) task (T-05) included regardless per REQUIREMENTS.md § Documentation requirements. plan-validation: PASS, round 1/2, all 6 dimensions green. pending_carry_forward CF-BED-04-01/02 preserved unchanged, untouched by this plan."
     },
     {
       "at": "2026-09-03T09:04:45Z",
       "by": "/arh-implement --evidence",
       "phase_transition": "plan-implementation -> plan-implementation (evidence pass)",
-      "note": "T-01..T-05 all done. Six-dimension evidence packet run over services/api (BED-04's full scope): typecheck (mypy, 0 errors/91 files), unit_tests (full suite, 430 passed/0 failed, 38.95s), lint (ruff check, clean), runtime (uvicorn boot + /health 200, clean log), plus all 5 preflight smoke-imports incl. `from app.services import FreshnessAccessor` \u2014 all PASS. One in-scope fix applied: T-05's README.md \u00a7 Freshness accessor code fence had a ruff-format line-length violation, wrapped surgically. VERDICT BLOCKED: 5/6 dimensions FAIL solely on the apps/web half of composite commands (typecheck/unit_tests/lint/runtime/compile), root-caused to one pre-existing, repo-wide pnpm ERR_PNPM_IGNORED_BUILDS gate (unrs-resolver@1.12.2, ADR/config unchanged since initial commit, every prior feature's impl_evidence shows these dimensions PASS) \u2014 confirmed unrelated to BED-04, unfixable in-scope (requires a one-time human `pnpm approve-builds` decision). Escalated per EVIDENCE-ESCALATION.md rather than burning rounds 2-3 on an unchanged root cause. AF-03 (env gate, blocks 5 dims) and AF-04 (design_check N/A, config empty) raised for /arh-human-review triage."
+      "note": "T-01..T-05 all done. Six-dimension evidence packet run over services/api (BED-04's full scope): typecheck (mypy, 0 errors/91 files), unit_tests (full suite, 430 passed/0 failed, 38.95s), lint (ruff check, clean), runtime (uvicorn boot + /health 200, clean log), plus all 5 preflight smoke-imports incl. `from app.services import FreshnessAccessor` — all PASS. One in-scope fix applied: T-05's README.md § Freshness accessor code fence had a ruff-format line-length violation, wrapped surgically. VERDICT BLOCKED: 5/6 dimensions FAIL solely on the apps/web half of composite commands (typecheck/unit_tests/lint/runtime/compile), root-caused to one pre-existing, repo-wide pnpm ERR_PNPM_IGNORED_BUILDS gate (unrs-resolver@1.12.2, ADR/config unchanged since initial commit, every prior feature's impl_evidence shows these dimensions PASS) — confirmed unrelated to BED-04, unfixable in-scope (requires a one-time human `pnpm approve-builds` decision). Escalated per EVIDENCE-ESCALATION.md rather than burning rounds 2-3 on an unchanged root cause. AF-03 (env gate, blocks 5 dims) and AF-04 (design_check N/A, config empty) raised for /arh-human-review triage."
     },
     {
       "at": "2026-09-03T16:15:00Z",
@@ -300,5 +300,15 @@
     "D-04"
   ],
   "pr": "https://github.com/pratikpawar009/Dashboard/pull/186",
-  "tracker_review_comment": "5524587190"
+  "tracker_review_comment": "5524587190",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "tool_missing": [
+      "pip-audit"
+    ]
+  },
+  "security_report": "docs/features/BED-04/SECURITY-2026-09-15.md"
 }
