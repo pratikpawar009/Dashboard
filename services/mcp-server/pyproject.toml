@@ -13,7 +13,13 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
-[project.optional-dependencies]
+# AF-01 (resolved): use PEP 735 `[dependency-groups]` to match services/api's
+# convention. Install with `uv sync` (uv reads this group by default) or
+# `pip install --group dev services/mcp-server`. `pip install -e .[dev]` no
+# longer resolves the dev extras — that spelling was moved to the sibling
+# service's PEP 735 group and this service now matches (see docs/features/
+# ING-04/FLAGS.md § AF-01).
+[dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
@@ -23,6 +29,8 @@ dev = [
     "respx>=0.20",
     # Type stubs for the yaml module (real stubs, not a suppression).
     "types-PyYAML>=6.0",
+    # TC-45 live MCP-client handshake — uses fastmcp.Client which is bundled
+    # with fastmcp itself, so no extra install; listed here for discoverability.
 ]
 
 [project.scripts]
@@ -44,6 +52,12 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Suppress two upstream deprecation warnings emitted by fastmcp's own imports
+# (authlib.jose → joserfc, and authlib.httpx_client → httpx2). Not our code
+# and not actionable here; fastmcp v2.x is the current stable line.
+filterwarnings = [
+    "ignore::authlib.deprecate.AuthlibDeprecationWarning",
+]
 
 [build-system]
 requires = ["hatchling"]
