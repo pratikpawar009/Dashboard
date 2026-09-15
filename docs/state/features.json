@@ -755,7 +755,10 @@
     "gate": "APPROVE",
     "plan": "complete",
     "tracker_plan": "pratikpawar009/Dashboard#347",
-    "review": "PASS WITH WARNINGS"
+    "review": "PASS WITH WARNINGS",
+    "pr": "https://github.com/pratikpawar009/Dashboard/pull/348",
+    "pr_number": 348,
+    "updated_at": "2026-09-15T11:55:10Z"
   },
   "ING-08": {
     "story": "validated",
