@@ -12,10 +12,10 @@
   "tracker_research": "pratikpawar009/Dashboard#303",
   "prd": "complete",
   "design": "n/a",
-  "phase": "review",
+  "phase": "security-reviewed",
   "plan": "complete",
   "plan_validation": "PASS",
-  "last_updated": "2026-09-14T16:59:56Z",
+  "last_updated": "2026-09-15T13:35:00Z",
   "tasks": {
     "file": "docs/features/ING-04/tasks.json"
   },
@@ -40,7 +40,7 @@
       "summary": "Story AC-2 reads '.harness/profile.yaml', but ING-10 moves activity/artifact sources to '.harness/program.yaml' (committed)",
       "mitigation": "Story logic should accept BOTH layouts gracefully (check program.yaml first, fall back to profile.yaml for local dev), OR explicitly gate on ING-10's completion.",
       "resolved_at": "2026-09-14T05:27:24Z",
-      "resolution": "Filesystem reality settles this: profile.yaml is IDENTITY ONLY (email/name/role, gitignored, per-machine) \u2014 no files[], no artifacts{}. Committed program.yaml holds the canonical files[] (line 84) and artifacts{} (line 110). Tool reads program.yaml for both push_activity and push_artifacts. Story text is pre-ING-10 stale \u2014 correct in PLAN: replace every '.harness/profile.yaml' reference in ACs with '.harness/program.yaml'. Optional: read profile.yaml for identity attribution logging only (email/name), NOT for source paths.",
+      "resolution": "Filesystem reality settles this: profile.yaml is IDENTITY ONLY (email/name/role, gitignored, per-machine) — no files[], no artifacts{}. Committed program.yaml holds the canonical files[] (line 84) and artifacts{} (line 110). Tool reads program.yaml for both push_activity and push_artifacts. Story text is pre-ING-10 stale — correct in PLAN: replace every '.harness/profile.yaml' reference in ACs with '.harness/program.yaml'. Optional: read profile.yaml for identity attribution logging only (email/name), NOT for source paths.",
       "status": "resolved"
     },
     {
@@ -72,7 +72,7 @@
       "impact": "Low if a reference implementation exists to copy; HIGH if team must build FastMCP integration from scratch.",
       "resolution_path": "Provide link to reference GitHub repository or PyPI package name in story's PLAN phase.",
       "resolved_at": "2026-09-14T05:27:24Z",
-      "resolution": "Use the standalone FastMCP Python package (https://pypi.org/project/fastmcp/ \u2014 jlowin/fastmcp, v2.x). NOT fastapi-mcp (a FastAPI plugin) and NOT the low-level anthropic mcp SDK. FastMCP provides @server.tool() decorator + streamable HTTP transport out of the box, matching AC-1."
+      "resolution": "Use the standalone FastMCP Python package (https://pypi.org/project/fastmcp/ — jlowin/fastmcp, v2.x). NOT fastapi-mcp (a FastAPI plugin) and NOT the low-level anthropic mcp SDK. FastMCP provides @server.tool() decorator + streamable HTTP transport out of the box, matching AC-1."
     }
   ],
   "tracker_prd": "pratikpawar009/Dashboard#304",
@@ -154,7 +154,7 @@
     "TC-03 skipped (agentrise-mcp not on caller PATH in dev; python -m variant TC-02 covers same boot surface; re-runs in CI post pip install -e)",
     "TC-34/35/36 manual (secret-scan audit; automated coverage in test_logging_no_token_leak passed)",
     "TC-45 manual (live MCP client handshake; automatable=false)",
-    "F-6 MEDIUM: sync tool bodies vs PLAN \u00a73 async pin \u2014 accept sync (functional + tested) OR record a new DECISIONS entry before an async refactor",
+    "F-6 MEDIUM: sync tool bodies vs PLAN §3 async pin — accept sync (functional + tested) OR record a new DECISIONS entry before an async refactor",
     "F-10 MEDIUM: FR-5 auth-fail aggregate fields + 403 branch under-asserted in tests (code correct; contract not locked)",
     "F-7 LOW: 3 tracker-header lines in docs/stories/ING-04.md outside PLAN file_plan (harness-orchestrator side edit)",
     "F-8 LOW: docs/activity/activity.jsonl auto-appended by Copilot activity hook (auto-generated, not implementation output)",
@@ -162,5 +162,14 @@
   ],
   "impl": "complete",
   "impl_branch": "feature/ING-04",
-  "pr_url": "https://github.com/pratikpawar009/Dashboard/pull/321"
+  "pr_url": "https://github.com/pratikpawar009/Dashboard/pull/321",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 4,
+    "low": 5,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/ING-04/SECURITY-2026-09-15.md"
 }

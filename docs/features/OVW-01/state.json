@@ -13,8 +13,8 @@
   "design_artifact": "docs/features/OVW-01/DESIGN.md",
   "design_provider": "html-mockup",
   "design_iteration": 0,
-  "phase": "review",
-  "last_updated": "2026-09-10T08:01:40Z",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-15T13:35:00Z",
   "tracker_prd": "pratikpawar009/Dashboard#264",
   "gate": "APPROVE",
   "plan": "complete",
@@ -43,7 +43,7 @@
     {
       "item_id": "AF-02-carry",
       "kind": "finding",
-      "reason": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected — it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
+      "reason": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected \u2014 it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-10T07:23:14Z",
       "added_by": "human-review/02-apply",
@@ -73,7 +73,7 @@
     {
       "item_id": "F-1-data-design-card5",
       "kind": "finding",
-      "reason": "Code review F-1 (MEDIUM): DATA-DESIGN.md still described card 5 as a ratio over repos_total and card 1 as a format_number() count — the pre-correction design, and the FOURTH artefact in the D-02 propagation chain the sweep missed. FIXED 2026-09-10 in the same session; recorded because the miss is instructive: AF-03's own lesson was that a post-approval correction needs a propagation sweep, and a sweep still left one behind. Resolved, not outstanding.",
+      "reason": "Code review F-1 (MEDIUM): DATA-DESIGN.md still described card 5 as a ratio over repos_total and card 1 as a format_number() count \u2014 the pre-correction design, and the FOURTH artefact in the D-02 propagation chain the sweep missed. FIXED 2026-09-10 in the same session; recorded because the miss is instructive: AF-03's own lesson was that a post-approval correction needs a propagation sweep, and a sweep still left one behind. Resolved, not outstanding.",
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-10T08:01:40Z",
       "added_by": "arh-implement/02-validate join",
@@ -83,7 +83,7 @@
     {
       "item_id": "tc05-outcome-field-wording",
       "kind": "finding",
-      "reason": "Validation finding: OVW-01-TC-05's expected_log_fields named `authorized` (bool) where the shipped field is `outcome: \"authorized\"|\"denied\"` (string enum, the pre-existing AUTH-03 rbac-checks convention). Manifest prose only — the T-06 test asserts the correct field and the requirement was always satisfied. FIXED 2026-09-10. Likely to recur in ARC-01/DEV-01/PMD-01/EMD-01, which consume the same org_access contract.",
+      "reason": "Validation finding: OVW-01-TC-05's expected_log_fields named `authorized` (bool) where the shipped field is `outcome: \"authorized\"|\"denied\"` (string enum, the pre-existing AUTH-03 rbac-checks convention). Manifest prose only \u2014 the T-06 test asserts the correct field and the requirement was always satisfied. FIXED 2026-09-10. Likely to recur in ARC-01/DEV-01/PMD-01/EMD-01, which consume the same org_access contract.",
       "owner": "pawar.pratik0903@gmail.com",
       "added_at": "2026-09-10T08:01:40Z",
       "added_by": "arh-implement/02-validate join",
@@ -129,7 +129,7 @@
             "stack": "nextjs",
             "status": "PASS",
             "log": "evidence/runtime-nextjs.log",
-            "detail": "pnpm dev on canonical port 3000; boot-log scan 0 matches. THE 404 IS FIXED: /overview compiled in 276ms and returned 307 -> /login (the expected auth bounce for a request with no dashboard_session cookie). Before this story /overview did not exist and the app root's redirect dead-ended on a 404 — verified during BED-05's own evidence pass. No /health route on this stack, so the root and the new route were smoked instead."
+            "detail": "pnpm dev on canonical port 3000; boot-log scan 0 matches. THE 404 IS FIXED: /overview compiled in 276ms and returned 307 -> /login (the expected auth bounce for a request with no dashboard_session cookie). Before this story /overview did not exist and the app root's redirect dead-ended on a 404 \u2014 verified during BED-05's own evidence pass. No /health route on this stack, so the root and the new route were smoked instead."
           }
         ]
       },
@@ -143,7 +143,7 @@
         "status": "N/A",
         "flag_id": "AF-07",
         "log": null,
-        "detail": "design_check is empty in docs/config/project-commands.yaml — no a11y/console-scan/perf tool has been chosen or wired. Unlike BED-05 this story DOES ship UI, so this N/A is a real coverage gap rather than doubly-inapplicable."
+        "detail": "design_check is empty in docs/config/project-commands.yaml \u2014 no a11y/console-scan/perf tool has been chosen or wired. Unlike BED-05 this story DOES ship UI, so this N/A is a real coverage gap rather than doubly-inapplicable."
       }
     }
   },
@@ -173,7 +173,7 @@
       "decision": "defer",
       "decided_by": "pawar.pratik0903@gmail.com",
       "decided_at": "2026-09-10T07:23:14Z",
-      "rationale": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected — it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
+      "rationale": "Real but the fix is project-wide, not this story's: a slow/perf pytest marker so perf tests opt out of parallel runs. Linked to BED-05's AF-07-carry, the same underlying missing convention. Widening the budget was explicitly rejected \u2014 it would erode the growth-curve guard that catches a genuine reversion to row materialisation. Working rule meanwhile: a perf failure during a parallel round is unproven until re-run in isolation.",
       "carry_forward_ref": "AF-02-carry"
     },
     {
@@ -205,7 +205,7 @@
     {
       "flag_id": "AF-05",
       "kind": "inconsistency",
-      "summary_source": "docs/features/OVW-01/DESIGN.md § Region 1",
+      "summary_source": "docs/features/OVW-01/DESIGN.md \u00a7 Region 1",
       "task_id": "T-10",
       "raised_at": "2026-09-10",
       "raised_by": "implementation-agent",
@@ -213,7 +213,7 @@
       "decision": "accept",
       "decided_by": "pawar.pratik0903@gmail.com",
       "decided_at": "2026-09-10T07:23:14Z",
-      "rationale": "The hand-authored spec omitted an element the mockup renders. Cheap to correct, and leaving it would let the next reader trust an incomplete spec — the precise failure DESIGN.md's own header warns about."
+      "rationale": "The hand-authored spec omitted an element the mockup renders. Cheap to correct, and leaving it would let the next reader trust an incomplete spec \u2014 the precise failure DESIGN.md's own header warns about."
     },
     {
       "flag_id": "AF-06",
@@ -254,5 +254,14 @@
     "high": 0,
     "medium": 1,
     "low": 0
-  }
+  },
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "tool_missing": []
+  },
+  "security_report": "docs/features/OVW-01/SECURITY-2026-09-15.md"
 }
