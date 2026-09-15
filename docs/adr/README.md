@@ -16,3 +16,4 @@
 | [ADR-0012](0012-ingest-org-rollup-out-of-band.md) | `rebuild_org_rollups()` runs out-of-band from the ingest request path via FastAPI `BackgroundTasks` | Accepted |
 | [ADR-0013](0013-generic-ingest-kind-router.md) | `POST /api/ingest/{kind}` is a single generic router; the old `POST /api/ingest/files` URL is retired | Accepted |
 | [ADR-0014](0014-mcp-server-topology.md) | MCP server deployment topology — `services/mcp-server/` is a separately-deployed sibling service | Accepted |
+| [ADR-0015](0015-program-id-sourcing-precedence.md) | Activity-hook `program_id` sourcing precedence — env → `.harness/program.yaml → program_id` (legacy `programId`) → skip | Accepted |

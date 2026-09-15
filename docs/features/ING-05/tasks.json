@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "story_id": "ING-05",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-15T04:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": ".github/hooks/copilot-activity.mjs",
+      "reason": "ING-05-FR-1 / FR-2 / FR-3 / FR-4 / D-01 / D-03 / ADR-0015. Deltas from the shipped draft: (a) declare a module-level `const JOURNAL_CODEC_VERSION = \"1\";` immediately below the file header, and update the header comment to pin `JOURNAL_CODEC_VERSION` verbatim + document the observed Copilot Chat journal schema shape 'as of 2026-09-15' (kind 0 snapshot, kind 1 set, kind 2 push; nested `requests[]`; `modelId`, `promptTokens`, `completionTokens`, `copilotCredits'); (b) inside the kind-dispatch loop (currently at lines ~163-176), keep the `{0,1,2}` branches unchanged and add an explicit else-branch that skips the record and writes exactly one `{event:'journal_codec_unknown_kind', kind:<value>, codec_version:'1', ts:<iso>}` line to `docs/activity/.mcp-push.log` per session-end (via a `logOnce(event, extra)` helper that dedupes by `event+kind` within this process). Never abort the batch; row emission for surrounding valid kinds proceeds. (c) Add a `resolveProgramId(projectDir)` helper that returns `process.env.HARNESS_PROGRAM_ID.trim()` when non-empty, else parses `<projectDir>/.harness/program.yaml` and reads `program_id` (fallback legacy key `programId`), else returns `null`. Import a minimal YAML parser: use `readFileSync + a hand-rolled top-level key-value scan` matching what `services/mcp-server/src/agentrise_mcp/core/profile.py` reads (top-level scalar `key: value`), so no new npm dependency is introduced. When `resolveProgramId` returns `null`: write `{event:'program_id_unresolved', ts:<iso>}` to `.mcp-push.log`, SKIP the NDJSON append entirely for this session-end, and exit 0 without spawning the push child. (d) Set `record.program_id = <resolved>` on the row object literal at § 13 immediately after `record.source = 'copilot'` and BEFORE the NDJSON write. (e) Replace the feature regex at § 6 `String(commandEvent?.data?.content || '').match(/([A-Z]{2,}-\\d+)/)` with the exact bare-token positional regex `^/\\S+\\s+([A-Z]{2,4}-\\d+)\\b` per FR-4; anything else (including `--feature <id>`) yields `feature = null`. (f) Leave `cache_read: 0` and `cache_write: 0` as literal 0 (FR-3, already correct in the shipped draft) — do NOT change to null. (g) Route the existing MCP-push spawn's log writes through the same `logOnce` / structured writer used by (b) and (c) so `.mcp-push.log` line shape is uniform JSON — replace the two current freeform `${stamp} SPAWN ${mcpPush}\\n` / `${stamp} NO_SCRIPT_FOUND ...` appendFileSync calls with `{event:'spawn'|'no_script_found', ts:..., ...}` JSON lines matching the DATA-DESIGN.md § 1 log-line allowlist (NEVER include `program_id`, `user`, journal contents). No new imports beyond what the existing `import ... from 'node:fs'` block covers."
+    },
+    "F-02": {
+      "action": "modify",
+      "path": ".github/hooks/harness-mcp-push.mjs",
+      "reason": "ING-05-FR-5 / D-02 / NFR-performance / NFR-security / NFR-observability. Deltas from the shipped draft: (a) change `const TIMEOUT_MS = 15_000;` at line 22 to `const TIMEOUT_MS = 10_000;` (D-02). (b) update the header comment to note the `TIMEOUT_MS = 10_000` decision (single attempt, no retry, fire-and-forget contract per AC-2) and reference PRD ING-05-FR-5. (c) enforce IPv4 loopback: after resolving `MCP_URL`, parse its host via `new URL(MCP_URL).hostname`; if the host is not `127.0.0.1` and not `::1`, write `{event:'mcp_url_non_loopback', ts:<iso>, mcp_url_host:<host>}` and `process.exit(0)` BEFORE any fetch attempt (NFR-Security). (d) add a `writeLog(event, extra)` helper that (i) JSON-stringifies `{event, ts:new Date().toISOString(), ...extra}` filtered to the allowlist `{event, ts, http_status, error_code, duration_ms, mcp_url_host}` — any other key is silently dropped (allowlist diff, not denylist), (ii) reads `.mcp-push.log` size + line count and truncate-and-rewrites when either hard cap (100 lines / 32 KB) would be exceeded, keeping the tail (D-04 from ING-05-NFR-observability). Bytes measured via `Buffer.byteLength(joined,'utf8')`. (e) replace the two current freeform `console.log(JSON.stringify({ok:...}))` calls at the end of `main()` and in the `.catch` with `writeLog('success', {duration_ms})` / `writeLog('http_error'|'network_error'|'timeout', {http_status?, error_code?, duration_ms})` and always `process.exit(0)` — the `process.exit(1)` in the current catch is a contract violation of AC-5 (parent hook must never see non-zero exit) and MUST be removed. (f) classify failure modes inside the catch: `AbortError` → `timeout`; `TypeError` or `ECONNREFUSED`/`ENOTFOUND` error → `network_error`; a rejected `!res.ok` throw carrying an HTTP status → `http_error`. (g) capture `duration_ms` via `performance.now()` bookends around each RPC call and record the LAST failing call's duration. (h) NEVER include `program_id`, `user`, `command`, `Authorization`, bearer token substring, or backend response body in any log line (NFR-Security field allowlist). Structural: no new imports beyond `node:perf_hooks` (for `performance.now()`) and `node:fs` (already imported effectively via the fetch/AbortController path — add the `readFileSync`/`writeFileSync`/`appendFileSync`/`statSync` imports needed for the rotator)."
+    },
+    "F-03": {
+      "action": "create",
+      "path": ".github/hooks/__tests__/copilot-activity.test.mjs",
+      "reason": "ING-05-TC-01 (tracker #324) + inline coverage of FR-2 / FR-3 / FR-4 per D-04 (uncovered ids exercised as fixture assertions). Uses Node's built-in `node:test` runner (per PRD § Scope 'Node built-in node:test') — no new npm dependency. Test blocks: (a) `test('program_id env wins')` — set `process.env.HARNESS_PROGRAM_ID = 'prog_env_ING05'`, run the row builder against F-05 (chat-session) + F-06 (transcript) + F-07 (program.yaml), assert every appended row in the tmp activity.jsonl has `program_id === 'prog_env_ING05'`. (b) `test('program_id yaml fallback with program_id key')` — delete env var, run against F-07 (program_id: prog_yaml_ING05), assert row.program_id === 'prog_yaml_ING05'. (c) `test('program_id yaml fallback with legacy programId key')` — delete env var, use a variant of F-07 with `programId: prog_yaml_legacy_ING05`, assert row.program_id === 'prog_yaml_legacy_ING05'. (d) `test('program_id unresolved skips write')` — delete env var, remove program.yaml, assert activity.jsonl gains zero rows and .mcp-push.log gains exactly one JSON line with `event==='program_id_unresolved'` (TC-01 case C, closes the ING-04 141× regression class). (e) `test('unknown journal kind skipped, logged once, batch not aborted')` — feed a fixture with kinds [0, 99, 1, 2, 99]; assert exactly ONE row emitted for the surrounding valid kinds AND exactly one `journal_codec_unknown_kind` log line (dedup within the session-end even though `99` appears twice) (FR-2 acceptance surface). (f) `test('cache_read and cache_write are literal 0 on Copilot rows')` — assert `row.cache_read === 0 && row.cache_write === 0` and neither is null/undefined (FR-3). (g) `test('feature parsed as bare-token positional only', parametrised)` — table `[['/plan BED-01', 'BED-01'], ['/plan --feature BED-01', null], ['/plan', null], ['/plan BED-01 extra', 'BED-01'], ['/plan feature=BED-01', null], ['/plan -f BED-01', null]]`, assert emitted `row.feature` matches expected for each (FR-4). (h) `test('detached spawn is fire-and-forget')` — stub the spawn boundary (`await import('node:child_process')` monkey-patch, or use `--experimental-vm-modules` mock), invoke the parent entrypoint end-to-end, assert `spawn` was called with `options.detached === true`, `options.stdio` ignoring stdin, `child.unref()` was invoked, and the parent's returned promise settled without awaiting the (fake) child (TC-02 non-blocking spawn assertion). Tests write to a `tmp_path` per test via `mkdtempSync(os.tmpdir()+'/ing-05-')`, set `projectDir` via `process.env.workspaceFolder`, and restore env/FS state in `after` hooks. Fixtures loaded from F-05 / F-06 / F-07 via relative path. Runs via `node --test .github/hooks/__tests__/` — no runner install, no config file."
+    },
+    "F-04": {
+      "action": "create",
+      "path": ".github/hooks/__tests__/harness-mcp-push.test.mjs",
+      "reason": "ING-05-TC-02 (tracker #325) + ING-05-TC-03 (tracker #326) + inline coverage of AC-3 (RPC sequence order) + AC-4 (default URL constant) + NFR-security (log-field allowlist). Uses Node's built-in `node:test` runner. Test blocks: (a) `test('default HARNESS_MCP_URL is IPv4 loopback', {only:false})` — assert MCP_URL default resolves to `http://127.0.0.1:3010/mcp` verbatim when env is unset (AC-4). (b) `test('RPC sequence order: initialize → notifications/initialized → tools/call → DELETE')` — stub global fetch to record method + body, assert the four calls arrive in that exact order (AC-3). (c) `test('AbortController aborts by TIMEOUT_MS on a stalled server')` — stub fetch to return a Promise that never resolves; import the entrypoint; start a monotonic `performance.now()` timer; await process exit; assert wall-clock ≤ 10500 ms (TIMEOUT_MS + 500 ms tolerance, TC-02 test_data). (d) `test('single-attempt: fetch called exactly once on timeout')` — same stall stub; assert `fetch` was called exactly once (no second initialize attempt, no retry loop) (FR-5). (e) `test('timeout writes exactly one log line and exits 0')` — same stall stub; after exit, read the tmp .mcp-push.log; assert exactly one JSON line with `event==='timeout'` and `duration_ms ≈ 10000`; assert stubbed `process.exit` was called with code 0 (TC-03 timeout sub-case). (f) `test('network_error writes one line and exits 0')` — stub fetch to reject with an `Error` whose `.code === 'ECONNREFUSED'`; assert exactly one line with `event==='network_error'` and `error_code==='ECONNREFUSED'`; assert `process.exit(0)` (TC-03 network sub-case). (g) `test('http_error writes one line and exits 0')` — stub fetch to resolve with `{ok:false, status:503, text:async()=>''}`; assert exactly one line with `event==='http_error'` and `http_status===503`; assert `process.exit(0)` (TC-03 http sub-case). (h) `test('log field allowlist: no PII or credentials leak')` — across all three failure sub-cases (e/f/g), parse the emitted log lines, assert `Object.keys(line)` ⊆ `{event, ts, http_status, error_code, duration_ms, mcp_url_host}`, assert no line contains substrings matching `bearer_token`, `Authorization`, `user_email`, `command_text`, `program_id`, `journal_contents`, or the sentinel token value `sk-test-DO-NOT-LEAK` if set in env (NFR-Security). (i) `test('non-loopback HARNESS_MCP_URL is refused')` — set `HARNESS_MCP_URL=http://example.com/mcp`, invoke the entrypoint; assert exactly one log line with `event==='mcp_url_non_loopback'`, `mcp_url_host==='example.com'`, no fetch call, `process.exit(0)` (NFR-Security). Log-file cap tests (100 lines / 32 KB rotator) covered inline as sub-tests in (e): pre-fill the log with 100 lines, invoke the entrypoint, assert final `wc -l .mcp-push.log <= 100` AND `Buffer.byteLength(readFileSync(logPath)) <= 32768` (NFR-observability). Runs via `node --test .github/hooks/__tests__/`."
+    },
+    "F-05": {
+      "action": "create",
+      "path": ".github/hooks/__tests__/fixtures/chat-session.jsonl",
+      "reason": "Layer-1 Copilot Chat journal fixture (chatSessions/<uuid>.jsonl equivalent) covering the three known kinds plus one unknown kind. Lines: (1) `{\"kind\":0,\"v\":{\"requests\":[{\"timestamp\":<ms>,\"modelId\":\"gpt-4o\",\"promptTokens\":120,\"completionTokens\":45,\"copilotCredits\":0.15}]}}` snapshot; (2) `{\"kind\":1,\"k\":[\"requests\",0,\"promptTokens\"],\"v\":150}` set (updates the tokens); (3) `{\"kind\":2,\"k\":[\"requests\"],\"v\":[{\"timestamp\":<ms+1000>,\"modelId\":\"gpt-4o\",\"promptTokens\":80,\"completionTokens\":30,\"copilotCredits\":0.10}]}` push (appends a second request); (4) `{\"kind\":99,\"k\":[\"unknownFuturePath\"],\"v\":\"whatever\"}` — the unknown-kind trigger for FR-2's skip-and-log-once assertion. Timestamps are relative ms epochs consistent with the transcript fixture's `commandEvent.timestamp` so the tokens attribute to the current command per the § 11 aggregation logic. Consumed by F-03 tests (a)/(b)/(c)/(e)/(f)."
+    },
+    "F-06": {
+      "action": "create",
+      "path": ".github/hooks/__tests__/fixtures/transcript.jsonl",
+      "reason": "Layer-2 Copilot Chat transcript fixture (GitHub.copilot-chat/transcripts/<uuid>.jsonl equivalent). Lines: (1) `{\"type\":\"session.start\",\"timestamp\":\"2026-09-15T10:00:00.000Z\"}`; (2) `{\"type\":\"user.message\",\"timestamp\":\"2026-09-15T10:00:01.000Z\",\"data\":{\"content\":\"/plan BED-01\"}}` — the anchor command for FR-4 bare-token positional parse (assert `feature === 'BED-01'`); (3) `{\"type\":\"tool.execution_start\",\"timestamp\":\"2026-09-15T10:00:02.000Z\",\"data\":{\"toolCallId\":\"tc1\",\"toolName\":\"create_file\",\"arguments\":\"{\\\"filePath\\\":\\\"src/x.ts\\\",\\\"content\\\":\\\"line1\\\\nline2\\\\n\\\"}\"}}` — files_created + lines_added contributor; (4) `{\"type\":\"tool.execution_complete\",\"timestamp\":\"2026-09-15T10:00:03.000Z\",\"data\":{\"toolCallId\":\"tc1\",\"success\":true}}`; (5) `{\"type\":\"assistant.message\",\"timestamp\":\"2026-09-15T10:00:04.000Z\",\"data\":{\"content\":\"Done.\"}}`. Session-end reads the LATEST user.message per § 6; `commandTs` = 10:00:01Z; duration = 3 s. The feature-parse parametrised test (F-03 test g) uses in-test overrides of `commandEvent.data.content` — this fixture only needs the canonical `/plan BED-01` case. Consumed by F-03 tests (a)/(b)/(c)/(f)/(h)."
+    },
+    "F-07": {
+      "action": "create",
+      "path": ".github/hooks/__tests__/fixtures/program.yaml",
+      "reason": "Test fixture for the `.harness/program.yaml` read path (D-03 / ADR-0015 step 2). Content: minimal YAML `program_id: prog_yaml_ING05\\n` (top-level scalar). Consumed by F-03 test (b). The `programId` legacy-key variant is materialised inline in F-03 test (c) via `writeFileSync(tmpPath+'/.harness/program.yaml', 'programId: prog_yaml_legacy_ING05\\n')` — no separate fixture file needed. Kept as a physical fixture rather than an inline string so a reader can diff the fixture against `services/mcp-server/`'s own `.harness/program.yaml` shape and confirm structural parity with the ING-04 producer."
+    },
+    "F-08": {
+      "action": "create",
+      "path": "docs/how-to/copilot-chat-setup.md",
+      "reason": "PRD § Documentation requirements → Examples / how-to. New file. Sections (structure fixed by PRD): (1) `## Prerequisites` — VS Code + Copilot Chat extension installed; `services/mcp-server/` running locally with `AGENTRISE_INGEST_TOKEN` set (link to `services/mcp-server/README.md`); `.harness/program.yaml` present with `program_id`. (2) `## Wire the hook` — Copilot Chat `sessionEnd` → `.github/hooks/copilot-activity.mjs`; example VS Code settings.json snippet showing hook invocation. (3) `## Environment variables` — table of `HARNESS_MCP_URL` (default `http://127.0.0.1:3010/mcp`, IPv4 loopback per AC-4, non-loopback refused with `mcp_url_non_loopback` log per NFR-Security) and `HARNESS_PROGRAM_ID` (env wins over `.harness/program.yaml → program_id`, legacy `programId` accepted on read only, unresolved skips write per ADR-0015). (4) `## Verify` — 5-step walkthrough: (a) trigger one Copilot Chat command; (b) `tail docs/activity/activity.jsonl` (row appended? has `program_id`, has `source: \"copilot\"`?); (c) `tail docs/activity/.mcp-push.log` (one JSON line with `event: \"success\"`?); (d) query the dashboard's Activity panel for the just-emitted `session_id` — visible? (e) if not, jump to § Troubleshooting. (5) `## Troubleshooting` — reading `.mcp-push.log`; the six canonical failure events (`timeout`, `http_error`, `network_error`, `program_id_unresolved`, `journal_codec_unknown_kind`, `mcp_url_non_loopback`) each with cause + fix; the multi-workspace / multi-VS-Code-instance limitation (longest-path-match heuristic, R-07 in research); the Codespaces limitation (unsupported, R-08 / research risk register). (6) `## Manual E2E walkthrough (closes research condition C-7 + AC-5 Manual)` — closes the manual E2E called out in `docs/stories/ING-05.md` § Test mapping AND the 7 uncovered TC ids per D-04. Steps: start MCP server locally, set env vars, open VS Code, run one Copilot Chat command with a `/plan BED-01`-style slash-command, `sessionEnd` fires, verify (a) `activity.jsonl` has one new row with populated `program_id` and `source: \"copilot\"` and `feature: \"BED-01\"`, (b) `.mcp-push.log` records one `event: \"success\"` line, (c) backend `usage_events` shows the row (via dashboard query or direct SQL), (d) run 20 sequential session ends and record p95 hook return time < 2 s (NFR-Performance manual budget). No API-doc, no OpenAPI update — this feature consumes only frozen contracts."
+    },
+    "F-09": {
+      "action": "create",
+      "path": "docs/adr/0015-program-id-sourcing-precedence.md",
+      "reason": "D-03 promotion to full ADR per `decide` skill promotion rule (blast:data). Content: Status / Date / Deciders / Context / Decision / Consequences per `adr-template`. Context section names the ING-04 live-E2E 141× `missing_required_field` regression as the concrete pain, enumerates the two independent local sources (`HARNESS_PROGRAM_ID` env, `.harness/program.yaml`), and lists the three considered policies (env-first / yaml-first / placeholder default). Decision section pins the four-step precedence (env → program_id → programId → skip) verbatim and calls out that every future producer of `activity.jsonl` rows MUST honour the same order to keep the ingest tier's envelope↔row check consistent. Consequences lists eliminate-141x-regression + skip-on-unresolved-preserves-fire-and-forget (positive), invisible-until-configured + legacy-programId-shim-is-permanent (negative), and reversible-mechanically (two-line edit + fixture rewrite for TC-01)."
+    },
+    "F-10": {
+      "action": "modify",
+      "path": "docs/adr/README.md",
+      "reason": "Append one row to the ADR index table for ADR-0015 per `adr-template` § Index pattern. Row: `| [ADR-0015](0015-program-id-sourcing-precedence.md) | Activity-hook program_id sourcing precedence — env → .harness/program.yaml → program_id (legacy programId) → skip | Accepted |`. Placed immediately after the ADR-0014 row (chronological append). No other rows modified."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Modify copilot-activity.mjs — JOURNAL_CODEC_VERSION pin, program_id row-level write, feature regex, structured logs",
+      "complexity": "M",
+      "predecessors": [],
+      "files": ["F-01"],
+      "ac_refs": ["ING-05-AC-1", "ING-05-FR-1", "ING-05-FR-2", "ING-05-FR-3", "ING-05-FR-4"],
+      "risk_refs": ["R-01", "R-03", "R-04", "R-07"],
+      "notes": "D-01 (codec pin) + D-03 (program_id precedence per ADR-0015) + FR-4 regex tightening. Update header comment to pin JOURNAL_CODEC_VERSION verbatim and pin the observed schema shape 'as of 2026-09-15' per PRD § Documentation requirements → Inline code comments.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Modify harness-mcp-push.mjs — TIMEOUT_MS=10_000, single-attempt discipline, log rotation + allowlist, IPv4-loopback enforce",
+      "complexity": "M",
+      "predecessors": [],
+      "files": ["F-02"],
+      "ac_refs": ["ING-05-AC-2", "ING-05-AC-3", "ING-05-AC-4", "ING-05-AC-5", "ING-05-FR-5", "ING-05-NFR-performance", "ING-05-NFR-security", "ING-05-NFR-observability"],
+      "risk_refs": ["R-02", "R-08"],
+      "notes": "D-02 (single-attempt) + NFR-observability (100-line / 32 KB rotation) + NFR-security (loopback enforcement, field allowlist). REMOVE `process.exit(1)` in the current .catch — AC-5 mandates exit(0) on all outcomes.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Create test fixtures — chat-session.jsonl, transcript.jsonl, program.yaml",
+      "complexity": "S",
+      "predecessors": [],
+      "files": ["F-05", "F-06", "F-07"],
+      "ac_refs": ["ING-05-FR-2", "ING-05-FR-4"],
+      "risk_refs": ["R-04"],
+      "notes": "Journal fixture covers kinds 0/1/2 + unknown-kind 99 (FR-2 acceptance surface). Transcript fixture carries a canonical `/plan BED-01` slash-command (FR-4 bare-token positional).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Create copilot-activity.test.mjs — TC-01 + FR-2/FR-3/FR-4 fixture assertions + AC-2 non-blocking spawn",
+      "complexity": "M",
+      "predecessors": ["T-01", "T-03"],
+      "files": ["F-03"],
+      "ac_refs": ["ING-05-AC-1", "ING-05-AC-2", "ING-05-FR-1", "ING-05-FR-2", "ING-05-FR-3", "ING-05-FR-4"],
+      "risk_refs": ["R-03", "R-04"],
+      "notes": "TC-01 (tracker #324) is the anchor. Inline sub-tests cover the D-04 uncovered ids AC-1 / FR-2 / FR-3 / FR-4. Uses Node built-in `node:test` — no runner install.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Create harness-mcp-push.test.mjs — TC-02 timeout, TC-03 three failure modes, AC-3/AC-4/NFR-security inline",
+      "complexity": "M",
+      "predecessors": ["T-02", "T-03"],
+      "files": ["F-04"],
+      "ac_refs": ["ING-05-AC-3", "ING-05-AC-4", "ING-05-AC-5", "ING-05-FR-5", "ING-05-NFR-performance", "ING-05-NFR-security", "ING-05-NFR-observability"],
+      "risk_refs": ["R-02", "R-08"],
+      "notes": "TC-02 (tracker #325) and TC-03 (tracker #326) are the anchors. Inline sub-tests cover the D-04 uncovered ids AC-3 (RPC sequence), AC-4 (default URL constant), NFR-security (log-field allowlist diff). Also asserts the 100-line / 32 KB rotator.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Write ADR-0015 program_id sourcing precedence + update ADR index",
+      "complexity": "S",
+      "predecessors": [],
+      "files": ["F-09", "F-10"],
+      "ac_refs": ["ING-05-FR-1"],
+      "risk_refs": ["R-03"],
+      "notes": "D-03 promotion per plan-validation decision-promotion dimension. F-10 is the ADR index row append (leaf edit).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Write docs/how-to/copilot-chat-setup.md — prerequisites, wire, env vars, verify, troubleshooting, manual E2E walkthrough",
+      "complexity": "M",
+      "predecessors": ["T-01", "T-02"],
+      "files": ["F-08"],
+      "ac_refs": ["ING-05-AC-5"],
+      "risk_refs": ["R-02", "R-05", "R-07", "R-08"],
+      "notes": "Documentation task — depends on T-01/T-02 so the observable behaviour (log-event vocabulary, env-var precedence, IPv4-loopback default) matches the shipped code. § Manual E2E walkthrough closes research condition C-7 AND the 7 uncovered TC ids per D-04.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Execute the manual E2E walkthrough documented by T-07 and record evidence",
+      "complexity": "S",
+      "predecessors": ["T-04", "T-05", "T-07"],
+      "files": [],
+      "ac_refs": ["ING-05-AC-5"],
+      "risk_refs": ["R-02", "R-03"],
+      "notes": "Manual test execution — no code files touched (files:[] intentional; the walkthrough steps live in F-08). Produces evidence artefacts (activity.jsonl row snippet, .mcp-push.log line, dashboard screenshot or SQL row, p95 timing log for 20 sequential session ends) pasted into the tracker task comment. Closes AC-5 Manual and C-7 (research). Not automatable — Copilot Chat lifecycle events cannot be simulated by CI (CI: none per CLAUDE.md).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    }
+  ]
+}

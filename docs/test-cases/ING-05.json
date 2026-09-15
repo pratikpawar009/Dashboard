@@ -1,0 +1,277 @@
+{
+  "story_id": "ING-05",
+  "test_cases": [
+    {
+      "id": "ING-05-TC-01",
+      "title": "Every emitted row carries a non-empty program_id (env wins, yaml fallback, unresolved skips write)",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-05-FR-1",
+      "given": "copilot-activity.mjs is asked to assemble Copilot Chat rows and program_id must be resolved from env \u2192 .harness/program.yaml \u2192 skip",
+      "when": "the row-builder runs for three fixtures \u2014 (a) HARNESS_PROGRAM_ID set, (b) unset with .harness/program.yaml present, (c) both absent",
+      "then": "(a)+(b) every appended row in activity.jsonl carries a non-empty program_id matching the resolved source; (c) NDJSON append is skipped and a single program_id_unresolved log line is written \u2014 no row with empty/placeholder program_id is ever emitted (the ING-04 141\u00d7 regression)",
+      "objective": "Guard the ING-04 root cause: every row appended by copilot-activity.mjs to docs/activity/activity.jsonl must carry a non-empty program_id, sourced from HARNESS_PROGRAM_ID env with fallback to .harness/program.yaml (accepting both program_id and legacy programId keys), and the hook must refuse to write rather than emit an empty program_id.",
+      "preconditions": [
+        "Node 20+ test runner (node:test) available under .github/hooks/__tests__/",
+        "Fixture journal streams for kinds 0/1/2 that would normally produce \u22651 row per session-end",
+        "Ability to stub process.env and the .harness/program.yaml read path within the test"
+      ],
+      "test_data": {
+        "env_program_id": "prog_env_ING05",
+        "yaml_program_id": "prog_yaml_ING05",
+        "yaml_legacy_key_program_id": "prog_yaml_legacy_ING05",
+        "expected_source_precedence": [
+          "HARNESS_PROGRAM_ID",
+          ".harness/program.yaml:program_id",
+          ".harness/program.yaml:programId"
+        ],
+        "activity_jsonl_path": "docs/activity/activity.jsonl",
+        "mcp_push_log_path": "docs/activity/.mcp-push.log",
+        "unresolved_log_event": "program_id_unresolved"
+      },
+      "steps": [
+        "Case A: set process.env.HARNESS_PROGRAM_ID='prog_env_ING05', unset the .harness/program.yaml fixture, run the row-builder against a fixture that produces \u22651 row, collect the lines appended to activity.jsonl",
+        "Case B: unset HARNESS_PROGRAM_ID, provide a .harness/program.yaml fixture with program_id='prog_yaml_ING05' (repeat with legacy programId='prog_yaml_legacy_ING05'), run the row-builder, collect the appended lines",
+        "Case C: unset HARNESS_PROGRAM_ID AND provide no .harness/program.yaml, run the row-builder against the same fixture, collect activity.jsonl contents and .mcp-push.log contents"
+      ],
+      "expected_results": [
+        "Case A: every appended row has row.program_id === 'prog_env_ING05' (non-empty string, no null, no empty string)",
+        "Case B: every appended row has row.program_id === 'prog_yaml_ING05' (or 'prog_yaml_legacy_ING05' for the legacy-key variant); env source is preferred when both are present",
+        "Case C: activity.jsonl gains ZERO new rows for the session-end; .mcp-push.log gains exactly one JSON line with event='program_id_unresolved'",
+        "Across all cases: no row is ever emitted with an empty, null, or placeholder program_id"
+      ],
+      "tags": [
+        "happy-path",
+        "regression-ING-04-program-id",
+        "program-id-resolution",
+        "copilot-activity"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#324"
+    },
+    {
+      "id": "ING-05-TC-02",
+      "title": "MCP push aborts by TIMEOUT_MS on a stalled server; parent hook returns without waiting on the detached child",
+      "type": "unit",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-05-FR-5",
+      "given": "harness-mcp-push.mjs is configured with TIMEOUT_MS = 10_000 and fetch is stubbed to never resolve; copilot-activity.mjs spawns the push script detached with stdio:'ignore' and .unref()",
+      "when": "the push script issues the first MCP RPC call and the parent hook completes its NDJSON write and calls spawn(...).unref()",
+      "then": "the AbortController fires and the script exits by \u2264 10.5 s wall-clock with exactly one 'timeout' log line and zero retry attempts, AND the parent copilot-activity.mjs process returns without awaiting the child (child.unref() called; no ipc/stdout wait)",
+      "objective": "Prove the fire-and-forget contract (AC-2) and the single-attempt timeout discipline (FR-5): a stalled MCP server cannot hang the Copilot Chat Stop event, and the push script never retries.",
+      "preconditions": [
+        "Node 20+ test runner (node:test) with fake timers or real 11 s tolerance",
+        "fetch is stubbed at the module boundary to return a Promise that never resolves (or resolves only after 30 s)",
+        "spawn is stubbed/observable so the test can assert options.detached === true, options.stdio === 'ignore', and child.unref was called"
+      ],
+      "test_data": {
+        "TIMEOUT_MS": 10000,
+        "wall_clock_ceiling_ms": 10500,
+        "expected_log_event": "timeout",
+        "expected_log_line_count": 1,
+        "expected_retry_attempts": 0,
+        "spawn_expected_options": {
+          "detached": true,
+          "stdio": "ignore"
+        },
+        "mcp_url_default": "http://127.0.0.1:3010/mcp",
+        "harness_mcp_url_env": "<PLACEHOLDER>"
+      },
+      "steps": [
+        "Stub global fetch to return a Promise that never resolves; import harness-mcp-push.mjs and invoke its entrypoint against the default URL",
+        "Start a monotonic timer immediately before the invocation; await process exit",
+        "Read the lines appended to docs/activity/.mcp-push.log during the run",
+        "Separately, stub spawn in copilot-activity.mjs's module boundary, invoke the parent entrypoint end-to-end against a row-producing fixture, and capture the spawn call arguments plus whether the returned ChildProcess had .unref() invoked",
+        "Assert the parent entrypoint's returned promise resolves without awaiting the (fake) child"
+      ],
+      "expected_results": [
+        "The push script exits within 10.5 s of invocation (wall-clock \u2264 TIMEOUT_MS + 500 ms tolerance)",
+        "docs/activity/.mcp-push.log gains exactly one JSON line with event='timeout' and duration_ms \u2248 10000",
+        "fetch was called exactly once (no second initialize attempt, no retry loop)",
+        "spawn was called with options.detached === true and options.stdio === 'ignore'",
+        "child.unref() was invoked before the parent's entrypoint returned",
+        "The parent entrypoint resolves without a completion signal from the child"
+      ],
+      "tags": [
+        "edge-case",
+        "fire-and-forget",
+        "timeout",
+        "abort-controller",
+        "non-blocking-spawn",
+        "regression-ING-05-AC-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#325"
+    },
+    {
+      "id": "ING-05-TC-03",
+      "title": "Push failures (network error / non-2xx / timeout) write exactly one .mcp-push.log line and exit code 0",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "ING-05-AC-5",
+      "given": "harness-mcp-push.mjs is invoked against a fetch stub that yields one of three failure modes \u2014 connection refused (network error), 503 response (non-2xx), or a hang past TIMEOUT_MS (timeout)",
+      "when": "the script finishes handling each failure mode",
+      "then": "docs/activity/.mcp-push.log gains exactly one JSON line per invocation describing the outcome, the process exits with code 0, and no exception propagates back to the Copilot Chat hook that spawned it",
+      "objective": "Verify best-effort observability (AC-5, NFR-observability): every push failure produces exactly one grep-parseable log line under the field allowlist and NEVER surfaces as a non-zero exit or thrown error to the parent hook.",
+      "preconditions": [
+        "Node 20+ test runner with the ability to stub global fetch per test case",
+        "docs/activity/.mcp-push.log is empty (or a temp path is substituted) at the start of each sub-case",
+        "process.exit is stubbed to capture the exit code without terminating the test process"
+      ],
+      "test_data": {
+        "sub_cases": [
+          {
+            "mode": "network_error",
+            "fetch_behavior": "reject with ECONNREFUSED",
+            "expected_event": "network_error"
+          },
+          {
+            "mode": "http_error",
+            "fetch_behavior": "resolve with status 503",
+            "expected_event": "http_error"
+          },
+          {
+            "mode": "timeout",
+            "fetch_behavior": "never resolve",
+            "expected_event": "timeout"
+          }
+        ],
+        "expected_exit_code": 0,
+        "expected_log_line_count_per_case": 1,
+        "log_field_allowlist": [
+          "event",
+          "ts",
+          "http_status",
+          "error_code",
+          "duration_ms",
+          "mcp_url_host"
+        ],
+        "forbidden_log_fields": [
+          "user_email",
+          "command_text",
+          "journal_contents",
+          "program_id",
+          "bearer_token"
+        ],
+        "mcp_push_log_path": "docs/activity/.mcp-push.log",
+        "harness_ingest_token_env": "<PLACEHOLDER>"
+      },
+      "steps": [
+        "For each sub-case in test_data.sub_cases: reset the log file, install the corresponding fetch stub, invoke the harness-mcp-push.mjs entrypoint",
+        "After each invocation, read the log file contents, split by newline, and JSON.parse each non-empty line",
+        "Capture the exit code recorded by the stubbed process.exit",
+        "Inspect the parsed log object for the presence of allowlisted fields and the absence of forbidden fields"
+      ],
+      "expected_results": [
+        "Each sub-case appends exactly one line to docs/activity/.mcp-push.log \u2014 no more, no fewer",
+        "The parsed log object's event field equals the sub-case's expected_event ('network_error' | 'http_error' | 'timeout')",
+        "The stubbed process.exit is called with code 0 in every sub-case",
+        "No exception propagates out of the entrypoint in any sub-case (parent hook sees a clean detached-child exit)",
+        "Every logged object contains only fields from log_field_allowlist; none of the forbidden_log_fields appears anywhere in the line"
+      ],
+      "tags": [
+        "negative",
+        "best-effort",
+        "observability",
+        "log-shape",
+        "no-pii"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#326"
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "ING-05-AC-1",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-AC-2",
+        "covered_by": [
+          "ING-05-TC-02"
+        ]
+      },
+      {
+        "id": "ING-05-AC-3",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-AC-4",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-AC-5",
+        "covered_by": [
+          "ING-05-TC-03"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "ING-05-FR-1",
+        "covered_by": [
+          "ING-05-TC-01"
+        ]
+      },
+      {
+        "id": "ING-05-FR-2",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-FR-3",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-FR-4",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-FR-5",
+        "covered_by": [
+          "ING-05-TC-02"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "ING-05-NFR-performance",
+        "covered_by": [
+          "ING-05-TC-02"
+        ]
+      },
+      {
+        "id": "ING-05-NFR-security",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-NFR-accessibility",
+        "covered_by": []
+      },
+      {
+        "id": "ING-05-NFR-observability",
+        "covered_by": [
+          "ING-05-TC-03"
+        ]
+      }
+    ],
+    "uncovered": [
+      "ING-05-AC-1",
+      "ING-05-AC-3",
+      "ING-05-AC-4",
+      "ING-05-FR-2",
+      "ING-05-FR-3",
+      "ING-05-FR-4",
+      "ING-05-NFR-security"
+    ],
+    "notes": [
+      "Deliberate 3-TC cap per user request; uncovered ids are expected and will be surfaced at the Phase 4 Product Gate for approval.",
+      "ING-05-NFR-accessibility is N/A (background Node hook, no UI surface \u2014 PRD \u00a7 Non-functional requirements).",
+      "TC-02 is anchored to FR-5 (the observable being asserted with the stalled fetch stub) but also covers AC-2's non-blocking spawn assertion and NFR-performance's 10 s per-call bound in-line (steps + expected_results).",
+      "TC-03 covers NFR-observability's bounded-log-line + field-allowlist contract as part of the AC-5 assertion body."
+    ]
+  }
+}
