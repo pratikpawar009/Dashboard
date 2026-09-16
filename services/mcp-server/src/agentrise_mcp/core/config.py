@@ -9,9 +9,15 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from dotenv import find_dotenv, load_dotenv
+
 _TOKEN_ENV = "AGENTRISE_INGEST_TOKEN"
 _BASE_URL_ENV = "AGENTRISE_INGEST_BASE_URL"
 _DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+
+# Walk up from cwd to find a `.env`; canonical location is
+# services/mcp-server/.env. `override=False` keeps ambient env winning.
+load_dotenv(find_dotenv(usecwd=True), override=False)
 
 
 class ConfigError(RuntimeError):
