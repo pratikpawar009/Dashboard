@@ -1,0 +1,203 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 77,
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-03/DESIGN.md",
+  "design_provider": "html-mockup",
+  "tracker_story": "pratikpawar009/Dashboard#25",
+  "tracker_research": "pratikpawar009/Dashboard#395",
+  "rtm_source_sha": "b3cd0523ae59",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "design_iteration": 0,
+  "tracker_prd": "pratikpawar009/Dashboard#396",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/PGD-03/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-03/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-03/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#419",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-16T14:31:34Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-03/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T14:20:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-03/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T14:22:36Z",
+        "summary": "web: 227/227 passed (35 files); api: 740 passed, 7 deselected (perf marker, pyproject.toml addopts)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-03/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T14:26:00Z",
+        "summary": "0 errors; 2 pre-existing unused-var warnings in test files, unrelated to PGD-03"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": "2026-09-16T14:29:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "uv run alembic upgrade head && uv run uvicorn app.main:app --port 8000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-03/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "Migrated to head (007_program_releases_date_index included). Smoke-tested GET /api/overview/program-detail/{program_id}/releases end-to-end against seeded program_summary + program_releases rows via dev-bypass token -> HTTP 200, structured program_releases_fetched completion log emitted (latency_ms: 7). Host port 5432 was occupied by a pre-existing native PostgreSQL 17 service unrelated to this repo; container was bound to host port 55432 instead (DATABASE_URL override only, same postgres:16 image/settings as stack-smoke.md Deps:)."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "pnpm dev --port 3000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-03/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "GET / -> 307 to /overview (expected unauthenticated redirect). Playwright browser binaries not installed locally (project-commands.yaml preflight defers browser download to /arh-validate-feature) so the render-mount check could not run; boot-only evidence recorded. See docs/features/PGD-03/evidence/runtime-web-render-unavailable.log."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-03/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T14:27:00Z",
+        "summary": "Next.js build succeeded; new route /api/proxy/program-detail/[program_id]/releases present in build output"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-03",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "passed",
+  "validation_summary": "2026-09-16 P=19/19 automatable (3 manual e2e deferred) in 1 round",
+  "validation_report": "docs/features/PGD-03/VALIDATION-20260916-1500.md",
+  "review": "PASS WITH WARNINGS",
+  "review_report": "docs/features/PGD-03/REVIEW.md",
+  "pending_carry_forward": [
+    {
+      "item_id": "PGD-03-TC-12",
+      "kind": "test_case",
+      "reason": "Manual TC \u2014 release list scrolls without layout breakage; no e2e runner configured",
+      "owner": "\u2014",
+      "added_by": "validation-agent/gate-mode"
+    },
+    {
+      "item_id": "PGD-03-TC-13",
+      "kind": "test_case",
+      "reason": "Manual TC \u2014 independent range switcher vs PGD-02 chart; no e2e runner configured",
+      "owner": "\u2014",
+      "added_by": "validation-agent/gate-mode"
+    },
+    {
+      "item_id": "PGD-03-TC-14",
+      "kind": "test_case",
+      "reason": "Manual TC \u2014 six-row loading placeholder; no e2e runner configured",
+      "owner": "\u2014",
+      "added_by": "validation-agent/gate-mode"
+    },
+    {
+      "item_id": "PGD-03-REVIEW-M1",
+      "kind": "scope",
+      "reason": "ProgramDetailView.test.tsx + ProgramDetailView.authFlow.test.tsx edited (mocks broken by the new self-fetching ReleasesList mount) but absent from tasks.json file_plan \u2014 retconned into T-15, no code change",
+      "owner": "\u2014",
+      "added_by": "code-review-agent/gate-mode"
+    }
+  ],
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "status": "accept",
+      "summary": "tagColor/tagBg source had no established convention; resolved against dashboards/Program Detail.html \u2014 derived from program type via docs/design/tokens.md map",
+      "source": "services/api/app/services/program_releases.py"
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "plan-drift",
+      "status": "accept",
+      "summary": "PLAN/PRD say structlog; no structlog exists under services/api \u2014 stdlib logging used per pattern-consistency (pre-existing, documented in conftest.py:901)",
+      "source": "services/api/app/api/overview.py"
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "evidence-na",
+      "status": "accept",
+      "summary": "design_check dimension N/A \u2014 no tool wired project-wide (docs/config/project-commands.yaml)",
+      "source": "docs/config/project-commands.yaml"
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "evidence-na",
+      "status": "accept",
+      "summary": "web runtime evidence boot-only \u2014 Playwright browsers not installed; browser-level checks deferred to /arh-validate-feature",
+      "source": "docs/config/project-commands.yaml"
+    }
+  ],
+  "impl": "complete",
+  "impl_branch": "feature/PGD-03",
+  "decisions_referenced": [
+    "D-01",
+    "D-02",
+    "D-03",
+    "D-04",
+    "D-05",
+    "D-06"
+  ],
+  "pr": "https://github.com/pratikpawar009/Dashboard/pull/420",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 6,
+    "tool_missing": ["pip-audit"]
+  },
+  "security_report": "docs/features/PGD-03/SECURITY-20260916-1526.md",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-16T15:26:58Z"
+}

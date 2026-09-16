@@ -3,6 +3,10 @@ import type {
   ProgramDetailResult,
   ProgramSwitcherEntry,
 } from "@/types/programDetail";
+import type {
+  ProgramReleasesData,
+  ProgramReleasesResult,
+} from "@/types/programReleases";
 
 /**
  * `.claude/rules/performance-baseline.md`: every I/O call has an explicit
@@ -97,5 +101,55 @@ export async function fetchPrograms(): Promise<ProgramSwitcherEntry[]> {
     return body.programs;
   } catch {
     return [];
+  }
+}
+
+/**
+ * `GET /api/proxy/program-detail/{programId}/releases?range=&offset=&limit=`
+ * (ADR-0008, DECISIONS.md D-05). Its consumer is `ReleasesList.tsx` (a
+ * `"use client"` component) driving the range switcher + pagination -- AC-2.
+ * It targets the frontend's own same-origin `/api/proxy/*` Route Handler,
+ * never FastAPI directly -- there is no `getApiBaseUrl()`, no `Authorization`
+ * header, no `next/headers`/`tokenStore` import, and no token concept
+ * anywhere in this file, because there is no token here to attach: the proxy
+ * resolves and attaches it server-side (ADR-0008).
+ *
+ * An `"unauthorized"` result means the proxy already ran
+ * `tokenStore.callWithAuth`'s retry-once and was still rejected -- it is a
+ * terminal outcome. This module must never retry on it; the caller redirects
+ * to `/login` instead.
+ *
+ * Status mapping: `404` -> `not_found`; `401` -> `unauthorized` (checked
+ * before the generic non-ok branch below, since a bare `!response.ok` check
+ * would otherwise swallow it into `error`); any other non-ok response or a
+ * network/timeout throw -> `error`. On `2xx` the body is a bare
+ * `ProgramReleasesData` -- the proxy unwraps the envelope before responding.
+ */
+export async function fetchProgramReleases(
+  programId: string,
+  range: string,
+  offset: number,
+  limit: number,
+): Promise<ProgramReleasesResult> {
+  try {
+    const response = await fetch(
+      `/api/proxy/program-detail/${programId}/releases?range=${range}&offset=${offset}&limit=${limit}`,
+      { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+    );
+
+    if (response.status === 404) {
+      return { status: "not_found" };
+    }
+    if (response.status === 401) {
+      return { status: "unauthorized" };
+    }
+    if (!response.ok) {
+      return { status: "error" };
+    }
+
+    const data = (await response.json()) as ProgramReleasesData;
+    return { status: "ok", data };
+  } catch {
+    return { status: "error" };
   }
 }

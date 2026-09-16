@@ -120,10 +120,23 @@ const fetchProgramTokenTrendClientMock = vi.fn(async () => ({
   data: { points: [], period_total: 0, avg_per_day: 0 },
 }));
 
+// PGD-03 T-15 mounted the self-fetching ReleasesList inside ProgramDetailView
+// (after DailyTokenTrendChart), so this file's "no real request left the
+// browser" assertion below now has a third client call to account for.
+// Resolves an `ok` result for the same reason as
+// fetchProgramTokenTrendClientMock below -- a bare vi.fn() returning
+// undefined would throw inside ReleasesList's effect.
+const fetchProgramReleasesClientMock = vi.fn(async (..._args: unknown[]) => ({
+  status: "ok" as const,
+  data: { items: [], relTotal: "0", tagColor: "", tagBg: "" },
+}));
+
 vi.mock("@/lib/programDetailApi.client", () => ({
   fetchProgramDetail: (...args: unknown[]) =>
     fetchProgramDetailClientMock(...args),
   fetchPrograms: (...args: unknown[]) => fetchProgramsClientMock(...args),
+  fetchProgramReleases: (...args: unknown[]) =>
+    fetchProgramReleasesClientMock(...args),
 }));
 
 // PGD-02 T-13 mounted the self-fetching DailyTokenTrendChart inside
@@ -391,6 +404,7 @@ describe("AUTH-05-TC-02: OAuth handshake relay + dual-path bearer forwarding + d
       ...fetchProgramsClientMock.mock.calls,
       ...fetchProgramDetailClientMock.mock.calls,
       ...fetchProgramTokenTrendClientMock.mock.calls,
+      ...fetchProgramReleasesClientMock.mock.calls,
     ];
     const serializedArgs = JSON.stringify(allClientCallArgs);
     expect(serializedArgs).not.toContain("Authorization");

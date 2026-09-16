@@ -418,7 +418,8 @@
         }
       ],
       "constraints": [
-        "index(program_id)"
+        "index(program_id)",
+        "index(program_id, date)"
       ]
     },
     "program_commands": {
