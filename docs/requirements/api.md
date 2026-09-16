@@ -174,8 +174,15 @@ shape:
 produced_by: PGD-03
 consumed_by: [ARC-01, DEV-01, PMD-01, EMD-01]
 shape:
-  endpoint: "GET /api/program-detail/{program_id}/releases?range=&offset=&limit=  (default offset=0, limit=20, max 50)"
-  fields: "version, type, status indicator, date, story_count, pr_count; total count"
+  endpoint: "GET /api/overview/program-detail/{program_id}/releases?range=7d|30d|90d&offset=&limit= -- a SIBLING route on the existing overview router (app/api/overview.py, prefix=/api/overview), matching PGD-01/PGD-02's pattern, not a standalone /api/program-detail/... route (research Condition C-1, DECISIONS.md). range default 30d via the shared _range_with_default/validate_range dependency; offset default 0; limit default 20 (DECISIONS.md D-01 -- a story-local Query default, NOT a change to app/dependencies/pagination.py::get_offset_limit's shared 50 default), clamped to 50 via the shared MAX_OFFSET_LIMIT clamp, never rejected"
+  response_model: "ProgramReleasesResponse @ app/schemas/program_releases.py (PGD-03/DECISIONS.md D-02)"
+  items: "list[ProgramReleaseItem { ver: str, label: str, dot: str, date: str, stories: str, prs: str }] -- mockup field names verbatim, NOT program_releases column names (version->ver, story_count->stories as a string, pr_count->prs as a string). date is pre-formatted \"Jul 15\" (month abbreviation + day, no year). label/dot are derived server-side from type via the fixed 3-entry vocabulary below (DECISIONS.md D-03) -- never client-derived"
+  tag_color_tag_bg: "tagColor: str, tagBg: str -- hoisted to the TOP LEVEL of the response (not per-row), since they are the program's theme colours and identical across every row for a given program (DECISIONS.md D-02, corrects research Risk #3's open question)"
+  relTotal: "str -- count of releases within the active range window, NOT program-lifetime total (distinct from program-detail-api's card 3 'Releases done via Harness'). MUST share the identical date-window predicate with the items query (FR-PGD03-6) -- independent of offset/limit truncation"
+  status_vocabulary: "closed 3-entry map, keyed by program_releases.type: 'Feature release'->dot #1f8a5b, 'Patch release'->dot #2a6fdb, 'Hotfix'->dot #d1495b. label is the type name verbatim. A type outside this set is a data-integrity error -- the service raises rather than emitting an unstyled row (FR-PGD03-3, DECISIONS.md D-03)"
+  rbac: "program_visibility(current_user, program_id) (rbac-checks/AUTH-03) called once with the real program_id -- open-aggregate, any authenticated session, never denies and never filters by current_user.programs; byte-identical response across every persona (AC-4), matching program-detail-api/program-token-trend-api's convention"
+  errors: "400 invalid_range if range is outside {7d,30d,90d}, via the shared validate_range() envelope; 404 program not found if program_id does not exist (matches program-detail-api's convention, unlike program-token-trend-api's no-404 exception); 401 if the bearer token is missing or invalid; 5xx if a program_releases row's type is outside the closed vocabulary (data-integrity error, not a 200 with an unstyled row)"
+  index: "program_releases(program_id, date) compound index required for the NFR-002 <=2s budget at 5000+ releases/program -- added by migration 007 (DECISIONS.md D-04, promoted ADR-0015); the endpoint's row query and count query both filter WHERE program_id = :pid AND date >= :range_start"
 ```
 
 ### program-commands-api

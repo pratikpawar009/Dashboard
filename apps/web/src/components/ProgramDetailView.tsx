@@ -20,6 +20,7 @@ import { ProgramDetailHeader } from "./ProgramDetailHeader";
 import { ProgramSummaryCards } from "./ProgramSummaryCards";
 import { ProgramDetailErrorPanel } from "./ProgramDetailErrorPanel";
 import { DailyTokenTrendChart } from "./DailyTokenTrendChart";
+import { ReleasesList } from "./ReleasesList";
 import styles from "./ProgramDetailView.module.css";
 
 export interface ProgramDetailViewProps {
@@ -199,6 +200,11 @@ export function ProgramDetailView({
                     .color as string
                 }
               />
+              {/* T-15, PLAN.md § Navigation/routing map: mounted immediately
+                  after DailyTokenTrendChart, between it and the not-yet-built
+                  Commands+Team section. Gated on the same
+                  `result.status === "ok"` check. */}
+              <ReleasesList programId={programId} />
             </>
           ) : (
             <ProgramDetailErrorPanel />

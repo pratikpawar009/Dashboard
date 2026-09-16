@@ -34,9 +34,22 @@ header distinguishes a switcher-triggered reload from an initial page load. Pres
 non-empty -> logs `program_switch {from_program_id, to_program_id}`; absent (or empty) -> logs
 `program_drilldown {program_id}`. Exactly one of the two fires, and only on the 200 path below --
 never on the 404 path.
+
+PGD-03 -- `GET /program-detail/{program_id}/releases`: a third sibling route on this router.
+Same open-aggregate `program_visibility` veto gate, called once with the real `program_id`,
+BEFORE the 404 lookup below (matching the two routes above -- the gate never conditions on
+whether the program exists). 404s on an unknown `program_id` before any range/pagination work
+(DECISIONS.md D-01/D-04) -- the service layer (`app/services/program_releases.py`) deliberately
+never 404s. Pagination uses the story-local `_releases_offset_limit` wrapper (default `limit=20`,
+DECISIONS.md D-01) rather than the shared `get_offset_limit` (default `50`), reusing
+`MAX_OFFSET_LIMIT` for the clamp so the two stay in sync without a second literal. Every
+completed request emits one `program_releases_fetched` log line (method, path, program_id,
+range, offset, limit, status, latency_ms) mirroring `admin.py`'s `time.perf_counter()` timing
+idiom -- no dedicated audit event for the veto gate itself (open-aggregate, R-08/PRD).
 """
 
 import logging
+import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -45,6 +58,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import CurrentUser, get_current_user
 from app.core.db import get_db
 from app.core.rbac import org_access, program_visibility
+from app.dependencies.pagination import MAX_OFFSET_LIMIT
 from app.dependencies.range import validate_range
 from app.models.rollup import OrgSummaryRollup, ProgramSummary
 from app.schemas.org_summary import OrgSummaryCard, OrgSummaryResponse, ProgramsUsingAi
@@ -54,8 +68,10 @@ from app.schemas.program_detail import (
     ProgramSummaryCard,
     ProgramTokenTrendResponse,
 )
+from app.schemas.program_releases import ProgramReleasesResponse
 from app.services.freshness import FreshnessAccessor
 from app.services.program_detail_token_trend import fetch_program_token_trend
+from app.services.program_releases import fetch_program_releases
 from app.services.rollup_compute import compute_adoption_percent
 from app.utils.format import format_number
 
@@ -181,6 +197,71 @@ async def get_program_token_trend(
     await program_visibility(current_user, program_id)
 
     return await fetch_program_token_trend(db, program_id, range)
+
+
+def _releases_offset_limit(
+    offset: int = Query(0, ge=0), limit: int = Query(20, ge=1)
+) -> tuple[int, int]:
+    """DECISIONS.md D-01: story-local pagination default (`limit=20`), NOT `get_offset_limit`'s
+    shared default (`50`). Applies the identical clamp, reusing `MAX_OFFSET_LIMIT` from
+    `app/dependencies/pagination.py` rather than a second literal `50` -- the shared dependency
+    itself is untouched.
+    """
+    return offset, min(limit, MAX_OFFSET_LIMIT)
+
+
+@router.get(
+    "/program-detail/{program_id}/releases",
+    response_model=ProgramReleasesResponse,
+)
+async def get_program_releases(
+    program_id: str,
+    range: str = Depends(_range_with_default),
+    offset_limit: tuple[int, int] = Depends(_releases_offset_limit),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProgramReleasesResponse:
+    """Return `program_id`'s paginated release list for `range` (default `30d`) (PGD-03-AC-1..6).
+
+    Same open-aggregate `program_visibility` veto gate as the two routes above, called once
+    with the real `program_id`, BEFORE the 404 lookup below -- the service layer never 404s
+    (DECISIONS.md D-01/D-04). `range` validation happens in `_range_with_default` via
+    `Depends()`, before this body runs, so an out-of-range value 400s, never FastAPI's default
+    422. `offset`/`limit` resolve via `_releases_offset_limit` (default `limit=20`, clamped to
+    `MAX_OFFSET_LIMIT`).
+    """
+    started = time.perf_counter()
+
+    # AC-3: open-aggregate veto gate, called once, with the REAL program_id -- see
+    # get_program_detail's docstring above for the full contract. Never filters by
+    # current_user.programs.
+    await program_visibility(current_user, program_id)
+
+    # AC-4: 404 before any range/pagination work -- the service layer deliberately never 404s.
+    stmt = select(ProgramSummary).where(ProgramSummary.program_id == program_id)
+    result = await db.execute(stmt)
+    row = result.scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)
+
+    offset, limit = offset_limit
+    response = await fetch_program_releases(db, program_id, range, offset, limit)
+
+    logger.info(
+        "program_releases_fetched",
+        extra={
+            "method": "GET",
+            "path": "/api/overview/program-detail/{program_id}/releases",
+            "program_id": program_id,
+            "range": range,
+            "offset": offset,
+            "limit": limit,
+            "status": status.HTTP_200_OK,
+            "latency_ms": int((time.perf_counter() - started) * 1000),
+        },
+    )
+
+    return response
 
 
 # DECISIONS.md D-01/D-02 (corrected 2026-09-10): fixed (glyph, label) presentation constants,

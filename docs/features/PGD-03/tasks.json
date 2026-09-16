@@ -1,0 +1,536 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-03",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-16T14:00:00+00:00",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/models/rollup.py",
+      "reason": "add compound Index(\"ix_program_releases_program_id_date\", \"program_id\", \"date\") to ProgramReleases.__table_args__ (D-04/ADR-0015)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/migrations/versions/007_program_releases_date_index.py",
+      "reason": "additive migration creating the compound index (FR-PGD03-7, D-04/ADR-0015)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/tests/fixtures/prd_8_4_schema.json",
+      "reason": "add the new compound index so TestFixtureDrivenTableConstraints stays in sync with the model/migration (alembic-patterns gate)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/schemas/program_releases.py",
+      "reason": "ProgramReleaseItem/ProgramReleasesResponse Pydantic models, mockup wire shape (FR-PGD03-2/3/4, D-02)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/app/services/program_releases.py",
+      "reason": "query/aggregation + status-vocabulary mapping service (FR-PGD03-3/5/6, D-01/D-03)"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "register GET /api/overview/program-detail/{program_id}/releases subroute on the existing overview router, wire _releases_offset_limit + _range_with_default + program_visibility + structured logging (FR-PGD03-1, D-01)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_releases_route.py",
+      "reason": "route-level integration tests: TC-01,02,05,06,07,08,09,10,11,17,18,19,21,22"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_releases_service.py",
+      "reason": "service-level unit tests: TC-03,04,15,16 (range filtering, pagination slicing, vocabulary mapping, data-integrity raise)"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_releases_perf.py",
+      "reason": "TC-20 performance test \u2014 p95 <2000ms at 5000+ seeded releases, EXPLAIN ANALYZE index-usage assertion (NFR-002/FR-PGD03-7)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/types/programReleases.ts",
+      "reason": "ProgramReleaseItemData/ProgramReleasesData/ProgramReleasesResult TS types mirroring the backend schema"
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "apps/web/src/lib/programDetailApi.ts",
+      "reason": "add server-only fetchProgramReleases (targets FastAPI directly, D-05) \u2014 sibling to fetchProgramDetail"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/releases/route.ts",
+      "reason": "new Route Handler proxy, mirrors the token-trend proxy's callWithAuth retry-once + status mapping (D-05, ADR-0008)"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/releases/route.test.ts",
+      "reason": "proxy route unit tests (status mapping, header passthrough n/a \u2014 no switch header on this endpoint)"
+    },
+    "F-15": {
+      "action": "modify",
+      "path": "apps/web/src/lib/programDetailApi.client.ts",
+      "reason": "add client-only fetchProgramReleases (same-origin proxy call, range+offset+limit query params, D-05) \u2014 sibling to existing client fetchers"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/src/components/ReleasesList.tsx",
+      "reason": "panel component: header/stat/range switcher, column grid, scroll container, 6-row placeholder, row rendering (DESIGN.md \u00a7 Releases panel)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/src/components/ReleasesList.module.css",
+      "reason": "panel styling per DESIGN.md (grid columns, scroll container max-height:296px, tag/dot styling)"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/components/ReleasesList.test.tsx",
+      "reason": "vitest unit tests: field rendering, 6-row loading placeholder, empty state, range switcher independence (component-level; TC-12/13/14 are e2e/manual, this is the automatable component-level equivalent)"
+    },
+    "F-19": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "mount <ReleasesList> between DailyTokenTrendChart (PGD-02) and the (not-yet-built) Commands+Team section \u2014 entry-registration site for the new component (wiring)"
+    },
+    "F-20": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/overview/program-detail/{program_id}/releases row to the API table (Docs T2, PRD Documentation requirements)"
+    },
+    "F-21": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.test.tsx",
+      "reason": "retcon (REVIEW.md MEDIUM): add fetchProgramReleases to the client-api mock \u2014 the new self-fetching ReleasesList child breaks 14 existing tests without it"
+    },
+    "F-22": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.authFlow.test.tsx",
+      "reason": "retcon (REVIEW.md MEDIUM): same mock addition, plus the new client call added to the exhaustive no-token-leak assertion"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Migration 007: program_releases (program_id, date) compound index",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-03-FR-7"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "down_revision=006_usage_events_source_credits; plain (non-concurrent) create_index; symmetric downgrade() drops it (D-04/ADR-0015).",
+      "status": "done",
+      "completed_at": "2026-09-16T13:50:36.845113+00:00",
+      "files_touched": [
+        "services/api/migrations/versions/007_program_releases_date_index.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Update ProgramReleases ORM model + schema fixture to match migration 007",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-01",
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-03-FR-7"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "__table_args__ gains the compound Index() entry; tests/fixtures/prd_8_4_schema.json updated to list both indexes so TestSchemaDiffGate and TestFixtureDrivenTableConstraints both pass (alembic-patterns discipline, BED-05 AF-09 precedent).",
+      "status": "done",
+      "completed_at": "2026-09-16T13:56:09.933426+00:00",
+      "files_touched": [
+        "services/api/app/models/rollup.py",
+        "services/api/tests/fixtures/prd_8_4_schema.json"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "ProgramReleaseItem / ProgramReleasesResponse Pydantic schemas",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-FR-2",
+        "PGD-03-FR-4"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "ver/label/dot/date/stories/prs on ProgramReleaseItem; items/relTotal/tagColor/tagBg on ProgramReleasesResponse (D-02). Module docstring records the mockup-driven field mapping per PRD Documentation requirements (inline code comments).",
+      "status": "done",
+      "completed_at": "2026-09-16T13:50:36.845113+00:00",
+      "files_touched": [
+        "services/api/app/schemas/program_releases.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Service layer: range-scoped query, pagination, status-vocabulary mapping, window-parity",
+      "complexity": "M",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-2",
+        "PGD-03-FR-3",
+        "PGD-03-FR-5",
+        "PGD-03-FR-6"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-06"
+      ],
+      "notes": "One function builds both the row query and the count query from a single shared date-window value (FR-PGD03-6 window-parity by construction, D-03 vocabulary map raising ValueError on unknown type, D-01 limit-default-20 clamp reusing MAX_OFFSET_LIMIT).",
+      "status": "done",
+      "completed_at": "2026-09-16T13:58:24.772963+00:00",
+      "files_touched": [
+        "services/api/app/services/program_releases.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Route: GET /api/overview/program-detail/{program_id}/releases",
+      "complexity": "M",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-3",
+        "PGD-03-AC-4",
+        "PGD-03-AC-5",
+        "PGD-03-AC-6"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05",
+        "R-08"
+      ],
+      "notes": "Subroute on the existing overview router (F-06 modify, not a new router file). _releases_offset_limit local Depends() wrapper (D-01); _range_with_default reused unchanged; program_visibility called once with the real program_id; 404 on unknown program_id before the range/pagination work; structured request log (method, path, program_id, range, offset, limit, status, latency) via structlog on every completed request.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:05:30.320507+00:00",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Route-level integration tests",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-2",
+        "PGD-03-AC-3",
+        "PGD-03-AC-4",
+        "PGD-03-AC-5",
+        "PGD-03-AC-6"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-05",
+        "R-06",
+        "R-08"
+      ],
+      "notes": "TC-01,02,05,06,07,08,09,10,11,17,18,19,21,22. Mirrors test_program_token_trend_route.py's dev-bypass/migrated_db scaffold. Seeds program_releases directly (no ingest path exists, D-06).",
+      "status": "done",
+      "completed_at": "2026-09-16T14:09:52.811080+00:00",
+      "files_touched": [
+        "services/api/tests/unit/test_program_releases_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Service-level unit tests",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-2",
+        "PGD-03-FR-3"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-06"
+      ],
+      "notes": "TC-03,04,15,16 \u2014 range-window filtering per value, offset/limit slicing, closed-vocabulary mapping for all 3 kinds, ValueError raise on an out-of-vocabulary type.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:05:30.320507+00:00",
+      "files_touched": [
+        "services/api/tests/unit/test_program_releases_service.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Performance test: p95 <2s at 5000+ releases, index-usage verification",
+      "complexity": "M",
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "PGD-03-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-07"
+      ],
+      "notes": "TC-20. Seeds >=5000 program_releases rows for one program_id, issues 50 requests, computes p95, and asserts EXPLAIN ANALYZE uses ix_program_releases_program_id_date (not a sequential scan). Execution note: run manually / on-demand per project-commands.yaml (no perf CI gate exists \u2014 matches services/api/tests/perf/ existing convention).",
+      "status": "done",
+      "completed_at": "2026-09-16T14:13:32.223322+00:00",
+      "files_touched": [
+        "services/api/tests/perf/test_program_releases_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Frontend types: ProgramReleaseItemData / ProgramReleasesData / ProgramReleasesResult",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Mirrors programTokenTrend.ts's structure; status union ok|not_found|unauthorized|error, matching ProgramDetailResult's vocabulary.",
+      "status": "done",
+      "completed_at": "2026-09-16T13:58:24.772963+00:00",
+      "files_touched": [
+        "apps/web/src/types/programReleases.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Server-only fetchProgramReleases (programDetailApi.ts)",
+      "complexity": "S",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Sibling to fetchProgramDetail; targets FastAPI directly via getApiBaseUrl(), attaches bearer token when provided, 5s timeout (performance-baseline.md).",
+      "status": "done",
+      "completed_at": "2026-09-16T14:05:30.320507+00:00",
+      "files_touched": [
+        "apps/web/src/lib/programDetailApi.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Proxy Route Handler: /api/proxy/program-detail/[program_id]/releases",
+      "complexity": "M",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-13",
+        "F-14"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-5"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Mirrors the token-trend proxy's callWithAuth retry-once + status mapping (404/401/error) verbatim (D-05, ADR-0008). Forwards range/offset/limit query params through to fetchProgramReleases.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:09:52.811080+00:00",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/releases/route.ts",
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/releases/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Client-only fetchProgramReleases (programDetailApi.client.ts)",
+      "complexity": "S",
+      "predecessors": [
+        "T-11"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-2"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Same-origin fetch to the new proxy route, range+offset+limit query params, 5s timeout, same status-mapping convention as fetchProgramTokenTrend.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:13:32.223322+00:00",
+      "files_touched": [
+        "apps/web/src/lib/programDetailApi.client.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "ReleasesList panel component + styles",
+      "complexity": "L",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-16",
+        "F-17"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-2",
+        "PGD-03-AC-7"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "DESIGN.md \u00a7 Releases panel: header (title/subtitle/relTotal stat/3-button range switcher independent of PGD-02's), column-header grid, scroll container max-height:296px;overflow:auto, 6-row loading placeholder, per-row grid rendering (code-styled ver tag using top-level tagColor/tagBg, dot+label, date, stories, prs). Empty state (0 releases in range) renders explicit copy per PRD scope (mockup does not specify one -- DESIGN.md \u00a7 Not specified by the mockup).",
+      "status": "done",
+      "completed_at": "2026-09-16T14:15:41.963069+00:00",
+      "files_touched": [
+        "apps/web/src/components/ReleasesList.tsx",
+        "apps/web/src/components/ReleasesList.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "ReleasesList component tests",
+      "complexity": "M",
+      "predecessors": [
+        "T-13"
+      ],
+      "files": [
+        "F-18"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-7"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "vitest: renders all 6 fields correctly incl. tag color/bg applied from top-level fields (not per-row); 6-row skeleton during loading; empty state when relTotal=0; range-switcher click triggers its own refetch without touching a stubbed sibling chart control -- automatable component-level analogue of manual TC-12/13/14.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:17:52.754691+00:00",
+      "files_touched": [
+        "apps/web/src/components/ReleasesList.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Mount ReleasesList on ProgramDetailView",
+      "complexity": "S",
+      "predecessors": [
+        "T-14"
+      ],
+      "files": [
+        "F-19",
+        "F-21",
+        "F-22"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1",
+        "PGD-03-AC-7"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Wiring task (plan-validation Wiring dimension): <ReleasesList programId={programId} /> added inside the result.status === \"ok\" branch, directly after <DailyTokenTrendChart>, gated the same way. This is the entry-registration site for the new component -- without this edit the panel never renders anywhere.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:21:20.978165+00:00",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.tsx",
+        "apps/web/src/components/ProgramDetailView.test.tsx",
+        "apps/web/src/components/ProgramDetailView.authFlow.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "README API table: add the releases endpoint row",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [
+        "PGD-03-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Docs T2 (new HTTP route). Adds the GET /api/overview/program-detail/{program_id}/releases row to README.md's API table, correcting the story's original /api/program-detail/... wording per research Condition C-1.",
+      "status": "done",
+      "completed_at": "2026-09-16T14:09:52.811080+00:00",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

@@ -1,0 +1,1244 @@
+{
+  "story_id": "PGD-03",
+  "test_cases": [
+    {
+      "id": "PGD-03-TC-01",
+      "title": "Default query params return 30d window, offset 0, limit 20 with full row shape",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-1",
+      "given": "a valid program_id with releases and no query params",
+      "when": "GET /api/overview/program-detail/{program_id}/releases is called by an authenticated session",
+      "then": "the endpoint defaults to range=30d, offset=0, limit=20 and returns rows shaped {ver, label, dot, tagColor, tagBg, date, stories, prs} plus relTotal",
+      "objective": "Verify the default query-param behavior and full response wire contract (FR-PGD03-1, FR-PGD03-2, FR-PGD03-4).",
+      "preconditions": [
+        "Test DB seeded with a program having >=25 program_releases rows spanning >90 days",
+        "Valid bearer access token for any persona"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "expected_default_range": "30d",
+        "expected_default_offset": 0,
+        "expected_default_limit": 20
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/releases with Authorization header, no query params",
+        "Inspect the JSON response body"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "At most 20 rows returned",
+        "Every row has exactly the keys ver, label, dot, tagColor, tagBg, date, stories, prs",
+        "stories and prs are string-typed",
+        "date is formatted like 'Jul 15' with no year",
+        "response includes relTotal reflecting the 30d window count",
+        "only rows within the last 30 days are present"
+      ],
+      "tags": [
+        "happy-path",
+        "defaults"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#397",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-02",
+      "title": "tagColor/tagBg hoisted to response top level, not per-row",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-2",
+      "given": "a program with multiple releases of different types",
+      "when": "the releases endpoint is called",
+      "then": "tagColor and tagBg are program-level fields on the response, not duplicated per row",
+      "objective": "Verify FR-PGD03-2's hoisting of tag_color/tag_bg to the top-level response object.",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having releases of mixed types"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/releases",
+        "Parse the response body top-level keys and each row's keys"
+      ],
+      "expected_results": [
+        "Response top level contains tagColor and tagBg fields",
+        "Individual rows do NOT contain tagColor/tagBg keys",
+        "Values match the program's theme colours"
+      ],
+      "tags": [
+        "wire-contract"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#398",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-03",
+      "title": "Range param filters rows to the requested window (7d/30d/90d)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-2",
+      "given": "range=7d|30d|90d query params",
+      "when": "the endpoint is called for each range value",
+      "then": "only releases with date inside that window are returned",
+      "objective": "Verify range filtering excludes releases outside the requested window for all three supported ranges.",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having releases at ages 2d, 10d, 45d, 120d"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Send GET .../releases?range=7d and record returned dates",
+        "Send GET .../releases?range=30d and record returned dates",
+        "Send GET .../releases?range=90d and record returned dates"
+      ],
+      "expected_results": [
+        "range=7d returns only the 2d-old release",
+        "range=30d returns the 2d and 10d releases",
+        "range=90d returns the 2d, 10d, and 45d releases (excludes 120d)",
+        "no release older than the requested window appears in any response"
+      ],
+      "tags": [
+        "happy-path",
+        "range-filter"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#399",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-04",
+      "title": "offset/limit pagination returns correct page of rows",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-2",
+      "given": "offset and limit query params",
+      "when": "the endpoint is called with offset=20&limit=10",
+      "then": "the response returns the 10 rows starting after the first 20, ordered consistently",
+      "objective": "Verify offset/limit pagination slices the range-scoped result set correctly.",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having 40 releases within 30d"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "offset": 20,
+        "limit": 10
+      },
+      "steps": [
+        "Send GET .../releases?range=30d&offset=0&limit=40 to capture the full ordered set",
+        "Send GET .../releases?range=30d&offset=20&limit=10",
+        "Compare the second response's rows to positions 20-29 of the full set"
+      ],
+      "expected_results": [
+        "Second response returns exactly 10 rows",
+        "Rows match positions 20-29 of the full ordered set",
+        "relTotal is unchanged between the two calls (same range window)"
+      ],
+      "tags": [
+        "pagination"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#400",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-05",
+      "title": "limit above 50 is clamped to 50, not rejected",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-5",
+      "given": "limit=200 query param",
+      "when": "the endpoint is called",
+      "then": "the response returns at most 50 rows and status 200, not a validation error",
+      "objective": "Verify limit overflow is clamped to 50 rather than rejected (FR-PGD03-5, AC-2).",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having 80 releases within 30d"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "limit": 200
+      },
+      "steps": [
+        "Send GET .../releases?range=30d&limit=200"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Number of rows returned is exactly 50, not 200 and not an error",
+        "relTotal still reflects the full 30d count (80), independent of the clamp"
+      ],
+      "tags": [
+        "boundary",
+        "clamping"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#401",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-06",
+      "title": "limit exactly 50 is accepted unclamped",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-03-FR-5",
+      "given": "limit=50 query param, the upper boundary",
+      "when": "the endpoint is called",
+      "then": "the response honors limit=50 exactly, confirming 50 is the inclusive boundary not the clamp trigger",
+      "objective": "Verify the boundary value 50 is passed through unmodified.",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having 60 releases within 30d"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "limit": 50
+      },
+      "steps": [
+        "Send GET .../releases?range=30d&limit=50"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Exactly 50 rows returned"
+      ],
+      "tags": [
+        "boundary"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#402",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-07",
+      "title": "Invalid range value returns explicit 400, not FastAPI default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-3",
+      "given": "an invalid range value (e.g. range=1y)",
+      "when": "the endpoint is called",
+      "then": "it returns 400 via an explicit validation check, never FastAPI's default 422",
+      "objective": "Verify range validation returns 400 explicitly per api-conventions, not FastAPI's auto-422.",
+      "preconditions": [
+        "Any authenticated session, program_id may or may not exist"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "1y"
+      },
+      "steps": [
+        "Send GET .../releases?range=1y"
+      ],
+      "expected_results": [
+        "Response status is 400, not 422",
+        "Response body contains a JSON error message identifying the invalid range"
+      ],
+      "tags": [
+        "negative",
+        "validation"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#403",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-08",
+      "title": "Cross-persona response is byte-identical for the same program and range",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-4",
+      "given": "authenticated sessions for two different personas (e.g. developer and cio)",
+      "when": "each calls the endpoint for the same program_id and range",
+      "then": "the request succeeds for both and the response bodies are byte-identical",
+      "objective": "Verify program_visibility is open-aggregate and the endpoint never persona-branches the response (FR-SH-13, A-004).",
+      "preconditions": [
+        "Two valid access tokens for distinct personas (dev-bypass with role=developer and role=cio)",
+        "Program prog-001 exists with releases"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "persona_a": "developer",
+        "persona_b": "cio"
+      },
+      "steps": [
+        "Send GET .../releases?range=30d with persona_a's bearer token",
+        "Send GET .../releases?range=30d with persona_b's bearer token",
+        "Byte-compare the two response bodies"
+      ],
+      "expected_results": [
+        "Both requests return 200",
+        "Response bodies are byte-identical (same rows, same order, same relTotal, same tagColor/tagBg)"
+      ],
+      "tags": [
+        "rbac",
+        "cross-persona"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#404",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-09",
+      "title": "Any authenticated persona succeeds for any program_id (no per-program gating)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-4",
+      "given": "an authenticated session not scoped to the target program via session.programs",
+      "when": "calling the endpoint for that program_id",
+      "then": "the request succeeds (200), confirming program_visibility does not gate by program membership",
+      "objective": "Verify the open-aggregate RBAC check passes regardless of session.programs scoping.",
+      "preconditions": [
+        "Access token for a persona whose session.programs excludes prog-002",
+        "Program prog-002 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-002"
+      },
+      "steps": [
+        "Send GET .../releases with a token scoped to a different program"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Release rows for prog-002 are returned"
+      ],
+      "tags": [
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#405",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-10",
+      "title": "Unauthenticated request returns 401",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-5",
+      "given": "no bearer token on the request",
+      "when": "the endpoint is called",
+      "then": "the response is 401",
+      "objective": "Verify unauthenticated callers are rejected with 401 per the AUTH-01 session baseline.",
+      "preconditions": [
+        "No Authorization header set"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/releases with no Authorization header"
+      ],
+      "expected_results": [
+        "Response status is 401"
+      ],
+      "tags": [
+        "negative",
+        "auth"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#406",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-11",
+      "title": "Unknown program_id returns 404 with JSON error body",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-AC-6",
+      "given": "a program_id that does not exist",
+      "when": "the endpoint is called by an authenticated session",
+      "then": "it returns 404 with a JSON error body",
+      "objective": "Verify unknown-program handling matches the PGD-01 sibling endpoint's 404 convention.",
+      "preconditions": [
+        "Valid bearer token",
+        "program_id 'nonexistent-999' absent from the database"
+      ],
+      "test_data": {
+        "program_id": "nonexistent-999"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/nonexistent-999/releases with valid auth"
+      ],
+      "expected_results": [
+        "Response status is 404",
+        "Response body is JSON and contains an error message"
+      ],
+      "tags": [
+        "negative",
+        "404"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#407",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-12",
+      "title": "Release list scrolls without layout breakage when content exceeds visible area",
+      "type": "e2e",
+      "category": "positive",
+      "automatable": false,
+      "priority": "Should",
+      "requirement_id": "PGD-03-AC-7",
+      "given": "a program with 20 releases loaded into the panel (fills beyond the visible area)",
+      "when": "the ReleasesList panel renders on Program Detail",
+      "then": "the list scrolls within its fixed-height container without breaking the surrounding page layout",
+      "objective": "Verify the scroll container (max-height:296px; overflow:auto) contains overflow visually without layout breakage; no e2e framework is configured (test_e2e execution deferred per project-commands.yaml), so this is a manual visual check until Playwright is wired.",
+      "preconditions": [
+        "apps/web dev server running against a seeded API with >=20 releases for a program",
+        "Program Detail page open in a desktop browser at /program/prog-001"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Navigate to /program/prog-001",
+        "Locate the Releases panel scroll container",
+        "Scroll within the container using mouse wheel / trackpad",
+        "Observe surrounding page layout while scrolling"
+      ],
+      "expected_results": [
+        "Container has max-height:296px and overflow:auto applied",
+        "Scrolling stays confined to the container; no reflow or overlap of adjacent panels",
+        "Page layout outside the container remains stable during scroll"
+      ],
+      "tags": [
+        "manual",
+        "layout",
+        "scroll"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#408",
+      "last_run": null
+    },
+    {
+      "id": "PGD-03-TC-13",
+      "title": "Independent range switcher on the panel does not affect PGD-02's chart switcher",
+      "type": "e2e",
+      "category": "positive",
+      "automatable": false,
+      "priority": "Should",
+      "requirement_id": "PGD-03-AC-7",
+      "given": "Program Detail page with both the token-trend chart (PGD-02) and the Releases panel (PGD-03) visible",
+      "when": "the user changes the Releases panel's own 7d/30d/90d switcher",
+      "then": "only the Releases panel refetches/re-renders; the PGD-02 chart's range selection is unaffected",
+      "objective": "Verify the two range switchers are wired independently, since no e2e framework is configured for automated verification.",
+      "preconditions": [
+        "Program Detail page loaded with both panels populated, PGD-02 chart set to 7d"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Set the Releases panel switcher to 90d",
+        "Observe the Releases panel rows update to the 90d window",
+        "Observe the token-trend chart's selected range control"
+      ],
+      "expected_results": [
+        "Releases panel rows reflect the 90d window",
+        "Token-trend chart remains on 7d, unaffected by the Releases panel's switch"
+      ],
+      "tags": [
+        "manual",
+        "range-switcher",
+        "independence"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#409",
+      "last_run": null
+    },
+    {
+      "id": "PGD-03-TC-14",
+      "title": "Six-row loading placeholder shown while releases are fetching",
+      "type": "e2e",
+      "category": "positive",
+      "automatable": false,
+      "priority": "Should",
+      "requirement_id": "PGD-03-AC-1",
+      "given": "the Releases panel is fetching data",
+      "when": "the page renders before the API response resolves",
+      "then": "exactly six placeholder rows are shown (hint-placeholder-count=6)",
+      "objective": "Verify the loading state renders the mockup-specified six-row placeholder; no e2e framework configured so this is a manual check.",
+      "preconditions": [
+        "Ability to throttle/delay the API response (e.g. devtools network throttling)"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Throttle network to slow 3G in devtools",
+        "Navigate to /program/prog-001",
+        "Observe the Releases panel before data resolves"
+      ],
+      "expected_results": [
+        "Exactly six skeleton/placeholder rows render during loading",
+        "Placeholders are replaced by real rows once the API responds"
+      ],
+      "tags": [
+        "manual",
+        "loading-state"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#410",
+      "last_run": null
+    },
+    {
+      "id": "PGD-03-TC-15",
+      "title": "Release-kind label/dot mapping matches the closed 3-entry vocabulary",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-3",
+      "given": "program_releases rows with type in {Feature release, Patch release, Hotfix}",
+      "when": "the endpoint serializes each row",
+      "then": "label and dot are derived from the fixed 3-entry map: Feature release/#1f8a5b, Patch release/#2a6fdb, Hotfix/#d1495b",
+      "objective": "Verify the closed status-indicator vocabulary mapping is applied correctly for all three kinds.",
+      "preconditions": [
+        "Test DB seeded with one release of each of the three types for prog-001"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "expected_map": {
+          "Feature release": "#1f8a5b",
+          "Patch release": "#2a6fdb",
+          "Hotfix": "#d1495b"
+        }
+      },
+      "steps": [
+        "Send GET .../releases and inspect label/dot for each of the three seeded rows"
+      ],
+      "expected_results": [
+        "Feature release row has dot #1f8a5b",
+        "Patch release row has dot #2a6fdb",
+        "Hotfix row has dot #d1495b",
+        "label field matches the type name verbatim for each"
+      ],
+      "tags": [
+        "wire-contract",
+        "vocabulary"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#411",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-16",
+      "title": "A release type outside the closed vocabulary raises a data-integrity error, not an unstyled row",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-3",
+      "given": "a program_releases row with type outside {Feature release, Patch release, Hotfix}",
+      "when": "the endpoint serializes the release list",
+      "then": "the service raises a data-integrity error rather than emitting an unstyled row",
+      "objective": "Verify out-of-vocabulary type values fail loudly instead of silently degrading the response.",
+      "preconditions": [
+        "Test DB seeded with a program_releases row having type='Deprecated'"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "invalid_type": "Deprecated"
+      },
+      "steps": [
+        "Send GET .../releases for the program containing the invalid-type row"
+      ],
+      "expected_results": [
+        "Response is a 5xx server error (or documented error response), not a 200 with an unstyled/blank row",
+        "Error is logged/raised identifying the data-integrity violation"
+      ],
+      "tags": [
+        "negative",
+        "data-integrity"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#412",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-17",
+      "title": "relTotal uses the same date window as the returned rows for each range value",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-6",
+      "given": "a program with releases spanning well beyond 90 days",
+      "when": "the endpoint is called with range=7d, then range=30d, then range=90d",
+      "then": "relTotal for each call equals the count of releases actually within that same window, matching the row-level date filter exactly",
+      "objective": "Verify relTotal and the row query share an identical date-window predicate (catches an unbounded-count bug) across all three range values.",
+      "preconditions": [
+        "Test DB seeded with program prog-001: 3 releases at 2d old, 5 at 20d old, 10 at 60d old, 20 at 150d old"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Send GET .../releases?range=7d&limit=50 and record relTotal and row count",
+        "Send GET .../releases?range=30d&limit=50 and record relTotal and row count",
+        "Send GET .../releases?range=90d&limit=50 and record relTotal and row count",
+        "Independently compute expected counts per window from seed data"
+      ],
+      "expected_results": [
+        "range=7d: relTotal == 3, matching the 3 rows within 7 days",
+        "range=30d: relTotal == 8 (3+5), matching rows within 30 days",
+        "range=90d: relTotal == 18 (3+5+10), matching rows within 90 days; the 150d-old releases are excluded from both relTotal and rows",
+        "in every case relTotal equals the full in-window count even when limit truncates the returned rows"
+      ],
+      "tags": [
+        "boundary",
+        "regression-guard",
+        "window-parity"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#413",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-18",
+      "title": "relTotal reflects full window count even when limit truncates rows",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-FR-6",
+      "given": "more releases in the window than the page limit",
+      "when": "the endpoint is called with limit smaller than the in-window count",
+      "then": "relTotal still reports the full in-window count, not the truncated page size",
+      "objective": "Verify relTotal is independent of pagination limit/offset, isolating the window-parity guardrail from the pagination slice.",
+      "preconditions": [
+        "Test DB seeded with program prog-001 having 35 releases within 30d"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "limit": 10,
+        "offset": 0
+      },
+      "steps": [
+        "Send GET .../releases?range=30d&limit=10&offset=0"
+      ],
+      "expected_results": [
+        "Response returns exactly 10 rows",
+        "relTotal equals 35, not 10"
+      ],
+      "tags": [
+        "boundary",
+        "window-parity"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#414",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-19",
+      "title": "date field is pre-formatted without year",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-03-FR-2",
+      "given": "a release with a known date",
+      "when": "the endpoint serializes the row",
+      "then": "date renders as e.g. 'Jul 15' with no year component",
+      "objective": "Verify the pre-formatted date string matches the mockup format exactly.",
+      "preconditions": [
+        "Test DB seeded with a release dated 2026-07-15 for prog-001"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "release_date": "2026-07-15",
+        "expected_date_string": "Jul 15"
+      },
+      "steps": [
+        "Send GET .../releases?range=90d and locate the seeded release's row"
+      ],
+      "expected_results": [
+        "Row's date field equals 'Jul 15' exactly, with no year present"
+      ],
+      "tags": [
+        "wire-contract",
+        "formatting"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#415",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-20",
+      "title": "Range/filter refresh completes within the 2s NFR budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-NFR-performance",
+      "given": "a program with representative data volume (5000+ releases)",
+      "when": "a range change or filter refresh request is issued",
+      "then": "the endpoint responds within the 2s budget (NFR-002), contingent on the program_releases(program_id, date) index (FR-PGD03-7)",
+      "objective": "Verify p95 endpoint latency stays under 2s at representative scale, per NFR-002 and the FR-PGD03-7 index precondition.",
+      "preconditions": [
+        "Test DB seeded with >=5000 program_releases rows for a single program_id",
+        "program_releases(program_id, date) index confirmed present (BED-01 migration)"
+      ],
+      "test_data": {
+        "program_id": "prog-heavy",
+        "range": "90d",
+        "budget": "p95 < 2000ms"
+      },
+      "steps": [
+        "Issue 50 sequential/concurrent GET requests to .../releases?range=90d against the seeded program",
+        "Record response latencies",
+        "Compute p95 latency"
+      ],
+      "expected_results": [
+        "p95 latency is under 2000ms",
+        "EXPLAIN ANALYZE on the underlying query shows index usage on program_releases(program_id, date), not a sequential scan"
+      ],
+      "tags": [
+        "performance",
+        "nfr-002"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#416",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 2500,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 2500,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 2000ms @ 100 RPS (story budget: 50 sequential/concurrent requests, 5000+ seeded releases)",
+          "measured": "p95 ~= 11ms across 50 requests (max observed 11ms, most <=6ms)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-21",
+      "title": "program_visibility RBAC check applied server-side with no dedicated audit event",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-03-NFR-security",
+      "given": "an authenticated request to the releases endpoint",
+      "when": "the request is processed",
+      "then": "program_visibility is invoked server-side (never UI-only hiding) and, being open-aggregate, emits no dedicated audit log event",
+      "objective": "Verify RBAC enforcement happens server-side and observability matches the open-aggregate design (no org_access/individual_view_denied/member_view_denied event emitted for this check).",
+      "preconditions": [
+        "Structured logging capture enabled for the test run",
+        "Valid bearer token for any persona"
+      ],
+      "test_data": {
+        "program_id": "prog-001"
+      },
+      "steps": [
+        "Send GET .../releases with a valid token",
+        "Capture structured logs emitted during the request",
+        "Attempt the same request with no token to confirm server-side (not client-only) enforcement"
+      ],
+      "expected_results": [
+        "Authenticated request succeeds (200) regardless of persona/program membership",
+        "No org_access/individual_view_denied/member_view_denied log event is emitted for this endpoint's program_visibility check",
+        "Unauthenticated request is rejected server-side (401), proving enforcement is not UI-only"
+      ],
+      "tags": [
+        "security",
+        "rbac",
+        "observability"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#417",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-03-TC-22",
+      "title": "Structured request log emitted with required fields",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-03-NFR-observability",
+      "given": "a request to the releases endpoint",
+      "when": "the request completes",
+      "then": "a structured log line is emitted via structlog containing method, path, program_id, range, offset, limit, status, latency",
+      "objective": "Verify observability NFR: every request produces a structured log with the specified fields.",
+      "preconditions": [
+        "Log capture fixture attached to the test client"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "offset": 0,
+        "limit": 20
+      },
+      "steps": [
+        "Send GET .../releases?range=30d&offset=0&limit=20 with valid auth",
+        "Capture the structured log entry for this request"
+      ],
+      "expected_results": [
+        "Log entry contains method=GET",
+        "Log entry contains the request path",
+        "Log entry contains program_id, range, offset, limit",
+        "Log entry contains status and latency fields"
+      ],
+      "tags": [
+        "observability"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#418",
+      "last_run": {
+        "started_at": "2026-09-16T14:53:50+00:00",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-03-AC-1",
+        "covered_by": [
+          "PGD-03-TC-01",
+          "PGD-03-TC-14"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-2",
+        "covered_by": [
+          "PGD-03-TC-03",
+          "PGD-03-TC-04",
+          "PGD-03-TC-05",
+          "PGD-03-TC-06"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-3",
+        "covered_by": [
+          "PGD-03-TC-07"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-4",
+        "covered_by": [
+          "PGD-03-TC-08",
+          "PGD-03-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-5",
+        "covered_by": [
+          "PGD-03-TC-10"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-6",
+        "covered_by": [
+          "PGD-03-TC-11"
+        ]
+      },
+      {
+        "id": "PGD-03-AC-7",
+        "covered_by": [
+          "PGD-03-TC-12",
+          "PGD-03-TC-13"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-03-FR-2",
+        "covered_by": [
+          "PGD-03-TC-02",
+          "PGD-03-TC-19"
+        ]
+      },
+      {
+        "id": "PGD-03-FR-3",
+        "covered_by": [
+          "PGD-03-TC-15",
+          "PGD-03-TC-16"
+        ]
+      },
+      {
+        "id": "PGD-03-FR-5",
+        "covered_by": [
+          "PGD-03-TC-05",
+          "PGD-03-TC-06"
+        ]
+      },
+      {
+        "id": "PGD-03-FR-6",
+        "covered_by": [
+          "PGD-03-TC-17",
+          "PGD-03-TC-18"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-03-NFR-performance",
+        "covered_by": [
+          "PGD-03-TC-20"
+        ]
+      },
+      {
+        "id": "PGD-03-NFR-security",
+        "covered_by": [
+          "PGD-03-TC-21"
+        ]
+      },
+      {
+        "id": "PGD-03-NFR-observability",
+        "covered_by": [
+          "PGD-03-TC-22"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

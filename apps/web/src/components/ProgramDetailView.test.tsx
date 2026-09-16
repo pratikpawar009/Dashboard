@@ -51,10 +51,21 @@ vi.mock("next/navigation", () => ({
 
 const fetchProgramDetail = vi.fn();
 const fetchPrograms = vi.fn();
+// PGD-03 T-15 mounted the self-fetching ReleasesList inside ProgramDetailView
+// (after DailyTokenTrendChart), so this mock now needs to resolve
+// fetchProgramReleases too -- a bare vi.fn() returning undefined would throw
+// inside ReleasesList's effect, mirroring DailyTokenTrendChart's own
+// precedent in ProgramDetailView.authFlow.test.tsx.
+const fetchProgramReleases = vi.fn(async (..._args: unknown[]) => ({
+  status: "ok" as const,
+  data: { items: [], relTotal: "0", tagColor: "", tagBg: "" },
+}));
 
 vi.mock("@/lib/programDetailApi.client", () => ({
   fetchProgramDetail: (...args: unknown[]) => fetchProgramDetail(...args),
   fetchPrograms: (...args: unknown[]) => fetchPrograms(...args),
+  fetchProgramReleases: (...args: unknown[]) =>
+    fetchProgramReleases(...args),
 }));
 
 afterEach(() => {

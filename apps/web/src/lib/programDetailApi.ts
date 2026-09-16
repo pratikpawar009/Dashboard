@@ -4,6 +4,10 @@ import type {
   ProgramDetailResult,
   ProgramSwitcherEntry,
 } from "@/types/programDetail";
+import type {
+  ProgramReleasesData,
+  ProgramReleasesResult,
+} from "@/types/programReleases";
 
 /**
  * `.claude/rules/performance-baseline.md`: every I/O call has an explicit
@@ -106,5 +110,75 @@ export async function fetchPrograms(opts?: {
     return body.programs;
   } catch {
     return [];
+  }
+}
+
+/**
+ * Server-only options for `fetchProgramReleases()` (D-05) -- same
+ * `accessToken` rule as `FetchProgramDetailOptions` above. `range` mirrors
+ * `fetchProgramTokenTrend`'s optional-range handling; `offset`/`limit` are
+ * this endpoint's own pagination params (DECISIONS.md D-01).
+ */
+export interface FetchProgramReleasesOptions {
+  range?: string;
+  offset?: number;
+  limit?: number;
+  accessToken?: string;
+}
+
+/**
+ * `GET /api/overview/program-detail/{programId}/releases?range=&offset=&limit=`
+ * (DECISIONS.md D-05). Only query params actually supplied in `opts` are
+ * appended -- an omitted `range`/`offset`/`limit` is left for the backend's
+ * own defaults (D-01), not defaulted client-side.
+ *
+ * Attaches `Authorization: Bearer <token>` only when `opts.accessToken` is
+ * present -- the header is omitted, not sent empty, otherwise, matching
+ * `fetchProgramDetail`. Status mapping: `404` -> `not_found`; `401` ->
+ * `unauthorized` (checked before the generic non-ok branch below, since a
+ * bare `!response.ok` check would otherwise swallow it into `error`); any
+ * other non-ok response or a network/timeout throw -> `error`.
+ */
+export async function fetchProgramReleases(
+  programId: string,
+  opts?: FetchProgramReleasesOptions,
+): Promise<ProgramReleasesResult> {
+  const headers: HeadersInit = {};
+  if (opts?.accessToken) {
+    headers["Authorization"] = `Bearer ${opts.accessToken}`;
+  }
+
+  const params = new URLSearchParams();
+  if (opts?.range !== undefined) {
+    params.set("range", opts.range);
+  }
+  if (opts?.offset !== undefined) {
+    params.set("offset", String(opts.offset));
+  }
+  if (opts?.limit !== undefined) {
+    params.set("limit", String(opts.limit));
+  }
+  const query = params.toString();
+
+  try {
+    const response = await fetch(
+      `${getApiBaseUrl()}/api/overview/program-detail/${programId}/releases${query ? `?${query}` : ""}`,
+      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+    );
+
+    if (response.status === 404) {
+      return { status: "not_found" };
+    }
+    if (response.status === 401) {
+      return { status: "unauthorized" };
+    }
+    if (!response.ok) {
+      return { status: "error" };
+    }
+
+    const data = (await response.json()) as ProgramReleasesData;
+    return { status: "ok", data };
+  } catch {
+    return { status: "error" };
   }
 }
