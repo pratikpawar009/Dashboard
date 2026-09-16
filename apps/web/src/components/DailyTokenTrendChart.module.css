@@ -1,0 +1,147 @@
+.section {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  padding: 22px 24px 16px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: #7a828f;
+  font-weight: 500;
+  margin-top: 3px;
+}
+
+.rightCluster {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.statBlock {
+  text-align: right;
+}
+
+.statTotal {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.statAvg {
+  font-size: 10.5px;
+  color: #a2abb8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.toggleTrack {
+  display: flex;
+  background: #eef0f3;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  color: #7a828f;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.toggleButtonActive {
+  background: #fff;
+  color: #151a22;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.chartArea {
+  margin-top: 6px;
+}
+
+.chartSkeleton {
+  width: 100%;
+  height: 240px;
+  border-radius: 10px;
+  background: #f5f6f8;
+}
+
+.statSkeleton {
+  width: 88px;
+  height: 20px;
+  border-radius: 6px;
+  background: #f5f6f8;
+}
+
+.errorPanel {
+  width: 100%;
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #7a828f;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.retryButton {
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  color: #151a22;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* NFR-008: coarse-pointer touch target — mockup's 6px/13px padding is below
+   the 44px guideline; grow the tap area without changing the visual chrome
+   at mouse/trackpad widths (DESIGN.md § Responsive). */
+@media (pointer: coarse) {
+  .toggleButton {
+    padding: 11px 14px;
+  }
+}

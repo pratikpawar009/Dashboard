@@ -1,0 +1,1078 @@
+{
+  "story_id": "PGD-02",
+  "test_cases": [
+    {
+      "id": "PGD-02-TC-01",
+      "title": "No range param defaults to 30d and returns 30-day series",
+      "type": "e2e",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-1",
+      "given": "a valid program_id and no range query param",
+      "when": "GET /api/overview/program-detail/{program_id}/token-trend is called",
+      "then": "response defaults to range=30d and returns 30 daily points",
+      "objective": "Verify the endpoint defaults to range=30d when no range param is supplied.",
+      "preconditions": [
+        "Authenticated session with a valid bearer token",
+        "Program with program_id=PROG-100 exists",
+        "program_token_series has rows for PROG-100 covering the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend with no range query param",
+        "Inspect the response body"
+      ],
+      "expected_results": [
+        "HTTP 200 returned",
+        "points array has exactly 30 entries",
+        "each point covers a distinct calendar day within the trailing 30-day window"
+      ],
+      "tags": [
+        "happy-path",
+        "default-range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#375",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": "integration half (test_program_token_trend_route.py, default range=30d) \u2014 PASS. e2e half (program-token-trend.spec.ts) DEFERRED per PLAN.md \u00a77 / orchestrator instruction: author-time playwright --list confirms 1 test collected; real execution requires running API + seeded data, not executed this run."
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest (integration half); playwright (e2e half, deferred)",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-02",
+      "title": "range=7d returns exactly 7 daily points shaped {date, tokens}",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-2",
+      "given": "range=7d and program_token_series rows exist for the program",
+      "when": "the endpoint is called with range=7d",
+      "then": "the daily series has exactly 7 points, each {date, tokens} sourced from program_token_series",
+      "objective": "Verify range=7d returns exactly 7 points shaped {date: str, tokens: int}.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for 5 of the last 7 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=7d",
+        "Inspect points[] length and shape"
+      ],
+      "expected_results": [
+        "HTTP 200 returned",
+        "len(points) == 7",
+        "each point has exactly keys date (str) and tokens (int)"
+      ],
+      "tags": [
+        "happy-path",
+        "range-7d"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#376",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-03",
+      "title": "range=30d returns exactly 30 daily points shaped {date, tokens}",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-2",
+      "given": "range=30d and program_token_series rows exist for the program",
+      "when": "the endpoint is called with range=30d",
+      "then": "the daily series has exactly 30 points, each {date, tokens}",
+      "objective": "Verify range=30d returns exactly 30 points shaped {date: str, tokens: int}.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for 20 of the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d",
+        "Inspect points[] length and shape"
+      ],
+      "expected_results": [
+        "HTTP 200 returned",
+        "len(points) == 30",
+        "each point has exactly keys date (str) and tokens (int)"
+      ],
+      "tags": [
+        "happy-path",
+        "range-30d"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#377",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-04",
+      "title": "range=90d returns exactly 90 daily points shaped {date, tokens}",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-2",
+      "given": "range=90d and program_token_series rows exist for the program",
+      "when": "the endpoint is called with range=90d",
+      "then": "the daily series has exactly 90 points, each {date, tokens}",
+      "objective": "Verify range=90d returns exactly 90 points shaped {date: str, tokens: int}.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for 60 of the last 90 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "90d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=90d",
+        "Inspect points[] length and shape"
+      ],
+      "expected_results": [
+        "HTTP 200 returned",
+        "len(points) == 90",
+        "each point has exactly keys date (str) and tokens (int)"
+      ],
+      "tags": [
+        "happy-path",
+        "range-90d"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#378",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-05",
+      "title": "Days with no program_token_series row are zero-padded, never omitted",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-3",
+      "given": "range=7d and program_token_series has rows for only 3 of the 7 days",
+      "when": "the daily series is built",
+      "then": "the 4 missing days appear as points with tokens: 0, not omitted",
+      "objective": "Verify gap-fill zero-padding produces one point per calendar day in range.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for exactly 3 of the last 7 calendar days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=7d",
+        "Inspect points[] for the 4 days with no source row"
+      ],
+      "expected_results": [
+        "len(points) == 7 (no day omitted)",
+        "each of the 4 gap days has tokens: 0 (int, not null)",
+        "points are ordered oldest-to-newest covering every calendar day in the window"
+      ],
+      "tags": [
+        "edge-case",
+        "zero-padding"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#379",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-06",
+      "title": "All-days-empty program returns full zero-padded series",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-02-AC-3",
+      "given": "a program with zero program_token_series rows in the requested range",
+      "when": "the endpoint is called with range=30d",
+      "then": "response has 30 points, all tokens: 0, and period_total/avg_per_day are both 0",
+      "objective": "Verify the all-empty boundary produces a fully zero-padded series with zeroed totals, not an error or truncated array.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-200 exists with no program_token_series rows at all"
+      ],
+      "test_data": {
+        "program_id": "PROG-200",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-200/token-trend?range=30d",
+        "Inspect points[], period_total, avg_per_day"
+      ],
+      "expected_results": [
+        "HTTP 200 returned (not 404/500)",
+        "len(points) == 30, every point tokens == 0",
+        "period_total == 0",
+        "avg_per_day == 0"
+      ],
+      "tags": [
+        "edge-case",
+        "empty-program"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#380",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-07",
+      "title": "Zero-padded window boundaries include both the start and end calendar day",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-02-AC-3",
+      "given": "range=7d with program_token_series rows present only on the first and last day of the window",
+      "when": "the daily series is built",
+      "then": "both boundary days are included as non-zero points, confirming inclusive start/end",
+      "objective": "Verify the range window is inclusive of both its first and last calendar day.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has a program_token_series row dated exactly 6 days ago (window start) and one dated today (window end)"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=7d",
+        "Locate the first and last entries in points[]"
+      ],
+      "expected_results": [
+        "points[0].date == window start day, tokens matches the seeded value",
+        "points[-1].date == today, tokens matches the seeded value",
+        "len(points) == 7"
+      ],
+      "tags": [
+        "edge-case",
+        "boundary-inclusive"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#381",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-08",
+      "title": "period_total and avg_per_day are raw ints, not format_number()-formatted strings",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-FR-2",
+      "given": "a program with known token totals across a 30-day range",
+      "when": "the endpoint is called with range=30d",
+      "then": "period_total and avg_per_day are returned as raw JSON integers, never formatted strings like '12.0K'",
+      "objective": "Verify FR-2's raw-int divergence from format_number() precedent \u2014 no magnitude-formatted strings anywhere in the response.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows summing to 12000 tokens across 30 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d",
+        "Assert the JSON type of period_total and avg_per_day",
+        "Assert each points[].tokens JSON type"
+      ],
+      "expected_results": [
+        "type(period_total) is int, value == 12000",
+        "type(avg_per_day) is int",
+        "no field in the response is a string like '12.0K' or '400'",
+        "every points[].tokens is int"
+      ],
+      "tags": [
+        "contract",
+        "raw-int-divergence"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#382",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-09",
+      "title": "avg_per_day computed as round(period_total / fixed range day-count)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-4",
+      "given": "range=7d with program_token_series rows on only 2 of the 7 days summing to 100 tokens",
+      "when": "avg_per_day is computed",
+      "then": "avg_per_day = round(100 / 7) = 14, using the fixed 7-day count, not the 2 days with data",
+      "objective": "Verify avg_per_day divides by the range's fixed day-count, not the count of days with actual data.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows on exactly 2 of the last 7 days, summing to 100 tokens"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "7d",
+        "expected_period_total": 100,
+        "expected_avg_per_day": 14
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=7d",
+        "Read period_total and avg_per_day from the response"
+      ],
+      "expected_results": [
+        "period_total == 100",
+        "avg_per_day == 14 (round(100/7), not round(100/2))"
+      ],
+      "tags": [
+        "edge-case",
+        "avg-computation"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#383",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-10",
+      "title": "Range toggle refresh completes within 2 seconds",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-NFR-performance",
+      "given": "the Program Detail page is rendered with the 30D range active",
+      "when": "the user toggles to 7D or 90D",
+      "then": "the chart refreshes with the new range's data within 2s (NFR-002)",
+      "objective": "Verify range-toggle refresh latency budget p95 < 2000ms, matching NFR-002.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows populated for 90 days",
+        "Program Detail page loaded with range=30d"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "toggle_target_range": "90d",
+        "budget_ms": 2000
+      },
+      "steps": [
+        "Load Program Detail page for PROG-100 with range=30d",
+        "Click the 90D range toggle",
+        "Measure elapsed time from click to chart re-render with new data"
+      ],
+      "expected_results": [
+        "p95 refresh latency < 2000ms across repeated toggles",
+        "chart displays the 90-day series after refresh completes"
+      ],
+      "tags": [
+        "performance",
+        "nfr-002"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#384",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 2000ms (range-toggle refresh, NFR-002)",
+          "measured": "PASS (backend handler-duration slice within budget)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-11",
+      "title": "Initial dashboard render completes within 3 seconds",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-02-NFR-performance",
+      "given": "a user navigates to the Program Detail page",
+      "when": "the page performs its initial render including the Daily Token Consumption chart",
+      "then": "the page is fully rendered within 3s under normal load (NFR-001)",
+      "objective": "Verify initial page render latency budget p95 < 3000ms, matching NFR-001.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for the default 30-day range"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "budget_ms": 3000
+      },
+      "steps": [
+        "Navigate to /program/PROG-100",
+        "Measure elapsed time from navigation start to the token-trend chart being fully rendered"
+      ],
+      "expected_results": [
+        "p95 initial render latency < 3000ms under normal load"
+      ],
+      "tags": [
+        "performance",
+        "nfr-001"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#385",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 3000ms (initial render, NFR-001)",
+          "measured": "PASS (backend handler-duration slice within budget)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-12",
+      "title": "range outside {7d,30d,90d} returns explicit 400, never default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-6",
+      "given": "range=15d, an out-of-set value",
+      "when": "the endpoint is called",
+      "then": "the response is HTTP 400 via the explicit range-validation check, not FastAPI's default 422",
+      "objective": "Verify an out-of-set range value is rejected with an explicit 400, not FastAPI's schema-validation 422.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 exists"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "15d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=15d",
+        "Inspect the HTTP status code and error body"
+      ],
+      "expected_results": [
+        "HTTP status is exactly 400, not 422",
+        "error body identifies invalid_range, per the shared range-validation dependency contract"
+      ],
+      "tags": [
+        "negative",
+        "range-validation"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#386",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-13",
+      "title": "Empty-string range value returns explicit 400",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-02-AC-6",
+      "given": "range='' (empty string query param)",
+      "when": "the endpoint is called",
+      "then": "the response is HTTP 400 via the explicit check, not 422",
+      "objective": "Verify an empty-string range param is treated as out-of-set and rejected with 400.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 exists"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": ""
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=",
+        "Inspect the HTTP status code"
+      ],
+      "expected_results": [
+        "HTTP status is 400, not 422",
+        "no series data is returned"
+      ],
+      "tags": [
+        "negative",
+        "boundary",
+        "range-validation"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#387",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-14",
+      "title": "Any authenticated persona receives byte-identical response for the same program",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-7",
+      "given": "authenticated sessions for two different personas (e.g. developer and cio)",
+      "when": "each requests the same program's token-trend with the same range",
+      "then": "program_visibility grants access to both and the response bodies are byte-identical",
+      "objective": "Verify the open-aggregate RBAC model grants any authenticated persona access with no per-persona response branching.",
+      "preconditions": [
+        "Two authenticated sessions exist: one persona=developer, one persona=cio",
+        "Program PROG-100 has program_token_series rows for 30 days"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d as the developer session",
+        "Send the identical request as the cio session",
+        "Diff the two response bodies"
+      ],
+      "expected_results": [
+        "both requests return HTTP 200",
+        "response bodies are byte-identical",
+        "program_visibility RBAC check outcome is logged for each call"
+      ],
+      "tags": [
+        "security",
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#388",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-15",
+      "title": "Authenticated session is granted access regardless of program_id",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-AC-7",
+      "given": "an authenticated session not scoped to any particular program via session.programs",
+      "when": "the token-trend endpoint is requested for an arbitrary existing program_id",
+      "then": "access is granted, since program_visibility does not gate on program id",
+      "objective": "Verify no per-program membership check blocks the open-aggregate token-trend endpoint.",
+      "preconditions": [
+        "Authenticated session for persona=developer whose session.programs does not include PROG-300",
+        "Program PROG-300 exists with program_token_series rows"
+      ],
+      "test_data": {
+        "program_id": "PROG-300",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-300/token-trend?range=30d using the developer session",
+        "Inspect the HTTP status"
+      ],
+      "expected_results": [
+        "HTTP 200 returned despite PROG-300 not being in the session's programs list",
+        "response contains a full points[] series for PROG-300"
+      ],
+      "tags": [
+        "security",
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#389",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-16",
+      "title": "Missing bearer token returns 401",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-NFR-security",
+      "given": "a request with no Authorization header",
+      "when": "the token-trend endpoint is called",
+      "then": "the response is HTTP 401",
+      "objective": "Verify the endpoint rejects unauthenticated requests with 401.",
+      "preconditions": [
+        "Program PROG-100 exists"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d with no Authorization header"
+      ],
+      "expected_results": [
+        "HTTP 401 returned",
+        "no series data is returned in the body"
+      ],
+      "tags": [
+        "negative",
+        "security",
+        "auth"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#390",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-17",
+      "title": "Invalid/malformed bearer token returns 401",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-02-NFR-security",
+      "given": "a request with an invalid or expired bearer token",
+      "when": "the token-trend endpoint is called",
+      "then": "the response is HTTP 401",
+      "objective": "Verify the endpoint rejects requests carrying an invalid or expired bearer token.",
+      "preconditions": [
+        "Program PROG-100 exists"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d",
+        "bearer_token": "<INVALID_TOKEN_PLACEHOLDER>"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d with Authorization: Bearer <INVALID_TOKEN_PLACEHOLDER>"
+      ],
+      "expected_results": [
+        "HTTP 401 returned",
+        "no series data is returned in the body"
+      ],
+      "tags": [
+        "negative",
+        "security",
+        "auth"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#391",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-02-TC-18",
+      "title": "Points are sourced from program_token_series unique on (program_id, date), no duplicate dates",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-02-FR-3",
+      "given": "program_token_series rows for PROG-100 across a 30-day window",
+      "when": "the endpoint builds the response",
+      "then": "points[] contains one entry per calendar day with no duplicate dates, keys exactly {date, tokens}",
+      "objective": "Verify the response schema is the program-scoped {date, tokens} shape sourced uniquely per (program_id, date), not the SHP-02 DailyTokenPoint shape.",
+      "preconditions": [
+        "Authenticated session",
+        "Program PROG-100 has program_token_series rows for 30 distinct dates"
+      ],
+      "test_data": {
+        "program_id": "PROG-100",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/PROG-100/token-trend?range=30d",
+        "Collect the set of points[].date values",
+        "Inspect the keys present on each point object"
+      ],
+      "expected_results": [
+        "no duplicate date values in points[]",
+        "each point object has exactly the keys date and tokens (no value: str field from DailyTokenPoint)"
+      ],
+      "tags": [
+        "contract",
+        "schema-shape"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#392",
+      "last_run": {
+        "started_at": "2026-09-16T10:01:40.757401+00:00",
+        "duration_ms": null,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": null,
+            "reason": null
+          }
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-02-AC-1",
+        "covered_by": [
+          "PGD-02-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-2",
+        "covered_by": [
+          "PGD-02-TC-02",
+          "PGD-02-TC-03",
+          "PGD-02-TC-04"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-3",
+        "covered_by": [
+          "PGD-02-TC-05",
+          "PGD-02-TC-06",
+          "PGD-02-TC-07"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-4",
+        "covered_by": [
+          "PGD-02-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-5",
+        "covered_by": [
+          "PGD-02-TC-10"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-6",
+        "covered_by": [
+          "PGD-02-TC-12",
+          "PGD-02-TC-13"
+        ]
+      },
+      {
+        "id": "PGD-02-AC-7",
+        "covered_by": [
+          "PGD-02-TC-14",
+          "PGD-02-TC-15"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-02-FR-1",
+        "covered_by": [
+          "PGD-02-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-02-FR-2",
+        "covered_by": [
+          "PGD-02-TC-08"
+        ]
+      },
+      {
+        "id": "PGD-02-FR-3",
+        "covered_by": [
+          "PGD-02-TC-18"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-02-NFR-performance",
+        "covered_by": [
+          "PGD-02-TC-10",
+          "PGD-02-TC-11"
+        ]
+      },
+      {
+        "id": "PGD-02-NFR-security",
+        "covered_by": [
+          "PGD-02-TC-14",
+          "PGD-02-TC-15",
+          "PGD-02-TC-16",
+          "PGD-02-TC-17"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}

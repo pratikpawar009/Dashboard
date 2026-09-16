@@ -1,0 +1,539 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-02",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-16T09:00:00+00:00",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/schemas/program_detail.py",
+      "reason": "add ProgramTokenPoint + ProgramTokenTrendResponse (D-02)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/services/program_detail_token_trend.py",
+      "reason": "daily series query + zero-padding + period_total/avg_per_day computation (FR-2/FR-3, D-03)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "add GET /program-detail/{program_id}/token-trend route, registering it on the existing overview router (D-01) \u2014 entry-registration site for F-02"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_detail_token_trend.py",
+      "reason": "unit coverage: zero-padding edge cases, avg_per_day rounding (D-03), schema shape (TC-02..09, TC-18)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_token_trend_route.py",
+      "reason": "route-level integration coverage: range validation, RBAC open-aggregate, 401/400 (TC-01, TC-12..17)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_token_trend_perf.py",
+      "reason": "performance budget tests (TC-10, TC-11) following tests/perf/test_overview_perf.py's plain time.perf_counter() pattern, no new runner (D-05)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "apps/web/src/types/programTokenTrend.ts",
+      "reason": "ProgramTokenTrendData wire-shape types mirroring types/programDetail.ts's convention"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "apps/web/src/lib/programTokenTrendApi.ts",
+      "reason": "server-only fetch module targeting FastAPI directly (mirrors programDetailApi.ts's D-08 split)"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/lib/programTokenTrendApi.client.ts",
+      "reason": "client-only fetch module targeting the same-origin proxy (mirrors programDetailApi.client.ts's D-08 split)"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/token-trend/route.ts",
+      "reason": "server-to-server proxy Route Handler (ADR-0008), registering F-08 as its FastAPI-facing caller \u2014 entry-registration site"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/components/DailyTokenTrendChart.tsx",
+      "reason": "renders the Daily Token Consumption mockup section: range toggle, stat block, SVG area chart (DESIGN.md)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/components/DailyTokenTrendChart.module.css",
+      "reason": "inline-style-derived CSS Module for F-11, mirroring ProgramSummaryCards.module.css's per-component convention"
+    },
+    "F-13": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "mount <DailyTokenTrendChart programId={programId} /> inside the page content region \u2014 entry-registration site for F-11"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/components/DailyTokenTrendChart.test.tsx",
+      "reason": "unit coverage: range toggle, formatTokens thresholds (D-04), loading/empty/error states, a11y (role=group, aria-pressed)"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/token-trend/route.test.ts",
+      "reason": "proxy route unit coverage: status mapping, header passthrough absence (no X-Program-Switch-From concept here)"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/playwright.config.ts",
+      "reason": "Playwright runner config (D-05) \u2014 net-new e2e runner for TC-01"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/e2e/program-token-trend.spec.ts",
+      "reason": "e2e spec: range-toggle flow, TC-01 default-range-30d coverage"
+    },
+    "F-18": {
+      "action": "modify",
+      "path": "apps/web/package.json",
+      "reason": "add @playwright/test dev dependency at apps/web scope (D-05)"
+    },
+    "F-19": {
+      "action": "modify",
+      "path": "docs/config/project-commands.yaml",
+      "reason": "wire test_e2e: playwright invocation; append preflight smoke-install for @playwright/test (config-drift C1/C2)"
+    },
+    "F-20": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add API table row for GET /api/overview/program-detail/{program_id}/token-trend (docs T2)"
+    },
+    "F-21": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill program-token-trend-api contract's concrete shape (produced_by PGD-02) \u2014 step 10 discipline, DATA-DESIGN.md \u00a79 bookmarks here"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add ProgramTokenPoint + ProgramTokenTrendResponse schemas",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-2",
+        "PGD-02-FR-2",
+        "PGD-02-FR-3"
+      ],
+      "risk_refs": [],
+      "notes": "Raw-int fields throughout (D-02). model_config mirrors pydantic-patterns: populate_by_name not needed (no camelCase aliases here, unlike PersonalUsageCard).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:15:27.913697+00:00",
+      "files_touched": [
+        "services/api/app/schemas/program_detail.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Implement daily series query + zero-padding + period_total/avg_per_day service",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-2",
+        "PGD-02-AC-3",
+        "PGD-02-AC-4"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02"
+      ],
+      "notes": "fetch_program_token_series(db, program_id, range_value) -> ProgramTokenTrendResponse. One grouped SELECT date_trunc('day', date), sum(tokens) FROM program_token_series WHERE program_id=:id AND date>=:range_start GROUP BY 1. _zero_padded_points() pure helper mirrors SHP-02's shape but emits int tokens (not format_number() strings) and avg_per_day=round(period_total/num_days) per D-03 (fixed range day-count, not days-with-data).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:17:06.406539+00:00",
+      "files_touched": [
+        "services/api/app/services/program_detail_token_trend.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Add GET /program-detail/{program_id}/token-trend route on the overview router",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-1",
+        "PGD-02-AC-5",
+        "PGD-02-AC-6",
+        "PGD-02-AC-7",
+        "PGD-02-FR-1"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Sibling route on app/api/overview.py (D-01). Depends(_range_with_default)-style wrapper (mirrors personal_usage.py) supplying only the Query('30d') default; delegates {7d,30d,90d} membership + 400 rejection + invalid_range logging entirely to app.dependencies.range.validate_range (unedited). Calls program_visibility(current_user, program_id) once, bare, no try/except (mirrors get_program_detail). Inline code comment notes the FR-1 sibling-router placement decision per REQUIREMENTS.md Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:26:48.022692+00:00",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Unit tests: zero-padding, avg_per_day rounding, schema shape",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-3",
+        "PGD-02-AC-4",
+        "PGD-02-FR-3"
+      ],
+      "risk_refs": [
+        "R-01",
+        "R-02"
+      ],
+      "notes": "Covers PGD-02-TC-05, TC-06, TC-07 (zero-padding gap-fill, all-empty boundary, inclusive start/end), TC-09 (avg_per_day fixed-day-count divisor), TC-18 (schema keys exactly {date, tokens}, no duplicate dates). Includes the leap-year/range-edge cases research risk #1 calls out.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:26:48.022692+00:00",
+      "files_touched": [
+        "services/api/tests/unit/test_program_detail_token_trend.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Route-level tests: range validation, RBAC open-aggregate, auth failures",
+      "complexity": "M",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-1",
+        "PGD-02-AC-6",
+        "PGD-02-AC-7"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "Covers PGD-02-TC-01 (integration half \u2014 default range=30d), TC-02, TC-03, TC-04 (exact point counts per range), TC-08 (raw-int JSON types, not format_number() strings), TC-12, TC-13 (explicit 400 invalid_range, never 422), TC-14, TC-15 (byte-identical cross-persona, no program-membership gating), TC-16, TC-17 (401 missing/invalid bearer). Real ASGI app via build_app/async_client_for, dev-bypass token minting, matching test_personal_usage.py conventions (pytest-patterns).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:30:46.533013+00:00",
+      "files_touched": [
+        "services/api/tests/unit/test_program_token_trend_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Performance tests: range-toggle refresh <=2s, initial render <=3s budgets",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [
+        "R-08"
+      ],
+      "notes": "Covers PGD-02-TC-10 (NFR-002, backend handler-duration half of the 2s toggle-refresh budget) and PGD-02-TC-11 (NFR-001, 3s initial-render budget, backend handler-duration slice). Follows tests/perf/test_overview_perf.py exactly: real app, time.perf_counter(), no k6/new tool (D-05). Honest-measurement convention: report actual duration on a miss, never loosen the budget.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:36:13.961767+00:00",
+      "files_touched": [
+        "services/api/tests/perf/test_program_token_trend_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Add ProgramTokenTrendData frontend types",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors types/programDetail.ts's convention: ProgramTokenPointData {date: string, tokens: number}, ProgramTokenTrendData {points: ProgramTokenPointData[], period_total: number, avg_per_day: number}, ProgramTokenTrendResult discriminated union ('ok'|'not_found'|'unauthorized'|'error') matching ProgramDetailResult's shape for the same downstream consumers (page.tsx-style server fetch, client fetch).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:17:06.406539+00:00",
+      "files_touched": [
+        "apps/web/src/types/programTokenTrend.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Server-side fetch module (programTokenTrendApi.ts)",
+      "complexity": "S",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors programDetailApi.ts's fetchProgramDetail(): fetch(`${getApiBaseUrl()}/api/overview/program-detail/${programId}/token-trend?range=${range}`, {headers: accessToken ? {Authorization: `Bearer ${accessToken}`} : {}, signal: AbortSignal.timeout(5000)}). Status mapping: 401->unauthorized, !ok->error, else ok. No X-Program-Switch-From concept here (this is not the program-switch flow).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:26:48.022692+00:00",
+      "files_touched": [
+        "apps/web/src/lib/programTokenTrendApi.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Client-side fetch module (programTokenTrendApi.client.ts)",
+      "complexity": "S",
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors programDetailApi.client.ts: fetch(`/api/proxy/program-detail/${programId}/token-trend?range=${range}`), same timeout/status-mapping conventions, no Authorization header (proxy attaches it server-side, D-08 pattern).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:26:48.022692+00:00",
+      "files_touched": [
+        "apps/web/src/lib/programTokenTrendApi.client.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Proxy Route Handler for token-trend",
+      "complexity": "M",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-5",
+        "PGD-02-AC-7"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors apps/web/src/app/api/proxy/program-detail/[program_id]/route.ts: reads `range` query param off the incoming request, calls callWithAuth((accessToken) => fetchProgramTokenTrend(program_id, range, {accessToken}), r => r.status === 'unauthorized'), maps ok->200 JSON, unauthorized->401 {error:'session_expired'}, error->502 {error:'upstream_error'} (ADR-0008). No not_found case needed (this endpoint has no 404 path per REQUIREMENTS.md).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:30:46.533013+00:00",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/token-trend/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Fill program-token-trend-api contract in docs/requirements/api.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-21"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-2"
+      ],
+      "risk_refs": [],
+      "notes": "Replace the decomposition-time sketch (shape.endpoint one-liner) with the concrete GET path, response_model (ProgramTokenTrendResponse), field types (raw ints, D-02/D-04), rbac note (open-aggregate program_visibility), and errors (400 invalid_range, 401) \u2014 same density as the personal-usage-api entry immediately below it in the same file. DATA-DESIGN.md \u00a79 bookmarks this section rather than re-authoring it.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:30:46.533013+00:00",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Build DailyTokenTrendChart component (range toggle + stat block + SVG chart)",
+      "complexity": "L",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-11",
+        "F-12"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-2",
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Renders DESIGN.md's <!-- DAILY TOKEN CONSUMPTION --> section: header row (title + subtitle with tokRangeLabel), stat block (tokTotal/tokAvg via local formatTokens(), D-04's threshold ladder), 3-button segmented range toggle (role=group, aria-pressed, single-select, not color-only per NFR-008), inline SVG area chart preserving DESIGN.md's exact geometry (viewBox 1000x240, padL/R 6, padT 16, padB 30, y-scale max(vals)*1.12 guarded against all-zero division-by-zero per DESIGN.md Empty state, 4 gridlines, gradient fill, last-point marker, 7-or-6 x-tick labels 'Mon D' format). Accent color reused from the page's already-resolved program-type color (props-passed from ProgramDetailHeader's existing getProgramStyle() call, not re-derived). States: Populated/Loading (skeleton at fixed 240px, buttons disabled)/Empty (flat-zero line, axis-max guard)/Error (chrome retained, inline retry). genDaily()/seeded RNG explicitly NOT ported (DESIGN.md) \u2014 real points[] only. Imports fetchProgramTokenTrend from lib/programTokenTrendApi.client.ts (F-09) to drive the range-toggle refetch.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:30:46.533013+00:00",
+      "files_touched": [
+        "apps/web/src/components/DailyTokenTrendChart.tsx",
+        "apps/web/src/components/DailyTokenTrendChart.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Mount DailyTokenTrendChart on ProgramDetailView",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-1",
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Add <DailyTokenTrendChart programId={programId} /> inside styles.content, below <ProgramSummaryCards> and above the (out-of-scope, not-yet-built) Releases card slot \u2014 matches DESIGN.md's 'sibling to the summary strip above it and the Releases card below' layout note. Only renders when result.status === 'ok' (same gate ProgramSummaryCards uses); ProgramDetailErrorPanel's error branch is unaffected.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:36:13.961767+00:00",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.tsx",
+        "apps/web/src/components/ProgramDetailView.authFlow.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Unit tests: DailyTokenTrendChart (formatting, toggle, states, a11y)",
+      "complexity": "M",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Asserts formatTokens() threshold boundaries (D-04: <1000 bare int, >=1000 '{n}K', >=1_000_000 '{n}M'), range-toggle click fires a refetch with the new range and updates tokRangeLabel text, role=group + aria-pressed on the active button, loading skeleton at fixed height (no reflow), empty all-zero series renders a flat line without a div-by-zero crash, error state shows retry and keeps range buttons usable.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:36:13.961767+00:00",
+      "files_touched": [
+        "apps/web/src/components/DailyTokenTrendChart.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Unit tests: token-trend proxy route",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-5"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors route.test.ts for the sibling program-detail proxy: status-mapping table (ok->200, unauthorized->401 session_expired, error->502 upstream_error), range query param forwarded verbatim to fetchProgramTokenTrend.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:36:13.961767+00:00",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/token-trend/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "Install + configure Playwright runner",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-16",
+        "F-18",
+        "F-19"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "D-05: net-new e2e runner. pnpm -C apps/web add -D @playwright/test; apps/web/playwright.config.ts (baseURL http://localhost:3000, webServer block starting `pnpm dev`); wire docs/config/project-commands.yaml test_e2e: 'pnpm -C apps/web exec playwright test' and append a preflight smoke-import/install step (`pnpm -C apps/web exec playwright install --with-deps chromium`). Must land BEFORE T-17 (which authors the spec this runner executes).",
+      "status": "done",
+      "completed_at": "2026-09-16T09:15:27.913697+00:00",
+      "files_touched": [
+        "apps/web/playwright.config.ts",
+        "apps/web/package.json",
+        "docs/config/project-commands.yaml",
+        "apps/web/pnpm-lock.yaml"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-17",
+      "title": "E2E spec: program-detail range-toggle flow (TC-01)",
+      "complexity": "M",
+      "predecessors": [
+        "T-13",
+        "T-16"
+      ],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "PGD-02-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "PGD-02-TC-01's e2e half: navigate to /programs/PROG-100, assert the Daily Token Consumption card renders with 30D active by default (no range param on initial load), toggle to 7D and assert the chart/stat block update. Author-time smoke: spec parses/lints under `playwright test --list` (dry-run) and every selector/route/seed program_id referenced exists in the codebase at authoring time \u2014 execution against a live seeded backend is deferred to /arh-validate-feature (needs a running API + seeded program_token_series data), per plan-authoring's constrained-deferred-execution rule.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:39:41.334205+00:00",
+      "files_touched": [
+        "apps/web/e2e/program-token-trend.spec.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-18",
+      "title": "docs(readme): add token-trend API row",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-20"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "Docs T2 (new HTTP route): add a row to README.md's API table for GET /api/overview/program-detail/{program_id}/token-trend, following the /api/overview/program-detail/{program_id} row's format immediately above it \u2014 request params (range query, default 30d), response shape (points/period_total/avg_per_day raw ints), status codes (200/400 invalid_range/401), and the raw-int divergence note (D-02/D-04) so a reader isn't surprised these two fields aren't format_number()-formatted like every sibling row.",
+      "status": "done",
+      "completed_at": "2026-09-16T09:30:46.533013+00:00",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    }
+  ]
+}

@@ -13,10 +13,13 @@ import type {
 } from "@/types/programDetail";
 import type { Persona, SignedInUser } from "@/types/persona";
 
+import { getProgramStyle } from "@/lib/programStyle";
+
 import { PersonaDashboardShell } from "./PersonaDashboardShell";
 import { ProgramDetailHeader } from "./ProgramDetailHeader";
 import { ProgramSummaryCards } from "./ProgramSummaryCards";
 import { ProgramDetailErrorPanel } from "./ProgramDetailErrorPanel";
+import { DailyTokenTrendChart } from "./DailyTokenTrendChart";
 import styles from "./ProgramDetailView.module.css";
 
 export interface ProgramDetailViewProps {
@@ -179,10 +182,24 @@ export function ProgramDetailView({
         />
         <div className={styles.content}>
           {result.status === "ok" ? (
-            <ProgramSummaryCards
-              state={isSwitching ? "loading" : "populated"}
-              cards={result.data.summary}
-            />
+            <>
+              <ProgramSummaryCards
+                state={isSwitching ? "loading" : "populated"}
+                cards={result.data.summary}
+              />
+              {/* T-13, DESIGN.md § Layout: sibling card below the summary
+                  strip, reusing the header's already-resolved program-type
+                  accent color rather than picking its own (DESIGN.md § Chart
+                  area). Gated on the same `result.status === "ok"` check as
+                  ProgramSummaryCards above -- the error branch is unaffected. */}
+              <DailyTokenTrendChart
+                programId={programId}
+                accentColor={
+                  getProgramStyle(result.data.header.type).avatarStyle
+                    .color as string
+                }
+              />
+            </>
           ) : (
             <ProgramDetailErrorPanel />
           )}

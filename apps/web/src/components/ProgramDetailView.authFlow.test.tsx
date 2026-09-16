@@ -113,11 +113,26 @@ vi.mock("next/navigation", () => ({
 
 const fetchProgramDetailClientMock = vi.fn();
 const fetchProgramsClientMock = vi.fn();
+// Resolves an `ok` result: DailyTokenTrendChart calls `.then()` on this
+// directly, so a bare vi.fn() returning undefined would throw inside its effect.
+const fetchProgramTokenTrendClientMock = vi.fn(async () => ({
+  status: "ok" as const,
+  data: { points: [], period_total: 0, avg_per_day: 0 },
+}));
 
 vi.mock("@/lib/programDetailApi.client", () => ({
   fetchProgramDetail: (...args: unknown[]) =>
     fetchProgramDetailClientMock(...args),
   fetchPrograms: (...args: unknown[]) => fetchProgramsClientMock(...args),
+}));
+
+// PGD-02 T-13 mounted the self-fetching DailyTokenTrendChart inside
+// ProgramDetailView, so this file's "no real request left the browser"
+// assertion below now has a second client module to account for. Mocked for the
+// same reason as programDetailApi.client above -- not to silence the assertion,
+// but to keep the token-leak check measuring what it was written to measure.
+vi.mock("@/lib/programTokenTrendApi.client", () => ({
+  fetchProgramTokenTrend: () => fetchProgramTokenTrendClientMock(),
 }));
 
 // test_data fixture anchors (docs/test-cases/AUTH-05.json AUTH-05-TC-02)
@@ -375,6 +390,7 @@ describe("AUTH-05-TC-02: OAuth handshake relay + dual-path bearer forwarding + d
     const allClientCallArgs = [
       ...fetchProgramsClientMock.mock.calls,
       ...fetchProgramDetailClientMock.mock.calls,
+      ...fetchProgramTokenTrendClientMock.mock.calls,
     ];
     const serializedArgs = JSON.stringify(allClientCallArgs);
     expect(serializedArgs).not.toContain("Authorization");
