@@ -104,7 +104,7 @@ def push_activity(
                     if not stripped or stripped.startswith("#"):
                         continue
                     try:
-                        rows.append(json.loads(stripped))
+                        row = json.loads(stripped)
                     except json.JSONDecodeError:
                         # Parse-error rejection index is the row's 0-based
                         # position within its (would-be) batch. rows[] holds
@@ -116,6 +116,13 @@ def push_activity(
                                 "reason": "malformed_ndjson_line",
                             }
                         )
+                        continue
+                    # Stamp envelope program_id onto rows that omit it; a row
+                    # that already carries a different value is preserved so
+                    # the backend's program_id_mismatch check still fires.
+                    if isinstance(row, dict) and "program_id" not in row:
+                        row["program_id"] = effective_program_id
+                    rows.append(row)
 
     # rows_read = attempted JSON parses (successful + malformed), per PRD FR-2.
     rows_read = len(rows) + len(rejected)

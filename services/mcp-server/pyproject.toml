@@ -11,6 +11,10 @@ dependencies = [
     "httpx>=0.27",
     # YAML parser for `.harness/program.yaml` (D-04). Matches services/api pin.
     "pyyaml>=6.0",
+    # Loads services/mcp-server/.env at import time (override=False), so
+    # AGENTRISE_INGEST_TOKEN can live in a gitignored file rather than the
+    # operator's shell rc. Ambient env still wins.
+    "python-dotenv>=1.0",
 ]
 
 # AF-01 (resolved): use PEP 735 `[dependency-groups]` to match services/api's
