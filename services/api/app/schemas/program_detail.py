@@ -36,3 +36,32 @@ class ProgramDetailResponse(BaseModel):
 
     header: ProgramDetailHeader
     summary: list[ProgramSummaryCard]
+
+
+class ProgramTokenPoint(BaseModel):
+    """One day's point in the program token trend series (PGD-02-FR-3).
+
+    Deliberately NOT `personal_usage.py::DailyTokenPoint` -- that sibling's `value` is a
+    pre-formatted string; `tokens` here is a raw int (PGD-02 D-02/D-03, FR-2). Two shapes for
+    the same daily-series concept now exist in the codebase on purpose -- do not "helpfully"
+    merge them.
+    """
+
+    date: str = Field(..., description="ISO calendar date for this point")
+    tokens: int = Field(..., description="Raw token total for this day, not pre-formatted")
+
+
+class ProgramTokenTrendResponse(BaseModel):
+    """Response envelope for GET /api/overview/program-detail/{program_id}/token-trend (PGD-02).
+
+    Deliberately NOT `personal_usage.py::DailyTokenSeries` -- that sibling's `period_total`/
+    `avg_per_day` are pre-formatted strings; both are raw ints here (PGD-02 D-02/D-03, FR-2).
+    `avg_per_day` divides by the range's fixed day-count, not the count of days with data
+    (D-03).
+    """
+
+    points: list[ProgramTokenPoint]
+    period_total: int = Field(..., description="Raw sum of tokens across the range")
+    avg_per_day: int = Field(
+        ..., description="Raw average tokens per day across the range (fixed day-count divisor)"
+    )

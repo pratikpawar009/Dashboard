@@ -157,7 +157,15 @@ shape:
 produced_by: PGD-02
 consumed_by: [EMD-01]
 shape:
-  endpoint: "program-level daily token series for the selected range, default 30d; returns period total + avg/day"
+  endpoint: "GET /api/overview/program-detail/{program_id}/token-trend?range=7d|30d|90d (default 30d, via a story-local _range_with_default wrapper around the shared validate_range()) -- a SIBLING route on the existing overview router (app/api/overview.py, prefix=/api/overview), not a new program_detail.py router file (DECISIONS.md D-01)"
+  response_model: "ProgramTokenTrendResponse @ app/schemas/program_detail.py (PGD-02/DECISIONS.md D-02)"
+  points: "list[ProgramTokenPoint { date: str, tokens: int }], one entry per calendar day in the selected range, oldest-to-newest -- zero-padded: a day with no program_token_series row still gets its own point with tokens: 0, never omitted, so points always has exactly 7/30/90 entries regardless of how sparse the program's data is; a program_id with NO data at all still returns a full all-zero series, never an empty array"
+  period_total: "int -- raw sum of tokens across the range (NOT format_number()-formatted)"
+  avg_per_day: "int -- round(period_total / num_days), where num_days is the range's FIXED day-count (7/30/90) derived from range_to_start()'s fixed-offset math, NOT the count of days that actually had data (DECISIONS.md D-03)"
+  raw_int_divergence: "period_total, avg_per_day, and points[].tokens are RAW INTEGERS, not format_number()-formatted strings -- a deliberate, scoped departure from this API's usual 'values arrive pre-formatted' convention (docs/design/README.md). This endpoint does NOT reuse personal-usage-api's DailyTokenPoint/DailyTokenSeries shapes (DECISIONS.md D-02) -- two shapes for the same daily-series concept now exist in the codebase on purpose. The frontend owns magnitude formatting for these three fields (DECISIONS.md D-04)."
+  source: "one grouped SELECT date_trunc('day', date), sum(tokens) FROM program_token_series WHERE program_id = :program_id AND date >= :range_start GROUP BY 1, backed by the existing uq_program_token_series_program_id_date unique index's leading program_id column -- no N+1, no per-day queries"
+  rbac: "program_visibility(current_user, program_id) (rbac-checks/AUTH-03) called once with the real program_id -- open-aggregate, any authenticated session, never denies and never filters by current_user.programs; byte-identical response across every persona (AC-7)"
+  errors: "400 invalid_range if range is outside {7d,30d,90d}, via the shared validate_range() envelope -- always this explicit 400, never FastAPI's default 422; 401 if the bearer token is missing or invalid. No 404 for an unknown program_id, unlike the sibling program-detail-api above -- the handler calls fetch_program_token_trend() directly after the RBAC gate with no existence check, so an unknown program_id returns 200 with a full all-zero series, not a 404 (verified against app/api/overview.py::get_program_token_trend / app/services/program_detail_token_trend.py::fetch_program_token_trend)"
 ```
 
 ### program-releases-api

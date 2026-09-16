@@ -38,21 +38,24 @@ never on the 404 path.
 
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser, get_current_user
 from app.core.db import get_db
 from app.core.rbac import org_access, program_visibility
+from app.dependencies.range import validate_range
 from app.models.rollup import OrgSummaryRollup, ProgramSummary
 from app.schemas.org_summary import OrgSummaryCard, OrgSummaryResponse, ProgramsUsingAi
 from app.schemas.program_detail import (
     ProgramDetailHeader,
     ProgramDetailResponse,
     ProgramSummaryCard,
+    ProgramTokenTrendResponse,
 )
 from app.services.freshness import FreshnessAccessor
+from app.services.program_detail_token_trend import fetch_program_token_trend
 from app.services.rollup_compute import compute_adoption_percent
 from app.utils.format import format_number
 
@@ -141,6 +144,43 @@ async def get_program_detail(
         logger.info("program_drilldown", extra={"program_id": program_id})
 
     return response
+
+
+def _range_with_default(request: Request, range: str = Query("30d")) -> str:
+    """PGD-02-AC-1 / T-03: supplies only the `Query` default (`30d`).
+
+    Mirrors `app.api.personal_usage._range_with_default` exactly -- delegates the
+    `{7d,30d,90d}` membership check, the `HTTP 400` rejection, and the `invalid_range`
+    warning log entirely to the shared `validate_range` (`app/dependencies/range.py`),
+    unedited, so every other `validate_range` caller is unaffected.
+    """
+    return validate_range(request, range)
+
+
+@router.get(
+    "/program-detail/{program_id}/token-trend",
+    response_model=ProgramTokenTrendResponse,
+)
+async def get_program_token_trend(
+    program_id: str,
+    range: str = Depends(_range_with_default),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProgramTokenTrendResponse:
+    """Return `program_id`'s daily token trend for `range` (default `30d`) (PGD-02 AC-1/AC-6/AC-7).
+
+    AC-7: same open-aggregate `program_visibility` veto gate as `get_program_detail` above,
+    called once with the real `program_id` -- passes for any authenticated session regardless
+    of `current_user.programs`. AC-6: `range` validation happens in `_range_with_default` via
+    `Depends()`, before this body runs, so an out-of-range value 400s, never FastAPI's default
+    422.
+    """
+    # AC-7: open-aggregate veto gate, called once, with the REAL program_id -- see
+    # get_program_detail's docstring above for the full contract. Never filters by
+    # current_user.programs.
+    await program_visibility(current_user, program_id)
+
+    return await fetch_program_token_trend(db, program_id, range)
 
 
 # DECISIONS.md D-01/D-02 (corrected 2026-09-10): fixed (glyph, label) presentation constants,

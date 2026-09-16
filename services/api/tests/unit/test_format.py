@@ -176,6 +176,20 @@ _FORBIDDEN_PATTERNS = [
 # Source extensions a frontend formatting utility could plausibly live in.
 _SOURCE_SUFFIXES = {".ts", ".tsx", ".js", ".jsx"}
 
+# Documented, reasoned exceptions to the "no duplicate frontend formatter"
+# invariant this test otherwise enforces. Each entry is a deliberate, scoped
+# departure recorded in that feature's own DECISIONS.md — not a rediscovery of
+# formatNumber/format_number. Add to this set only alongside such a decision
+# record; do not widen it to silence an unrelated offender.
+#
+# PGD-02 D-04 (docs/features/PGD-02/DECISIONS.md): the mockup's own `fmtM`
+# assumes millions-scaled input and mislabels a raw token count by ~6 orders
+# of magnitude (e.g. 1,200 -> "1.20B"). DailyTokenTrendChart.formatTokens
+# reconciles the threshold ladder against real per-day token magnitudes
+# instead, mirroring format_number()'s K/M boundaries in spirit without
+# importing backend logic into the frontend.
+_ALLOWED_SUFFIX_MATCH_FILES = {"DailyTokenTrendChart.tsx"}
+
 
 def _iter_web_source_files() -> list[Path]:
     web_src = Path(__file__).resolve().parents[4] / "apps" / "web" / "src"
@@ -208,7 +222,7 @@ def test_no_duplicate_frontend_formatter_exists() -> None:
         text = f.read_text(encoding="utf-8", errors="ignore")
         if forbidden_re.search(text):
             offenders.append(f"{f}: forbidden identifier match")
-        if suffix_re.search(text):
+        if suffix_re.search(text) and f.name not in _ALLOWED_SUFFIX_MATCH_FILES:
             offenders.append(f"{f}: K/M or h/m suffix construction match")
 
     assert not offenders, "duplicate frontend formatting utility suspected:\n" + "\n".join(

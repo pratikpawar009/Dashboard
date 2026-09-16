@@ -1,0 +1,6 @@
+# PGD-02 — Evidence rounds
+
+| Round | FAILing dims | Action | Result |
+|-------|--------------|--------|--------|
+| 1 | unit_tests (backend) | `tests/unit/test_format.py::test_no_duplicate_frontend_formatter_exists` failed against `DailyTokenTrendChart.tsx`'s `formatTokens()`. Root cause: the guard test's generic K/M-suffix heuristic predates PGD-02 D-04 (`docs/features/PGD-02/DECISIONS.md`), a documented, reasoned exception — the mockup's own `fmtM` mislabels raw token counts by ~6 orders of magnitude, so `formatTokens` reconciles a new threshold ladder scoped to `DailyTokenTrendChart.tsx`. Fix: added a named, documented allowlist (`_ALLOWED_SUFFIX_MATCH_FILES = {"DailyTokenTrendChart.tsx"}`) to the suffix-heuristic branch only; the `_FORBIDDEN_PATTERNS` identifier check (the check that actually detects a *rediscovered* `formatNumber`/`formatMK`/etc.) is untouched and still fully strict for every file, including this one. | `test_format.py` 31/31 passed |
+| 2     | none | Full six-dimension packet re-run after the round-1 fix. | typecheck ✓ / unit_tests ✓ (web 206/206, api 718 passed/5 deselected) / lint ✓ / runtime ✓ (api + web boot clean, token-trend route registered) / compile ✓ / design_check N/A (AF-01, accepted per project-commands.yaml) |

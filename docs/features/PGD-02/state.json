@@ -1,0 +1,133 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 82,
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-02/DESIGN.md",
+  "design_provider": "html-mockup",
+  "last_updated": "2026-09-16T13:30:00+00:00",
+  "tracker_story": "pratikpawar009/Dashboard#24",
+  "tracker_research": "pratikpawar009/Dashboard#373",
+  "rtm_source_sha": "b3cd0523ae59",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "design_iteration": 0,
+  "tracker_prd": "pratikpawar009/Dashboard#374",
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tasks": {
+    "file": "docs/features/PGD-02/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-02/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-02/DATA-DESIGN.md"
+  },
+  "tracker_plan": "pratikpawar009/Dashboard#393",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-16T15:20:00+00:00",
+    "rounds": 2,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-02/evidence/typecheck-ts.log, docs/features/PGD-02/evidence/typecheck-py.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T15:15:14+00:00"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit: (fallback test:)",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-02/evidence/unit-tests-web.log, docs/features/PGD-02/evidence/unit-tests-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T15:19:00+00:00",
+        "detail": "web: 33 files / 206 tests passed. api: 718 passed, 5 deselected (e2e/manual markers), 0 failed."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-02/evidence/lint-web.log, docs/features/PGD-02/evidence/lint-py.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T15:15:30+00:00"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-16T15:17:00+00:00",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run uvicorn app.main:app --port 8000 (DATABASE_URL -> local dev Postgres, dashboard-dev5442:5442/dashboard, alembic already at head)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-02/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "GET /health -> 200; openapi.json confirms /api/overview/program-detail/{program_id}/token-trend registered"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "pnpm dev --turbopack --port 3000 (NEXT_PUBLIC_API_URL=http://localhost:8000)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-02/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "GET / -> 307 to /overview (expected unauthenticated redirect), GET /overview -> 200 after follow. render_check unavailable: Playwright installed but reserved for e2e per PLAN.md \u00a77 (execution deferred to /arh-validate-feature); author-time verification via `playwright test --list` confirmed 1 test (TC-01) listed, no real run executed here."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-02/evidence/build.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T15:15:45+00:00"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-01",
+        "ran_at": null
+      }
+    },
+    "notes": [
+      "Round 1 FAIL (unit_tests/backend): tests/unit/test_format.py::test_no_duplicate_frontend_formatter_exists flagged DailyTokenTrendChart.tsx's formatTokens() as a suspected duplicate formatter. Root cause: the BED-02 guard test's generic K/M-suffix heuristic predates PGD-02 D-04, a documented reasoned exception (DECISIONS.md). Fixed by adding a named, documented allowlist for that one file to the suffix-heuristic branch only; the identifier check (_FORBIDDEN_PATTERNS) remains fully strict. See FLAGS.md F-03, EVIDENCE-ROUNDS.md.",
+      "Pre-existing, NOT caused by PGD-02: services/api/tests/perf/test_rollup_rebuild_perf.py::test_org_rebuild_budget_and_growth_curve fails on pristine origin/main (verified by the implementation session, recorded in FLAGS.md Carry-forward). Full-suite run in this evidence pass showed 718 passed / 0 failed, confirming that perf test is not currently failing in this tree's full-suite run either.",
+      "e2e (TC-01, apps/web/e2e/program-token-trend.spec.ts) intentionally NOT executed this session \u2014 PLAN.md \u00a77 defers execution to /arh-validate-feature. Author-time verification only: `playwright test --list` listed exactly 1 test."
+    ]
+  },
+  "impl": "branch:feature/PGD-02",
+  "validation": "2026-09-16 P=17/17",
+  "review": "PASS WITH WARNINGS",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 5,
+    "tool_missing": ["pip-audit", "semgrep", "bandit"]
+  },
+  "security_report": "docs/features/PGD-02/SECURITY-20260916-1330.md",
+  "phase": "security-reviewed"
+}

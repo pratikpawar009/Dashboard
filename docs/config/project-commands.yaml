@@ -5,7 +5,7 @@ typecheck:           "pnpm -C apps/web exec tsc --noEmit && cd services/api && u
 test:                "pnpm -C apps/web test && cd services/api && uv run pytest"
 test_unit:           "pnpm -C apps/web test && cd services/api && uv run pytest tests/"
 test_integration:    ""   # not yet scaffolded — no tests/integration dir or fixtures yet
-test_e2e:            ""   # not yet configured — no e2e framework (Playwright/Cypress) declared in ADR-0001
+test_e2e:            "pnpm -C apps/web exec playwright test"   # Playwright (D-05, PGD-02 T-16) — execution deferred to /arh-validate-feature (needs a running API + seeded data)
 lint:                "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check ."
 format:               "pnpm -C apps/web exec prettier --write . && cd services/api && uv run ruff format ."
 build:                "pnpm -C apps/web build"   # FastAPI backend has no compiled build step, runs directly via uvicorn
@@ -30,3 +30,4 @@ preflight:
   - "cd services/api && uv run python -c \"import authlib; print(authlib.__version__)\"   # smoke-import — authlib is a [project].dependencies pin (ADR-0004), research condition C-1 mitigation"
   - "cd services/api && uv run python -c \"import respx; print(respx.__version__)\"   # smoke-import — respx is a dev-only [dependency-groups].dev dependency (D-06), research condition C-1 mitigation"
   - "cd services/api && uv run python -c \"import yaml; print(yaml.__version__)\"   # smoke-import — pyyaml is a production [project].dependencies pin (AUTH-02 D-09), imported at module level by app/core/persona_resolver.py, previously only present transitively via uvicorn[standard]"
+  - "pnpm -C apps/web exec playwright --version   # smoke-install — @playwright/test is a devDependency (PGD-02 D-05/T-16), no browser binaries downloaded here (deferred to /arh-validate-feature)"
