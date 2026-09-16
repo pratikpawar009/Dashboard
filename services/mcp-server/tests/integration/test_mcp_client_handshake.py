@@ -82,13 +82,13 @@ def _tool_result_to_dict(result: object) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_list_tools_exposes_both_tools(mocked_ingest_env: None) -> None:
+async def test_list_tools_exposes_all_tools(mocked_ingest_env: None) -> None:
     """MCP handshake: `list_tools()` returns exactly push_activity + push_artifacts."""
     server = build_server()
     async with Client(server) as client:
         tools = await client.list_tools()
         names = {t.name for t in tools}
-        assert names == {"push_activity", "push_artifacts"}, names
+        assert names == {"push_activity", "push_artifacts", "push_manifest"}, names
 
         for tool in tools:
             schema = tool.inputSchema or {}

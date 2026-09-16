@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-07",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-16T06:45:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "apps/web/src/app/programs/[program_id]/page.tsx",
+      "reason": "Add concurrent GET /api/me fetch via meApi.fetchMe inside the existing Promise.all/callWithAuth try/catch (FR-1); compose SignedInUser via composeSignedInUser or fall back to the local PERSONA_RESOLUTION_ERROR sentinel (FR-3, D-01); pass persona/signedInUser to ProgramDetailView; add the Condition C-4 code comment on the Promise.all block referencing tokenStore.refreshPromise"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "Accept optional persona/signedInUser props; wrap existing <div className={styles.wrapper}> content in PersonaDashboardShell with program={undefined} explicit + inline comment (FR-2); forward persona/signedInUser, no pageTitle"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.test.tsx",
+      "reason": "Update existing render assertions for the new PersonaDashboardShell wrapper (brand bar now present in DOM); add PGD-07-TC-02/FR-2-TC-01 cases (shell receives program: undefined regardless of incoming program prop, no shell-owned header double-render) and PGD-07-TC-C3 (jobTitle/avatar colour parameterized across all 5 personas via PERSONA_DISPLAY)"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.authFlow.test.tsx",
+      "reason": "Update the switcher-reload auth-flow fixtures' render calls to account for the new PersonaDashboardShell wrapper so existing DOM queries (e.g. header/back-link selectors) still resolve correctly post-wrap"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "apps/web/src/app/programs/[program_id]/page.test.tsx",
+      "reason": "D-02: page-level composition harness mirroring overview/page.test.tsx. Covers PGD-07-FR-1-TC-01 (Promise.all coordination), PGD-07-TC-C4 (SessionExpiredError from either fetch -> single redirect), PGD-07-TC-09 (401 from /api/me alone does not redirect; falls through), PGD-07-TC-05 (loading state omits identity block), PGD-07-NFR-performance-TC-01 (concurrent, not sequential, fetch assertion)"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "apps/web/src/components/PersonaDashboardShell.test.tsx",
+      "reason": "Condition C-2: add the sign-out-control-in-both-branches test (PGD-07-TC-C2) scoped from Program Detail's own composition angle \u2014 asserts the existing shell's sign-out control (already covered generically by OVW-05's own suite) also renders correctly when program is explicitly undefined and no pageTitle is passed, the exact prop combination ProgramDetailView now uses"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "apps/web/src/lib/composeSignedInUser.test.ts",
+      "reason": "Condition C-1: PGD-07-TC-C1 \u2014 second fixture confirming the decoy-jobTitle-omission guarantee holds for a non-cio persona reached via Program Detail (all 5 personas visit this route, unlike /overview which is cio-drilldown-only); composeSignedInUser itself is unmodified (frozen, out of scope)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add concurrent GET /api/me fetch + sentinel handling in programs/[program_id]/page.tsx",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-3",
+        "PGD-07-AC-5",
+        "PGD-07-AC-7",
+        "PGD-07-FR-1",
+        "PGD-07-FR-3"
+      ],
+      "risk_refs": [
+        "R1",
+        "R3",
+        "R4",
+        "R7"
+      ],
+      "notes": "Promise.all([callWithAuth(fetchProgramDetail), callWithAuth(fetchMe)]) inside the existing try/catch; local PERSONA_RESOLUTION_ERROR sentinel (D-01); Condition C-4 comment on the Promise.all block",
+      "status": "done",
+      "completed_at": "2026-09-16T06:28:50Z",
+      "files_touched": [
+        "apps/web/src/app/programs/[program_id]/page.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Wrap ProgramDetailView content in PersonaDashboardShell, program: undefined",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-1",
+        "PGD-07-AC-2",
+        "PGD-07-AC-4",
+        "PGD-07-AC-6",
+        "PGD-07-AC-8",
+        "PGD-07-AC-9",
+        "PGD-07-FR-2"
+      ],
+      "risk_refs": [
+        "R2",
+        "R6"
+      ],
+      "notes": "Accept persona?/signedInUser? props; PersonaDashboardShell wraps existing wrapper div as children; program={undefined} explicit with FR-2 comment; no fetch logic added to this Client Component",
+      "status": "done",
+      "completed_at": "2026-09-16T06:29:01Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Update ProgramDetailView.test.tsx for shell wrap + program:undefined enforcement tests",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-2",
+        "PGD-07-FR-2"
+      ],
+      "risk_refs": [
+        "R2",
+        "R6"
+      ],
+      "notes": "PGD-07-TC-02, PGD-07-FR-2-TC-01: mock/spy PersonaDashboardShell props, assert program===undefined across both program-present and program-absent render passes; update pre-existing assertions broken by the new wrapper DOM",
+      "status": "done",
+      "completed_at": "2026-09-16T06:32:06Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Add Condition C-3 persona-parameterized rendering test to ProgramDetailView.test.tsx",
+      "complexity": "S",
+      "predecessors": [
+        "T-02",
+        "T-03"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-3"
+      ],
+      "risk_refs": [
+        "R8"
+      ],
+      "notes": "PGD-07-TC-C3: it.each across all 5 personas (cio, architect, developer, engineering-manager, product-manager) asserting jobTitle + avatar colour match PERSONA_DISPLAY/formatPersonaTag for the passed persona prop",
+      "status": "done",
+      "completed_at": "2026-09-16T06:34:16Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramDetailView.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Fix ProgramDetailView.authFlow.test.tsx DOM queries for the new shell wrapper",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Existing switcher-reload auth-flow fixtures render ProgramDetailView directly; verify no selector collides with the newly-added brand bar DOM and adjust only where broken (surgical, no unrelated rewrite)",
+      "status": "done",
+      "completed_at": "2026-09-16T06:30:41Z",
+      "files_touched": [],
+      "reason": "No changes required \u2014 shell isLoading gate (persona undefined in every case here) suppresses all persona-gated regions, so existing queries still resolve. Verified 6/6 pass."
+    },
+    {
+      "task_id": "T-06",
+      "title": "Condition C-1: second composeSignedInUser decoy-jobTitle fixture for a non-cio persona",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "PGD-07-NFR-security"
+      ],
+      "risk_refs": [
+        "R1"
+      ],
+      "notes": "PGD-07-TC-C1: composeSignedInUser(decoy) with persona=architect (or another non-cio), asserting jobTitle equals PERSONA_DISPLAY.architect.jobTitle and never the decoy value; composeSignedInUser.ts itself is unmodified, out of scope per REQUIREMENTS.md",
+      "status": "done",
+      "completed_at": "2026-09-16T06:28:42Z",
+      "files_touched": [
+        "apps/web/src/lib/composeSignedInUser.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Condition C-2: sign-out-control-in-both-branches test for the program:undefined/no-pageTitle composition",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-8",
+        "PGD-07-AC-9"
+      ],
+      "risk_refs": [
+        "R5"
+      ],
+      "notes": "PGD-07-TC-C2: render PersonaDashboardShell with program=undefined, pageTitle=undefined (Program Detail's exact prop shape) once with signedInUser defined and once with signedInUser undefined; assert the sign-out <form action=\"/logout\"> renders in both",
+      "status": "done",
+      "completed_at": "2026-09-16T06:29:09Z",
+      "files_touched": [
+        "apps/web/src/components/PersonaDashboardShell.test.tsx"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Add page.test.tsx composition harness for programs/[program_id]/page.tsx",
+      "complexity": "L",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-07-AC-7",
+        "PGD-07-FR-1"
+      ],
+      "risk_refs": [
+        "R3",
+        "R7"
+      ],
+      "notes": "D-02: mirrors overview/page.test.tsx exactly. Covers PGD-07-FR-1-TC-01, PGD-07-TC-C4 (SessionExpiredError from either fetch -> single redirect('/login'), asserted called exactly once), PGD-07-TC-09 (401-only-on-/api/me falls through to neutral badge, no redirect), PGD-07-TC-05 (persona undefined while in flight -> no identity block), PGD-07-NFR-performance-TC-01 (both fetch mocks invoked before either resolves, proving Promise.all concurrency not sequential awaits)",
+      "status": "done",
+      "completed_at": "2026-09-16T06:34:08Z",
+      "files_touched": [
+        "apps/web/src/app/programs/[program_id]/page.test.tsx"
+      ],
+      "reason": "Done. Raised AF-01: AC-5 badge/aria-live unreachable on this route (see FLAGS.md)."
+    }
+  ]
+}

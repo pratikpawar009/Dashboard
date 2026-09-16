@@ -35,6 +35,11 @@ _ALLOWED_EVENTS: frozenset[str] = frozenset(
         "push_artifacts_batch_failed",
         "push_artifacts_auth_failed",
         "push_artifacts_missing_token",
+        "push_manifest_started",
+        "push_manifest_completed",
+        "push_manifest_failed",
+        "push_manifest_auth_failed",
+        "push_manifest_missing_token",
         # Boot + retry surfaces, outside the push_* families.
         "http.retry",
         "http.give_up",

@@ -23,6 +23,7 @@ from agentrise_mcp.core.config import ConfigError, load_config
 from agentrise_mcp.core.logging import get_logger
 from agentrise_mcp.tools import push_activity as _pa_module
 from agentrise_mcp.tools import push_artifacts as _pat_module
+from agentrise_mcp.tools import push_manifest as _pm_module
 
 _SERVER_NAME = "agentrise-mcp"
 _HOST = "0.0.0.0"
@@ -53,6 +54,14 @@ def build_server() -> FastMCP:
     ) -> dict:
         """Push artifact counts from .harness/program.yaml::artifacts{} to the ingest backend."""
         return _pat_module.push_artifacts(program_id, workspace_root)
+
+    @server.tool()
+    def push_manifest(
+        program_id: str | None = None,
+        workspace_root: str | None = None,
+    ) -> dict:
+        """Push program identity + team roster from .harness/program.yaml to the ingest backend."""
+        return _pm_module.push_manifest(program_id, workspace_root)
 
     return server
 

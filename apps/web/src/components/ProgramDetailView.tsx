@@ -11,7 +11,9 @@ import type {
   ProgramDetailResult,
   ProgramSwitcherEntry,
 } from "@/types/programDetail";
+import type { Persona, SignedInUser } from "@/types/persona";
 
+import { PersonaDashboardShell } from "./PersonaDashboardShell";
 import { ProgramDetailHeader } from "./ProgramDetailHeader";
 import { ProgramSummaryCards } from "./ProgramSummaryCards";
 import { ProgramDetailErrorPanel } from "./ProgramDetailErrorPanel";
@@ -20,6 +22,8 @@ import styles from "./ProgramDetailView.module.css";
 export interface ProgramDetailViewProps {
   initialProgramId: string;
   initialResult: ProgramDetailResult;
+  persona?: Persona;
+  signedInUser?: SignedInUser;
 }
 
 /**
@@ -49,6 +53,11 @@ export interface ProgramDetailViewProps {
  * already 404d (D-03: no valid current program to compare a switcher option
  * against).
  *
+ * `persona`/`signedInUser` (PGD-07, optional, additive): forwarded verbatim
+ * to `PersonaDashboardShell` for the brand bar's signed-in identity block.
+ * Sourced by the caller (`page.tsx`) from `GET /api/me` — this component
+ * fetches neither and holds no persona/session state of its own.
+ *
  * Auth (AUTH-05, ADR-0008/D-08/D-10): both fetches go through
  * `@/lib/programDetailApi.client`, which calls the frontend's own same-origin
  * `/api/proxy/*` Route Handlers. This component never reaches FastAPI
@@ -62,6 +71,8 @@ export interface ProgramDetailViewProps {
 export function ProgramDetailView({
   initialProgramId,
   initialResult,
+  persona,
+  signedInUser,
 }: ProgramDetailViewProps) {
   const router = useRouter();
 
@@ -144,32 +155,39 @@ export function ProgramDetailView({
       : "error";
 
   return (
-    <div className={styles.wrapper}>
-      {/* AF-05: BackToProgramBoard now renders inside ProgramDetailHeader's
-          sticky wrapper (DESIGN.md Region 1, mockup L389 first child), not
-          as a sibling here — it must scroll pinned with the identity row. */}
-      <ProgramDetailHeader
-        state={headerState}
-        header={result.status === "ok" ? result.data.header : undefined}
-        switcher={{
-          options: switcherOptions,
-          currentProgramId: programId,
-          isOpen: isSwitcherOpen,
-          onToggle: () => setIsSwitcherOpen((open) => !open),
-          onSelect: handleSelect,
-          isLoadingOptions,
-        }}
-      />
-      <div className={styles.content}>
-        {result.status === "ok" ? (
-          <ProgramSummaryCards
-            state={isSwitching ? "loading" : "populated"}
-            cards={result.data.summary}
-          />
-        ) : (
-          <ProgramDetailErrorPanel />
-        )}
+    // FR-2 / AC-2: `program` is explicitly `undefined` here, never the real
+    // program object. PersonaDashboardShell's own header region is gated on
+    // `program !== undefined` — ProgramDetailHeader below already ships the
+    // mockup's <!-- HEADER --> region (program avatar/name/type-chip/
+    // description), so passing a real `program` here would double-render it.
+    <PersonaDashboardShell program={undefined} persona={persona} signedInUser={signedInUser}>
+      <div className={styles.wrapper}>
+        {/* AF-05: BackToProgramBoard now renders inside ProgramDetailHeader's
+            sticky wrapper (DESIGN.md Region 1, mockup L389 first child), not
+            as a sibling here — it must scroll pinned with the identity row. */}
+        <ProgramDetailHeader
+          state={headerState}
+          header={result.status === "ok" ? result.data.header : undefined}
+          switcher={{
+            options: switcherOptions,
+            currentProgramId: programId,
+            isOpen: isSwitcherOpen,
+            onToggle: () => setIsSwitcherOpen((open) => !open),
+            onSelect: handleSelect,
+            isLoadingOptions,
+          }}
+        />
+        <div className={styles.content}>
+          {result.status === "ok" ? (
+            <ProgramSummaryCards
+              state={isSwitching ? "loading" : "populated"}
+              cards={result.data.summary}
+            />
+          ) : (
+            <ProgramDetailErrorPanel />
+          )}
+        </div>
       </div>
-    </div>
+    </PersonaDashboardShell>
   );
 }

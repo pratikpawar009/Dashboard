@@ -105,6 +105,34 @@ export function PersonaDashboardShell({
         </div>
         {!isLoading && (
           <div className={styles.identity}>
+            {/* PGD-07 AF-01: the error badge + announcement must also reach a
+             * route that renders NEITHER header region. Program Detail passes
+             * `program: undefined` (AC-2 — `ProgramDetailHeader` already owns
+             * the program header, so a real `program` would double-render it)
+             * and no `pageTitle`, so both header variants below are omitted
+             * and the copy `renderOrgHeaderContent` owns never mounted. AC-5
+             * still requires a persona-resolution failure to be visible AND
+             * announced, so the identity block carries its own copy, keyed on
+             * the same `personaColor === null` signal the avatar already uses.
+             * Guarded on BOTH header regions being absent, so this is strictly
+             * a fallback for the gap: a route that renders either header keeps
+             * that region's badge as the single copy. Without the guard the
+             * badge renders twice on `/overview` and on the org-header variant
+             * (caught by SHP-01-TC-02 and OVW-05 AC-8/AC-9/AC-10). */}
+            {personaColor === null &&
+              program === undefined &&
+              pageTitle === undefined && (
+              <>
+                <span
+                  className={`${styles.orgPill} ${styles.orgPillNeutral}`}
+                >
+                  Persona unavailable
+                </span>
+                <span aria-live="assertive" className={styles.visuallyHidden}>
+                  Unable to load your dashboard view.
+                </span>
+              </>
+            )}
             {signedInUser ? (
               <>
                 <div className={styles.identityText}>

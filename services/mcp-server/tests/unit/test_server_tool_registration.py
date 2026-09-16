@@ -1,7 +1,7 @@
 """Unit — `build_server()` registers exactly the two required tools (ING-04 · T-10 / FR-1).
 
 Asserts the visible boot surface without booting HTTP:
-- exactly two tools named `push_activity` and `push_artifacts` are registered
+- exactly three tools named `push_activity`, `push_artifacts` and `push_manifest` are registered
 - each tool's callable takes one optional `workspace_root: str | None` param
 - the server object carries the pinned name `agentrise-mcp` and exposes `.run(...)`
 
@@ -53,16 +53,20 @@ def _tool_callable(tool: Any) -> Any:
     raise AssertionError(f"cannot locate callable on tool object: {tool!r}")
 
 
-def test_build_server_registers_exactly_two_tools() -> None:
+def test_build_server_registers_exactly_three_tools() -> None:
     server = build_server()
     tools = _list_tools(server)
-    assert set(tools.keys()) == {"push_activity", "push_artifacts"}, tools.keys()
+    assert set(tools.keys()) == {
+        "push_activity",
+        "push_artifacts",
+        "push_manifest",
+    }, tools.keys()
 
 
 def test_tool_signatures_optional_program_id_and_workspace_root() -> None:
     server = build_server()
     tools = _list_tools(server)
-    for name in ("push_activity", "push_artifacts"):
+    for name in ("push_activity", "push_artifacts", "push_manifest"):
         fn = _tool_callable(tools[name])
         sig = inspect.signature(fn)
         params = list(sig.parameters.values())

@@ -47,4 +47,26 @@ describe("composeSignedInUser (OVW-05-AC-6/AC-7, OVW-05-TC-01)", () => {
       jobTitle: "Architect",
     });
   });
+
+  /**
+   * PGD-07-TC-C1 (research Condition C-1, extended to a non-cio persona —
+   * Program Detail is visited by all five personas, unlike /overview which
+   * is cio-drilldown-only). Same decoy-jobTitle-leakage guard as the OVW-05
+   * fixture above, parameterized on persona: "architect".
+   */
+  it("composes jobTitle from PERSONA_DISPLAY for a non-cio persona, ignoring a decoy jobTitle-shaped key on the input (PGD-07-TC-C1)", () => {
+    const decoyMe = {
+      name: "Test User",
+      persona: "architect",
+      jobTitle: "DECOY TITLE",
+    } as unknown as MeData;
+
+    const result = composeSignedInUser(decoyMe);
+
+    expect(result).toEqual({
+      name: "Test User",
+      jobTitle: "Architect",
+    });
+    expect(JSON.stringify(result)).not.toContain("DECOY TITLE");
+  });
 });

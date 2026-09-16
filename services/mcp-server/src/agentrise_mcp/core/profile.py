@@ -75,12 +75,43 @@ class ArtifactSource:
 
 
 @dataclass(frozen=True)
+class ProgramIdentity:
+    """The `program:` block — display identity pushed by `push_manifest`.
+
+    Separate from `Program.program_id` (the join key): this is what the
+    dashboard renders, `program_id` is what every row joins on.
+    """
+
+    name: str
+    type: str
+    description: str
+
+
+@dataclass(frozen=True)
+class TeamMember:
+    """One `team[]` entry, preserved in full for the manifest roster.
+
+    `Program.team` keeps only emails because `push_activity` needs nothing
+    else; the manifest needs `name`/`role`/`aliases[]` too, so it reads this.
+    """
+
+    email: str
+    name: str
+    role: str
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Program:
     program_id: str
     team: tuple[str, ...]
     activity_files: tuple[ActivityFileSource, ...]
     artifacts: dict[str, ArtifactSource] = field(default_factory=dict)
     workspace_root: Path = field(default_factory=Path)
+    # Optional so an existing program.yaml with no `program:` block still
+    # loads for push_activity/push_artifacts; only push_manifest requires it.
+    identity: ProgramIdentity | None = None
+    team_members: tuple[TeamMember, ...] = ()
 
 
 def resolve_workspace_root(workspace_root: str | Path | None) -> Path:
@@ -161,7 +192,67 @@ def load_program(workspace_root: str | Path | None = None) -> Program:
         activity_files=activity_files,
         artifacts=artifacts,
         workspace_root=resolved_root,
+        identity=_parse_identity(doc.get("program")),
+        team_members=tuple(_parse_team_members(raw_team)),
     )
+
+
+def _parse_identity(raw: Any) -> ProgramIdentity | None:
+    """Parse the `program:` block. Absent -> None (only push_manifest needs it).
+
+    Present-but-malformed still raises: a half-filled identity block is a
+    mistake worth surfacing, whereas an absent one is the pre-existing shape.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ProgramYamlError(
+            f"program.yaml::program must be a mapping, got {type(raw).__name__}"
+        )
+    values: dict[str, str] = {}
+    for key in ("name", "type", "description"):
+        value = raw.get(key)
+        if not isinstance(value, str) or not value:
+            raise ProgramYamlError(
+                f"program.yaml::program is missing required '{key}' (non-empty string)"
+            )
+        values[key] = value.strip()
+    return ProgramIdentity(**values)
+
+
+def _parse_team_members(raw_team: list[Any]) -> list[TeamMember]:
+    """Full `team[]` entries for the manifest roster.
+
+    `_extract_team_emails` already validated `email` -- the only field the
+    pre-existing activity/artifacts path requires. `name`/`role`/`aliases[]`
+    are read leniently (missing -> empty) so a manifest-less program.yaml
+    keeps loading exactly as it did before this tool existed; `push_manifest`
+    is the only caller that needs them, and the backend rejects an incomplete
+    roster entry per-entry without failing the whole push.
+
+    Role slugs are NOT validated here -- `role_map.py` owns that vocabulary.
+    """
+    members: list[TeamMember] = []
+    for idx, entry in enumerate(raw_team):
+        email = entry.get("email")
+        name = entry.get("name")
+        role = entry.get("role")
+        raw_aliases = entry.get("aliases") or []
+        if not isinstance(raw_aliases, list):
+            raise ProgramYamlError(
+                f"program.yaml::team[{idx}].aliases must be a list, got "
+                f"{type(raw_aliases).__name__}"
+            )
+        aliases = [alias for alias in raw_aliases if isinstance(alias, str) and alias]
+        members.append(
+            TeamMember(
+                email=str(email),
+                name=name if isinstance(name, str) else "",
+                role=role if isinstance(role, str) else "",
+                aliases=tuple(aliases),
+            )
+        )
+    return members
 
 
 def _extract_team_emails(raw_team: list[Any]) -> list[str]:
