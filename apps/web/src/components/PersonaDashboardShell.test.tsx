@@ -434,4 +434,42 @@ describe("PersonaDashboardShell — sign-out control (OVW-05 AC-12/AC-13/AC-14/A
     expect(form?.getAttribute("action")).toBe("/logout");
     expect(form?.getAttribute("method")).toBe("get");
   });
+
+  // PGD-07-TC-C2 (Research Condition C-2): scoped from Program Detail's own
+  // composition angle — the exact prop combination `ProgramDetailView` now
+  // uses (`program: undefined`, no `pageTitle`), rather than the generic
+  // OVW-05 cases above (which pass `program={PROGRAM}`). Two render passes,
+  // mirroring the test-case's `populated`/`neutral_fallback` fixtures
+  // (persona: "cio" in both): the sign-out form must render in BOTH.
+  it("PGD-07-TC-C2: renders the sign-out control in both the populated and neutral-fallback identity branches, with program undefined and no pageTitle (Program Detail's exact composition)", () => {
+    const { unmount } = render(
+      <PersonaDashboardShell
+        signedInUser={{ name: "Priya Nair", jobTitle: "CIO / CXO" }}
+        persona="cio"
+        program={undefined}
+        pageTitle={undefined}
+      />,
+    );
+
+    const populatedSignOut = screen.getByRole("button", { name: "Sign out" });
+    const populatedForm = populatedSignOut.closest("form");
+    expect(populatedForm).not.toBeNull();
+    expect(populatedForm?.getAttribute("action")).toBe("/logout");
+
+    unmount();
+
+    render(
+      <PersonaDashboardShell
+        signedInUser={undefined}
+        persona="cio"
+        program={undefined}
+        pageTitle={undefined}
+      />,
+    );
+
+    const neutralSignOut = screen.getByRole("button", { name: "Sign out" });
+    const neutralForm = neutralSignOut.closest("form");
+    expect(neutralForm).not.toBeNull();
+    expect(neutralForm?.getAttribute("action")).toBe("/logout");
+  });
 });

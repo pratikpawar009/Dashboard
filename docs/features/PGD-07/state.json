@@ -1,0 +1,122 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#277",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "tracker_research": "pratikpawar009/Dashboard#354",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-07/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 1,
+  "phase": "implemented",
+  "last_updated": "2026-09-16T06:54:11Z",
+  "tracker_prd": "pratikpawar009/Dashboard#355",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/PGD-07/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-07/DECISIONS.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 2,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#371",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-16T13:20:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-07/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T12:05:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-07/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T12:12:00Z",
+        "summary": "apps/web: 184/184 passed (31/31 test files); services/api: 700 passed, 5 deselected"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-07/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T12:16:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-03",
+        "ran_at": "2026-09-16T13:15:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "cd services/api && uv run uvicorn app.main:app --port 8000",
+            "exit_code": null,
+            "evidence_path": "docs/features/PGD-07/evidence/runtime-fastapi-2.log",
+            "boot_log_scan": "clean",
+            "check": "GET /health -> 200 {\"status\":\"ok\"}",
+            "note": "Postgres deps container could not bind host port 5432 (occupied by a pre-existing native macOS Postgres.app instance, unrelated to this project). /health is DB-independent (app/api/health.py) so boot+health verified without DB connectivity; DB-backed routes not exercised in this pass."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3000",
+            "exit_code": null,
+            "evidence_path": "docs/features/PGD-07/evidence/runtime-nextjs.log",
+            "boot_log_scan": "clean",
+            "check": "GET / -> 307 -> /overview; GET /login -> 200 (brand markup present); GET /overview -> 307; GET /programs/test-prog -> 307 (all expected: unauthenticated session gate)",
+            "render_check": "unavailable",
+            "render_check_note": "No Playwright/Cypress/Puppeteer installed; test_e2e: is empty in project-commands.yaml. Boot+redirect+markup verified via curl only."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-07/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-16T13:05:00Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-02",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "PASS",
+  "review": "PASS WITH WARNINGS",
+  "impl": "branch:feature/PGD-07",
+  "branch": "feature/PGD-07",
+  "validation_rounds": 1,
+  "review_blocked_rounds": 0,
+  "validation_report": "docs/features/PGD-07/VALIDATION-20260916-1250.md",
+  "review_report": "docs/features/PGD-07/REVIEW.md"
+}

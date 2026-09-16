@@ -1,0 +1,1277 @@
+{
+  "story_id": "PGD-07",
+  "test_cases": [
+    {
+      "id": "PGD-07-TC-01",
+      "title": "Brand bar region renders above ProgramDetailHeader",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-1",
+      "given": "a signed-in user navigates to /programs/<program_id>",
+      "when": "the page renders",
+      "then": "the entire brand bar region (logo tile, 'AgentRise Harness', 'AI SDLC Governance' tagline) appears above ProgramDetailHeader",
+      "objective": "Verify PersonaDashboardShell's static brand bar region renders unconditionally above ProgramDetailHeader on Program Detail.",
+      "preconditions": [
+        "Test render harness mounts apps/web/src/app/programs/[program_id]/page.tsx (or ProgramDetailView directly) with a resolved program-detail fetch",
+        "meApi.fetchMe mocked to resolve status: 'ok'"
+      ],
+      "test_data": {
+        "program_id": "prog-123"
+      },
+      "steps": [
+        "Render the Program Detail page for program_id=prog-123",
+        "Query the DOM for the brand bar logo tile, product name text, and tagline text",
+        "Query the DOM order of the brand bar container relative to ProgramDetailHeader"
+      ],
+      "expected_results": [
+        "Logo tile is present",
+        "Text 'AgentRise Harness' is present",
+        "Text 'AI SDLC Governance' is present",
+        "Brand bar container precedes ProgramDetailHeader in DOM order"
+      ],
+      "tags": [
+        "happy-path",
+        "brand-bar"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#356",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-02",
+      "title": "Shell receives program: undefined explicitly, no header double-render",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-2",
+      "given": "ProgramDetailView wraps its existing content in PersonaDashboardShell",
+      "when": "the shell is composed",
+      "then": "it is passed program: undefined explicitly, so the shell's own program-header gate never fires and ProgramDetailHeader remains the sole renderer of the header region",
+      "objective": "Verify ProgramDetailView passes program={undefined} to PersonaDashboardShell and the shell's header region does not double-render alongside ProgramDetailHeader.",
+      "preconditions": [
+        "PersonaDashboardShell mocked/spied to capture props it receives",
+        "ProgramDetailView rendered with a valid program object as its own prop"
+      ],
+      "test_data": {
+        "program": {
+          "program_id": "prog-123",
+          "name": "Test Program",
+          "type": "internal"
+        }
+      },
+      "steps": [
+        "Render ProgramDetailView with a real program object",
+        "Inspect the props PersonaDashboardShell was invoked with",
+        "Query the DOM for any shell-owned program header markup distinct from ProgramDetailHeader's own header"
+      ],
+      "expected_results": [
+        "PersonaDashboardShell is called with program === undefined",
+        "No shell-owned program header region is present in the DOM",
+        "ProgramDetailHeader's own header markup is present exactly once"
+      ],
+      "tags": [
+        "edge-case",
+        "shell-composition"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#357",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-FR-2-TC-01",
+      "title": "program: undefined enforcement \u2014 caller obligation",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-FR-2",
+      "given": "ProgramDetailView calls <PersonaDashboardShell program={undefined} ...> explicitly",
+      "when": "the component renders regardless of whether a real program prop was supplied",
+      "then": "the program !== undefined header gate inside PersonaDashboardShell never fires on this page",
+      "objective": "Verify the program: undefined pass-through is a hardcoded caller obligation in ProgramDetailView, not conditional on the incoming program prop's presence/absence.",
+      "preconditions": [
+        "PersonaDashboardShell mocked to capture props",
+        "Two render passes: one with program prop present, one with program prop absent/null"
+      ],
+      "test_data": {},
+      "steps": [
+        "Render ProgramDetailView with program prop populated",
+        "Render ProgramDetailView with program prop omitted",
+        "Inspect PersonaDashboardShell's captured program prop in both cases"
+      ],
+      "expected_results": [
+        "PersonaDashboardShell receives program === undefined in both render passes",
+        "The value is never derived from the incoming program prop's presence"
+      ],
+      "tags": [
+        "edge-case",
+        "fr-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#358",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-03",
+      "title": "Identity block sourced from GET /api/me \u2014 cio persona",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-3",
+      "given": "GET /api/me resolves successfully with persona=cio",
+      "when": "the shell composes",
+      "then": "persona and signedInUser are populated from that response and the identity block renders cio's actual tag/subtitle/avatar colour/jobTitle 'Chief Information Officer', never the mockup's sampled Elena Vasquez/CIO fallback",
+      "objective": "Verify the identity block renders the real /api/me-resolved cio persona's display values, never a hardcoded or sampled fallback.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve {status: 'ok', name: 'Priya Nair', persona: 'cio'}"
+      ],
+      "test_data": {
+        "persona": "cio",
+        "name": "Priya Nair",
+        "expected_job_title": "Chief Information Officer"
+      },
+      "steps": [
+        "Render the Program Detail page with the mocked /api/me response",
+        "Wait for persona resolution to complete",
+        "Query the identity block for persona tag, subtitle, avatar colour, jobTitle, and displayed name"
+      ],
+      "expected_results": [
+        "jobTitle text equals 'Chief Information Officer'",
+        "Displayed name equals 'Priya Nair', not 'Elena Vasquez'",
+        "Persona tag/subtitle/avatar colour match PERSONA_DISPLAY['cio']",
+        "No mockup-sampled fallback copy appears anywhere in the identity block"
+      ],
+      "tags": [
+        "happy-path",
+        "persona-cio"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#359",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-04",
+      "title": "Identity block renders correctly for all five personas",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-3",
+      "given": "GET /api/me resolves successfully with each of the five valid personas in turn",
+      "when": "the shell composes for each",
+      "then": "each persona's own tag/subtitle/avatar colour/jobTitle renders, sourced only from the response, never hardcoded to cio",
+      "objective": "Verify every one of the five personas (cio, architect, developer, engineering-manager, product-manager) renders its own distinct identity block values.",
+      "preconditions": [
+        "meApi.fetchMe mockable per test iteration to resolve each persona value"
+      ],
+      "test_data": {
+        "personas": [
+          {
+            "persona": "cio",
+            "expected_job_title": "Chief Information Officer"
+          },
+          {
+            "persona": "architect",
+            "expected_job_title": "Architect"
+          },
+          {
+            "persona": "developer",
+            "expected_job_title": "Developer"
+          },
+          {
+            "persona": "engineering-manager",
+            "expected_job_title": "Engineering Manager"
+          },
+          {
+            "persona": "product-manager",
+            "expected_job_title": "Product Manager"
+          }
+        ]
+      },
+      "steps": [
+        "For each persona in test_data.personas, mock /api/me to return that persona with a distinct name",
+        "Render the Program Detail page",
+        "Query the identity block's jobTitle, tag and avatar colour"
+      ],
+      "expected_results": [
+        "Each persona's jobTitle exactly matches its expected_job_title value",
+        "No persona ever renders 'cio' values when a different persona was returned",
+        "Tag and avatar colour differ across personas per PERSONA_DISPLAY"
+      ],
+      "tags": [
+        "edge-case",
+        "persona-matrix"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#360",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-05",
+      "title": "Loading state \u2014 only static brand bar shows, no persona/identity block, no skeleton",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-4",
+      "given": "persona has not yet resolved (GET /api/me in flight)",
+      "when": "the page renders",
+      "then": "only the static brand bar (logo/name/tagline) shows \u2014 no persona tag, subtitle, program context, or identity block, and no skeleton",
+      "objective": "Verify the loading state renders exactly the static brand bar with none of the persona-dependent regions and no skeleton placeholder.",
+      "preconditions": [
+        "meApi.fetchMe mocked to return a pending/unresolved promise for the duration of this test"
+      ],
+      "test_data": {},
+      "steps": [
+        "Render the Program Detail page with an unresolved /api/me promise",
+        "Query the DOM for the brand bar logo/name/tagline",
+        "Query the DOM for any persona tag, subtitle, identity block, or skeleton element"
+      ],
+      "expected_results": [
+        "Brand bar logo/name/tagline are present",
+        "No persona tag element is present",
+        "No subtitle element is present",
+        "No identity block element is present",
+        "No skeleton/loading-placeholder element is present"
+      ],
+      "tags": [
+        "edge-case",
+        "loading-state"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#361",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-06",
+      "title": "403 persona-resolution failure \u2014 neutral badge and aria-live announcement",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-5",
+      "given": "GET /api/me returns 403 (persona-resolution failure)",
+      "when": "the shell composes",
+      "then": "the neutral gray 'Persona unavailable' badge renders in place of the persona tag, plus a visually-hidden aria-live='assertive' announcement reading 'Unable to load your dashboard view.'",
+      "objective": "Verify a 403 from /api/me renders the neutral error badge and the correct aria-live announcement, never a guessed persona.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve the persona-resolution-error sentinel (403 status)"
+      ],
+      "test_data": {
+        "me_response_status": 403
+      },
+      "steps": [
+        "Render the Program Detail page with the mocked 403 /api/me response",
+        "Query the DOM for the persona tag/badge",
+        "Query the DOM for a visually-hidden element with aria-live='assertive'"
+      ],
+      "expected_results": [
+        "A neutral gray badge reading 'Persona unavailable' renders in place of the persona tag",
+        "An aria-live='assertive' element is present and visually hidden",
+        "Its text reads exactly 'Unable to load your dashboard view.'",
+        "No guessed or default persona value renders anywhere"
+      ],
+      "tags": [
+        "negative",
+        "error-state",
+        "accessibility"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#362",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-07",
+      "title": "Unrecognized persona value \u2014 neutral badge and aria-live announcement",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-5",
+      "given": "an otherwise-unrecognized persona value reaches the shell",
+      "when": "the shell composes",
+      "then": "the same neutral gray 'Persona unavailable' badge and aria-live announcement render as for a 403",
+      "objective": "Verify an unrecognized (non-enum) persona string is treated identically to a 403 failure, never rendered as a raw/guessed tag.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve status: 'ok' with persona: 'super-admin' (not in the five-value enum)"
+      ],
+      "test_data": {
+        "persona": "super-admin"
+      },
+      "steps": [
+        "Render the Program Detail page with the mocked unrecognized-persona response",
+        "Query the DOM for the persona tag/badge",
+        "Query the DOM for the aria-live announcement"
+      ],
+      "expected_results": [
+        "The neutral 'Persona unavailable' badge renders, not the raw 'super-admin' string",
+        "The aria-live='assertive' announcement is present with text 'Unable to load your dashboard view.'"
+      ],
+      "tags": [
+        "negative",
+        "boundary",
+        "error-state"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#363",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-FR-3-TC-01",
+      "title": "Persona-resolution-error sentinel passed to shell, not omitted persona",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-FR-3",
+      "given": "fetchMe() does not return status: 'ok' (403 or unrecognized persona)",
+      "when": "page.tsx composes props for PersonaDashboardShell",
+      "then": "the existing persona-resolution-error sentinel value is passed explicitly to the shell rather than omitting persona or guessing a value",
+      "objective": "Verify page.tsx's failure-path prop composition passes the sentinel value verbatim, matching the OVW-05 mechanism, rather than undefined or a default.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve a non-ok status",
+        "PersonaDashboardShell mocked to capture the persona prop it receives"
+      ],
+      "test_data": {
+        "me_response_status": 403
+      },
+      "steps": [
+        "Render the Program Detail page with the mocked failure response",
+        "Inspect the persona prop value passed into PersonaDashboardShell"
+      ],
+      "expected_results": [
+        "persona prop equals the persona-resolution-error sentinel constant (same value OVW-05 uses), not undefined and not a guessed valid persona string"
+      ],
+      "tags": [
+        "negative",
+        "fr-3",
+        "sentinel"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#364",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-08",
+      "title": "signedInUser.name null \u2014 neutral gray circle fallback",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-07-AC-6",
+      "given": "signedInUser.name is null (fallback chain exhausted, e.g. a dev-bypass session)",
+      "when": "the identity block renders",
+      "then": "it shows the shell's existing neutral fallback (plain gray circle, no initials, aria-hidden), never blank or broken text",
+      "objective": "Verify a null signedInUser.name renders the shell's neutral avatar fallback rather than blank text, broken markup, or an empty-string initial.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve status: 'ok', persona: 'developer', name: null (dev-bypass style session)"
+      ],
+      "test_data": {
+        "persona": "developer",
+        "name": null
+      },
+      "steps": [
+        "Render the Program Detail page with the mocked null-name response",
+        "Query the DOM for the avatar element in the identity block",
+        "Inspect the avatar element's content and aria-hidden attribute"
+      ],
+      "expected_results": [
+        "Avatar renders as a plain gray circle with no initials text",
+        "Avatar element carries aria-hidden='true'",
+        "No blank or broken text node appears in place of the name"
+      ],
+      "tags": [
+        "boundary",
+        "fallback",
+        "dev-bypass"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#365",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-09",
+      "title": "401 from GET /api/me \u2014 existing unauthorized handling applies, redirect to /login",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-7",
+      "given": "GET /api/me returns 401 (missing/invalid bearer)",
+      "when": "page.tsx's fetches run",
+      "then": "the existing unauthorized handling for this route applies (SessionExpiredError -> /login redirect) \u2014 no new auth state is invented",
+      "objective": "Verify a 401 from the /api/me fetch triggers the same SessionExpiredError -> /login redirect path the program-detail fetch already uses, with no new auth branch introduced.",
+      "preconditions": [
+        "meApi.fetchMe mocked to throw SessionExpiredError (401)",
+        "Program-detail fetch mocked to resolve normally"
+      ],
+      "test_data": {
+        "me_response_status": 401
+      },
+      "steps": [
+        "Invoke page.tsx's server render with the mocked 401 /api/me response",
+        "Observe the redirect call/behaviour"
+      ],
+      "expected_results": [
+        "redirect('/login') is invoked",
+        "No new auth-state branch or error UI is rendered for this case",
+        "Behaviour is identical to the existing program-detail-fetch 401 handling"
+      ],
+      "tags": [
+        "negative",
+        "auth",
+        "redirect"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#366",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-10",
+      "title": "Sign-out control renders on Program Detail identity block",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-8",
+      "given": "the identity block renders on Program Detail (AC-3)",
+      "when": "a signed-in user views the brand bar",
+      "then": "the sign-out control specified by OVW-05 (AC-12/AC-13) renders here too and behaves identically",
+      "objective": "Verify the sign-out control is present and functionally identical on Program Detail as on Overview.",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve status: 'ok', persona: 'developer', name: 'Sam Lee'"
+      ],
+      "test_data": {
+        "persona": "developer",
+        "name": "Sam Lee"
+      },
+      "steps": [
+        "Render the Program Detail page with a resolved persona",
+        "Query the DOM for the sign-out form/button",
+        "Inspect the form's action attribute"
+      ],
+      "expected_results": [
+        "A sign-out control (<form action=\"/logout\">) is present",
+        "The control's markup/action matches the OVW-05 control exactly"
+      ],
+      "tags": [
+        "happy-path",
+        "sign-out"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#367",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-11",
+      "title": "Sign-out control is the same PersonaDashboardShell control, not a fork",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-9",
+      "given": "the sign-out control renders here",
+      "when": "it is implemented",
+      "then": "it is the same PersonaDashboardShell control OVW-05 adds, not a Program-Detail-specific copy",
+      "objective": "Verify Program Detail imports and renders the shared PersonaDashboardShell sign-out control rather than a locally authored duplicate.",
+      "preconditions": [
+        "Static/source inspection or component-identity assertion available in the test harness"
+      ],
+      "test_data": {},
+      "steps": [
+        "Render ProgramDetailView and Overview page in the same test run",
+        "Assert both use the same PersonaDashboardShell component instance/module reference for the sign-out control",
+        "Search ProgramDetailView.tsx source for any Program-Detail-local sign-out markup"
+      ],
+      "expected_results": [
+        "Both pages' sign-out control resolves to the same PersonaDashboardShell module/component",
+        "No Program-Detail-specific sign-out markup exists in ProgramDetailView.tsx"
+      ],
+      "tags": [
+        "regression",
+        "shell-composition",
+        "no-fork"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#368",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-FR-1-TC-01",
+      "title": "Promise.all coordinates /api/me and program-detail fetch, shared try/catch",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-FR-1",
+      "given": "page.tsx issues GET /api/me and the existing program-detail fetch inside one Promise.all",
+      "when": "both fetches resolve successfully",
+      "then": "both results are used to render the page with no added sequential latency and no partial-render on a persona-only failure",
+      "objective": "Verify the two fetches run concurrently via Promise.all and both wrapped in the same try/catch as the existing program-detail fetch.",
+      "preconditions": [
+        "meApi.fetchMe and programDetailApi mocked with resolvable promises, each instrumented with a timestamp on invocation"
+      ],
+      "test_data": {},
+      "steps": [
+        "Render/invoke page.tsx server render",
+        "Capture invocation timestamps of both fetchMe and the program-detail fetch",
+        "Assert both were invoked before either resolved (concurrency), not sequentially"
+      ],
+      "expected_results": [
+        "Both fetch calls are initiated within the same Promise.all before either resolves",
+        "Total wait time approximates max(fetch durations), not their sum",
+        "Both resolved values are passed through to ProgramDetailView"
+      ],
+      "tags": [
+        "performance",
+        "concurrency"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#369",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-NFR-performance-TC-01",
+      "title": "One GET /api/me call per Program Detail server render, concurrent, \u22643s render budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-NFR-performance",
+      "given": "a signed-in user requests /programs/<program_id>",
+      "when": "the server renders the page",
+      "then": "exactly one GET /api/me call is issued, run concurrently with the program-detail fetch via Promise.all (5s timeout each), and the full page render completes within the \u22643s budget under normal load",
+      "objective": "Verify exactly one /api/me call fires per server render (none on switcher reload) and the added fetch does not push render time past the existing 3s budget.",
+      "preconditions": [
+        "Instrumented mock server or spy on meApi.fetchMe call count",
+        "Program-detail fetch and /api/me fetch mocked with realistic latency (e.g. 150ms each)"
+      ],
+      "test_data": {
+        "budget": "page render <= 3000ms under normal load",
+        "fetch_timeout": "5000ms"
+      },
+      "steps": [
+        "Trigger a server render of /programs/<program_id>",
+        "Count invocations of meApi.fetchMe during this render",
+        "Trigger a client-side program switcher reload",
+        "Count invocations of meApi.fetchMe during the switcher reload",
+        "Measure total render duration for the initial server render"
+      ],
+      "expected_results": [
+        "meApi.fetchMe is called exactly once during the initial server render",
+        "meApi.fetchMe is called zero times during the switcher reload",
+        "Total render duration is <= 3000ms",
+        "budget_pass evaluated against p95 <= 3000ms target"
+      ],
+      "tags": [
+        "performance",
+        "budget"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#370",
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "page render <= 3000ms under normal load; exactly one GET /api/me call per render",
+          "measured": "assertion-based (call-count + concurrency ordering, not wall-clock timed in vitest) \u2014 fetchMe called exactly once, both fetches in flight before either resolves",
+          "budget_pass": true
+        }
+      }
+    },
+    {
+      "id": "PGD-07-NFR-security-TC-01",
+      "title": "Identity block source is bearer session only \u2014 never a page-side persona constant",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-NFR-security",
+      "given": "the Program Detail page composes the identity block",
+      "when": "GET /api/me resolves with any persona other than cio",
+      "then": "the page never asserts persona: 'cio' on the caller's behalf, and persona-resolution failures fail closed (403 -> neutral badge, never a guessed persona)",
+      "objective": "Verify no page-side code path hardcodes or defaults persona to 'cio' or any other value, and a resolution failure never falls back to a guessed persona.",
+      "preconditions": [
+        "Source inspection of page.tsx and ProgramDetailView.tsx for hardcoded persona literals",
+        "meApi.fetchMe mocked to resolve persona: 'developer' in one run and a 403 failure in another"
+      ],
+      "test_data": {
+        "persona_non_cio": "developer"
+      },
+      "steps": [
+        "Render the page with persona: 'developer' resolved from /api/me",
+        "Assert the rendered identity block reflects 'developer', not 'cio'",
+        "Render the page with a 403 /api/me failure",
+        "Assert the rendered badge is the neutral 'Persona unavailable' state, not a fallback to any valid persona value",
+        "Grep page.tsx and ProgramDetailView.tsx source for literal persona: 'cio' assignments outside of test fixtures"
+      ],
+      "expected_results": [
+        "Identity block never shows 'cio' values when a different persona was resolved",
+        "403 failure never resolves to a guessed valid persona",
+        "No hardcoded persona: 'cio' literal exists in page.tsx or ProgramDetailView.tsx"
+      ],
+      "tags": [
+        "security",
+        "fail-closed"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-NFR-accessibility-TC-01",
+      "title": "Persona-unavailable aria-live announcement is visually hidden and assertive",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-07-NFR-accessibility",
+      "given": "a persona-resolution failure renders the neutral badge on Program Detail",
+      "when": "assistive technology inspects the identity block region",
+      "then": "the aria-live='assertive' announcement is present, visually hidden, and correctly associated, meeting WCAG AA where feasible",
+      "objective": "Verify the aria-live region and avatar aria-hidden attributes meet the accessibility contract on Program Detail specifically (not assumed inherited from OVW-05).",
+      "preconditions": [
+        "meApi.fetchMe mocked to resolve a 403 failure"
+      ],
+      "test_data": {},
+      "steps": [
+        "Render the Program Detail page with the 403 mock",
+        "Run an axe-core accessibility scan scoped to the brand bar/identity block region",
+        "Assert the aria-live element's computed CSS visually hides it (e.g. clip/sr-only pattern) while remaining in the accessibility tree"
+      ],
+      "expected_results": [
+        "axe-core scan reports no violations in the scoped region",
+        "aria-live='assertive' element is present in the accessibility tree",
+        "The element is visually hidden via standard sr-only technique, not display:none/visibility:hidden which would remove it from some AT trees"
+      ],
+      "tags": [
+        "accessibility",
+        "axe-core"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-C1",
+      "title": "composeSignedInUser omits decoy jobTitle from /api/me wire response",
+      "type": "unit",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-NFR-security",
+      "given": "a mocked meApi response contains a decoy jobTitle key on the wire object (Research Condition C-1)",
+      "when": "composeSignedInUser processes the response",
+      "then": "the composed SignedInUser omits the decoy jobTitle and instead derives jobTitle from PERSONA_DISPLAY[persona].jobTitle",
+      "objective": "Verify composeSignedInUser never trusts a jobTitle field arriving over the wire, guarding against MeResponse extra='forbid' drift (backend ships exactly {name, persona}).",
+      "preconditions": [
+        "meApi mocked to return a raw wire object {name: 'Test User', persona: 'architect', jobTitle: 'DECOY TITLE'} bypassing normal schema validation for this unit test"
+      ],
+      "test_data": {
+        "name": "Test User",
+        "persona": "architect",
+        "decoy_job_title": "DECOY TITLE",
+        "expected_job_title": "Architect"
+      },
+      "steps": [
+        "Call composeSignedInUser with the decoy-laden raw response object",
+        "Inspect the returned SignedInUser object's jobTitle field",
+        "Inspect the returned SignedInUser object for any leaked 'DECOY TITLE' value"
+      ],
+      "expected_results": [
+        "Returned jobTitle equals 'Architect' (PERSONA_DISPLAY['architect'].jobTitle)",
+        "The literal 'DECOY TITLE' string does not appear anywhere in the returned object"
+      ],
+      "tags": [
+        "research-condition",
+        "C-1",
+        "wire-leakage"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-C2",
+      "title": "Sign-out control renders in BOTH populated and neutral-fallback identity branches",
+      "type": "integration",
+      "category": "regression",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-8",
+      "given": "PersonaDashboardShell renders on Program Detail in either the populated-signedInUser branch or the neutral-fallback (no signedInUser / null name) branch (Research Condition C-2)",
+      "when": "either branch renders",
+      "then": "the sign-out <form action=\"/logout\"> control is present in both, closing the gap where this OVW-05-inherited control (AC-12) shipped untested",
+      "objective": "Verify the sign-out control is not accidentally scoped only to the populated-user branch, since OVW-05 shipped this without a test for the neutral-fallback path.",
+      "preconditions": [
+        "Two render passes: (a) meApi.fetchMe resolves persona + name populated, (b) meApi.fetchMe resolves persona populated but name: null (neutral fallback)"
+      ],
+      "test_data": {
+        "populated": {
+          "persona": "cio",
+          "name": "Priya Nair"
+        },
+        "neutral_fallback": {
+          "persona": "cio",
+          "name": null
+        }
+      },
+      "steps": [
+        "Render Program Detail with the populated signedInUser case",
+        "Query the DOM for the sign-out form",
+        "Render Program Detail with the neutral-fallback (null name) case",
+        "Query the DOM for the sign-out form"
+      ],
+      "expected_results": [
+        "Sign-out form is present in the populated-user render",
+        "Sign-out form is present in the neutral-fallback render",
+        "Both forms have identical action='/logout' attribute and markup"
+      ],
+      "tags": [
+        "research-condition",
+        "C-2",
+        "regression",
+        "sign-out"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-C3",
+      "title": "jobTitle and avatar colour derive from PERSONA_DISPLAY and match passed persona prop, across all five personas",
+      "type": "unit",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-AC-3",
+      "given": "ProgramDetailView receives each of the five persona values in turn (Research Condition C-3)",
+      "when": "the identity block renders",
+      "then": "jobTitle and avatar colour derive from PERSONA_DISPLAY/formatPersonaTag and match the passed persona prop, parameterized across cio, architect, developer, engineering-manager, product-manager",
+      "objective": "Verify jobTitle and avatar colour are never mismatched to the wrong persona across a parameterized sweep of all five personas.",
+      "preconditions": [
+        "ProgramDetailView rendered directly with a persona prop under test control (bypassing the network fetch)"
+      ],
+      "test_data": {
+        "personas": [
+          {
+            "persona": "cio",
+            "expected_job_title": "Chief Information Officer",
+            "expected_colour": "#0f1a2e"
+          },
+          {
+            "persona": "architect",
+            "expected_job_title": "Architect"
+          },
+          {
+            "persona": "developer",
+            "expected_job_title": "Developer"
+          },
+          {
+            "persona": "engineering-manager",
+            "expected_job_title": "Engineering Manager"
+          },
+          {
+            "persona": "product-manager",
+            "expected_job_title": "Product Manager"
+          }
+        ]
+      },
+      "steps": [
+        "For each persona value in test_data.personas, render ProgramDetailView with that persona prop and a populated signedInUser",
+        "Read the rendered jobTitle text",
+        "Read the rendered avatar/tag background colour style"
+      ],
+      "expected_results": [
+        "jobTitle for each persona exactly matches PERSONA_DISPLAY[persona].jobTitle",
+        "Avatar colour for each persona exactly matches PERSONA_DISPLAY[persona]'s colour value",
+        "No persona ever renders another persona's jobTitle or colour"
+      ],
+      "tags": [
+        "research-condition",
+        "C-3",
+        "persona-matrix"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-07-TC-C4",
+      "title": "SessionExpiredError from either fetch in Promise.all triggers the same coordinated redirect",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-07-FR-1",
+      "given": "page.tsx's Promise.all issues GET /api/me and the program-detail fetch concurrently (Research Condition C-4)",
+      "when": "a SessionExpiredError is thrown by EITHER fetch",
+      "then": "the same redirect('/login') fires as a single coordinated redirect (not a race), consistent with tokenStore.refreshPromise acting as the dedup guard",
+      "objective": "Verify a SessionExpiredError from either the /api/me fetch or the program-detail fetch alone is sufficient to trigger the coordinated redirect, and that the code carries the explanatory comment referencing tokenStore.refreshPromise.",
+      "preconditions": [
+        "Case A: meApi.fetchMe throws SessionExpiredError, program-detail fetch resolves normally",
+        "Case B: program-detail fetch throws SessionExpiredError, meApi.fetchMe resolves normally",
+        "Source inspection of page.tsx's Promise.all block for the required code comment"
+      ],
+      "test_data": {},
+      "steps": [
+        "Invoke page.tsx server render for Case A",
+        "Assert redirect('/login') is called exactly once",
+        "Invoke page.tsx server render for Case B",
+        "Assert redirect('/login') is called exactly once",
+        "Inspect the Promise.all block source for a comment explaining the coordinated-redirect rationale referencing tokenStore.refreshPromise"
+      ],
+      "expected_results": [
+        "Case A results in exactly one redirect('/login') call",
+        "Case B results in exactly one redirect('/login') call",
+        "No race condition produces duplicate redirects or an unhandled rejection",
+        "The Promise.all block source contains a comment referencing tokenStore.refreshPromise as the dedup guard"
+      ],
+      "tags": [
+        "research-condition",
+        "C-4",
+        "auth",
+        "concurrency"
+      ],
+      "last_run": {
+        "started_at": "2026-09-16T12:15:00Z",
+        "duration_ms": 41,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 41,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "vitest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-07-AC-1",
+        "covered_by": [
+          "PGD-07-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-2",
+        "covered_by": [
+          "PGD-07-TC-02"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-3",
+        "covered_by": [
+          "PGD-07-TC-03",
+          "PGD-07-TC-04",
+          "PGD-07-TC-C3"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-4",
+        "covered_by": [
+          "PGD-07-TC-05"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-5",
+        "covered_by": [
+          "PGD-07-TC-06",
+          "PGD-07-TC-07"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-6",
+        "covered_by": [
+          "PGD-07-TC-08"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-7",
+        "covered_by": [
+          "PGD-07-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-8",
+        "covered_by": [
+          "PGD-07-TC-10",
+          "PGD-07-TC-C2"
+        ]
+      },
+      {
+        "id": "PGD-07-AC-9",
+        "covered_by": [
+          "PGD-07-TC-11"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-07-FR-1",
+        "covered_by": [
+          "PGD-07-FR-1-TC-01",
+          "PGD-07-TC-C4"
+        ]
+      },
+      {
+        "id": "PGD-07-FR-2",
+        "covered_by": [
+          "PGD-07-FR-2-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-07-FR-3",
+        "covered_by": [
+          "PGD-07-FR-3-TC-01"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-07-NFR-performance",
+        "covered_by": [
+          "PGD-07-NFR-performance-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-07-NFR-security",
+        "covered_by": [
+          "PGD-07-NFR-security-TC-01",
+          "PGD-07-TC-C1"
+        ]
+      },
+      {
+        "id": "PGD-07-NFR-accessibility",
+        "covered_by": [
+          "PGD-07-NFR-accessibility-TC-01"
+        ]
+      }
+    ],
+    "uncovered": []
+  }
+}
