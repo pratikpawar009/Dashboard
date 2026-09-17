@@ -1,0 +1,1070 @@
+{
+  "story_id": "PGD-06",
+  "test_cases": [
+    {
+      "id": "PGD-06-TC-01",
+      "title": "Unfiltered request SUMs session_time_seconds across all members per day (no null-member_id read)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-1",
+      "given": "a program with 2+ members each carrying session_series rows with session_time_seconds on the same day, and no session_series row anywhere carries a null member_id",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called with no member_id filter",
+      "then": "that day's point equals the SUM of session_time_seconds across every member's row for that day, proving the aggregate is a real cross-member sum and not a member_id IS NULL filter (which would match zero rows)",
+      "objective": "Prove the unfiltered/org-wide series is a genuine cross-member aggregate, not a null-member_id read that would silently return all zeros.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-agg with member-A session_series row on 2026-09-10: session_time_seconds=1800",
+        "Seeded program_id=prog-agg with member-B session_series row on 2026-09-10: session_time_seconds=2400",
+        "No session_series row for prog-agg has member_id = NULL"
+      ],
+      "test_data": {
+        "program_id": "prog-agg",
+        "range": "30d",
+        "date": "2026-09-10",
+        "member_a_seconds": 1800,
+        "member_b_seconds": 2400,
+        "expected_sum": 4200
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-agg/session-time-series?range=30d with a valid bearer token and no member_id",
+        "Locate the point for date=2026-09-10 in the response"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "The 2026-09-10 point's session_time_seconds equals 4200 (1800 + 2400)",
+        "No query executed by the handler filters on member_id IS NULL"
+      ],
+      "tags": [
+        "critical",
+        "aggregation",
+        "C-1"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#450",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_cross_member_sum_on_same_day_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-02",
+      "title": "Response fields are raw ints, never formatted strings",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-2",
+      "given": "a program with session_series activity large enough that formatting would visibly change the value (e.g. >= 1000 seconds)",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called",
+      "then": "points[].session_time_seconds, period_total_seconds, and avg_seconds_per_day are all JSON integers, never pre-formatted strings",
+      "objective": "Verify the raw-int wire contract matching the token-trend sibling precedent, not the releases pre-formatted-string precedent.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-rawint with session_series rows summing to >= 1000 seconds on at least one day within the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-rawint",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-rawint/session-time-series?range=30d with a valid bearer token",
+        "Inspect the raw JSON types of points[].session_time_seconds, period_total_seconds, avg_seconds_per_day"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Every points[].session_time_seconds is JSON type number (int), not a string",
+        "period_total_seconds is JSON type number (int), not a string",
+        "avg_seconds_per_day is JSON type number (int), not a string",
+        "No value is comma-formatted or otherwise stringified"
+      ],
+      "tags": [
+        "contract",
+        "wire-types"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#451",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_response_fields_are_raw_ints_tc02",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-03",
+      "title": "Unknown program_id returns 200 with an all-zero zero-padded series, never 404",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-3",
+      "given": "a program_id that does not exist in program_summary or session_series",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called by an authenticated session",
+      "then": "the response is 200 with a zero-padded 30-entry all-zero series and period_total_seconds=0, no 404",
+      "objective": "Verify the no-404 empty-response contract for an unknown program_id, matching the token-trend/commands/team sibling asymmetry.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "program_id=does-not-exist-999 has no row anywhere in program_summary or session_series"
+      ],
+      "test_data": {
+        "program_id": "does-not-exist-999",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/does-not-exist-999/session-time-series?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200 (explicitly asserted NOT 404)",
+        "points has exactly 30 entries, each with session_time_seconds=0",
+        "period_total_seconds is 0",
+        "avg_seconds_per_day is 0"
+      ],
+      "tags": [
+        "negative",
+        "edge-case",
+        "no-404"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#452",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_unknown_program_id_returns_200_all_zero_series_tc03",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-04",
+      "title": "points[] has exactly 7/30/90 entries for the resolved range, quiet days zero-padded not omitted",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-4",
+      "given": "a valid program_id with session_series activity on only some days within each range window",
+      "when": "GET .../session-time-series is called for range=7d, range=30d, and range=90d in turn",
+      "then": "each response's points[] has exactly 7, 30, and 90 entries respectively, and any day with no session_series row has session_time_seconds=0 rather than being omitted",
+      "objective": "Verify zero-padding to the fixed range length per the story Decision log's all-zero graceful pattern.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-sparse with session_series rows on only 2 of the last 90 days"
+      ],
+      "test_data": {
+        "program_id": "prog-sparse",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-sparse/session-time-series?range=7d with a valid bearer token",
+        "Send GET /api/overview/program-detail/prog-sparse/session-time-series?range=30d with a valid bearer token",
+        "Send GET /api/overview/program-detail/prog-sparse/session-time-series?range=90d with a valid bearer token"
+      ],
+      "expected_results": [
+        "The 7d response has exactly 7 points",
+        "The 30d response has exactly 30 points",
+        "The 90d response has exactly 90 points",
+        "Every day without a session_series row appears as a point with session_time_seconds=0, never omitted"
+      ],
+      "tags": [
+        "boundary",
+        "zero-padding"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#453",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_exact_point_count_per_range_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-05",
+      "title": "Program with zero session_series rows across the entire range returns a full all-zero series",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-4",
+      "given": "a known, valid program_id with no session_series rows at all within the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called",
+      "then": "the response is 200 with a full 30-entry series, every point session_time_seconds=0, period_total_seconds=0",
+      "objective": "Verify the all-days-empty program case renders a complete zero-padded series, mirroring PGD-02-TC-06's shape.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-quiet exists in program_summary with zero session_series rows in the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "prog-quiet",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-quiet/session-time-series?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "points has exactly 30 entries, all with session_time_seconds=0",
+        "period_total_seconds is 0",
+        "avg_seconds_per_day is 0"
+      ],
+      "tags": [
+        "edge-case",
+        "empty-state"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#454",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_zero_rows_returns_full_zero_padded_series_tc05",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-06",
+      "title": "avg_seconds_per_day divides by the fixed range day-count, not the count of days with data",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-5",
+      "given": "a program_id with session_series activity on only 2 of the last 30 days, non-zero total seconds",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called",
+      "then": "avg_seconds_per_day equals period_total_seconds / 30, never period_total_seconds / 2",
+      "objective": "Verify the average divisor is the fixed range length, matching the token-trend precedent.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-avg with session_series rows on exactly 2 of the last 30 days, session_time_seconds=900 and 1500 (total=2400)"
+      ],
+      "test_data": {
+        "program_id": "prog-avg",
+        "range": "30d",
+        "total_seconds": 2400,
+        "expected_avg": 80
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-avg/session-time-series?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "period_total_seconds equals 2400",
+        "avg_seconds_per_day equals 80 (2400/30), not 1200 (2400/2)"
+      ],
+      "tags": [
+        "boundary",
+        "divisor"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#455",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_avg_divides_by_fixed_range_day_count_not_data_day_count_tc06",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-07",
+      "title": "Same underlying data yields a different avg_seconds_per_day for 7d vs 30d (differential-range)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-5",
+      "given": "a program_id with the identical seeded session_series activity, queried once with range=7d and once with range=30d",
+      "when": "GET .../session-time-series?range=7d and GET .../session-time-series?range=30d are both called for the same program_id",
+      "then": "avg_seconds_per_day differs between the two responses because the divisor changes (7 vs 30) even though period_total_seconds may be identical",
+      "objective": "Prove the divisor is genuinely range-dependent, catching a regression where avg_seconds_per_day is computed with a hardcoded or non-differential divisor.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-diffrange with session_series rows only within the last 7 days, non-zero total seconds"
+      ],
+      "test_data": {
+        "program_id": "prog-diffrange",
+        "range_a": "7d",
+        "range_b": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-diffrange/session-time-series?range=7d; capture period_total_seconds_7d and avg_7d",
+        "Send GET /api/overview/program-detail/prog-diffrange/session-time-series?range=30d; capture period_total_seconds_30d and avg_30d",
+        "Assert avg_7d != avg_30d"
+      ],
+      "expected_results": [
+        "period_total_seconds_7d equals period_total_seconds_30d (all activity is within the last 7 days)",
+        "avg_7d equals period_total_seconds_7d / 7",
+        "avg_30d equals period_total_seconds_30d / 30",
+        "avg_7d is strictly greater than avg_30d given the seeded fixture"
+      ],
+      "tags": [
+        "critical",
+        "differential-range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#456",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_avg_differs_between_7d_and_30d_for_same_data_tc07",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-08",
+      "title": "Non-self, non-cio member_id filter is denied 403 before any session_series query runs",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-FR-6",
+      "given": "a requester who is neither the filtered member_id nor a cio persona",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d&member_id={other_member} is called",
+      "then": "member_in_program_visibility raises 403 before fetch_program_session_series issues any session_series query, and the denial is logged as member_view_denied",
+      "objective": "Verify gate-before-query ordering structurally, mirroring AUTH-03's and PGD-05's precedent, so a regression that queries before gating is caught.",
+      "preconditions": [
+        "Authenticated session bearer token for a developer persona who is not member-M and not cio",
+        "Query-execution spy/mock installed on the session_series query path for the test run",
+        "Log capture configured for the test run",
+        "Seeded program_id=prog-001 with member-M distinct from the requester"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "member_id": "member-M",
+        "range": "30d",
+        "requester_persona": "developer"
+      },
+      "steps": [
+        "As the developer persona, send GET /api/overview/program-detail/prog-001/session-time-series?range=30d&member_id=member-M",
+        "Inspect whether the session_series query mock/spy was ever invoked",
+        "Inspect captured logs for the denial event"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "The session_series query mock/spy records zero invocations for this request",
+        "A structured log entry with event=member_view_denied is emitted",
+        "The 403 response body carries no points/period_total_seconds/avg_seconds_per_day fields"
+      ],
+      "tags": [
+        "security",
+        "rbac",
+        "gate-before-query",
+        "C-3"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#457",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_non_self_non_cio_member_filter_denied_before_query_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-09",
+      "title": "Self-filtered member_id request is authorized via open-aggregate program_visibility",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-6",
+      "given": "a requester filtering to their own member_id",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d&member_id={self} is called",
+      "then": "the request succeeds with 200, gated only by program_visibility, no member_in_program_visibility denial",
+      "objective": "Verify self-filtered requests are authorized for any authenticated session, per the open-aggregate program_visibility gate.",
+      "preconditions": [
+        "Authenticated session bearer token for member-M",
+        "Seeded program_id=prog-001 with member-M active session_series rows in the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "member_id": "member-M",
+        "range": "30d"
+      },
+      "steps": [
+        "As member-M, send GET /api/overview/program-detail/prog-001/session-time-series?range=30d&member_id=member-M"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "The response reflects only member-M's session_series data",
+        "No 403 is returned"
+      ],
+      "tags": [
+        "rbac",
+        "self-filter"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#458",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_self_filtered_member_id_authorized_tc09",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-10",
+      "title": "Unfiltered request is authorized for any authenticated session regardless of program membership",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-6",
+      "given": "authenticated sessions for multiple distinct personas, none of which is a member of the target program",
+      "when": "each persona calls GET /api/overview/program-detail/{program_id}/session-time-series?range=30d with no member_id filter",
+      "then": "every persona receives 200 with an identical response body, per the open-aggregate program_visibility contract",
+      "objective": "Verify no persona-based branching or membership gating occurs on the unfiltered view, per rbac-checks A-004.",
+      "preconditions": [
+        "Authenticated session tokens for developer, cio, and architect personas, none listed in session.programs for prog-001",
+        "Seeded program_id=prog-001 with session_series data"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "personas": [
+          "developer",
+          "cio",
+          "architect"
+        ]
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/session-time-series?range=30d as developer",
+        "Send the identical request as cio",
+        "Send the identical request as architect"
+      ],
+      "expected_results": [
+        "All three responses return status 200",
+        "All three response bodies are byte-identical",
+        "No 403 is returned for any persona regardless of program membership"
+      ],
+      "tags": [
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#459",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_unfiltered_request_authorized_across_personas_tc10",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-11",
+      "title": "Invalid range value returns 400, not FastAPI default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-7",
+      "given": "a valid program_id and an invalid range value",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=1y is called",
+      "then": "the response is 400 via the explicit validate_range() check, never FastAPI's default 422",
+      "objective": "Verify invalid range is rejected with an explicit 400, matching the sibling token-trend/commands/team/releases behavior.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "1y"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/session-time-series?range=1y with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is exactly 400",
+        "Response status is NOT 422",
+        "Response body error code is invalid_range"
+      ],
+      "tags": [
+        "negative",
+        "boundary",
+        "api-conventions"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#460",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_invalid_range_returns_400_not_422_tc11",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-12",
+      "title": "Unauthenticated request returns 401",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-NFR-security",
+      "given": "no bearer token, or an invalid bearer token",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called",
+      "then": "the response is 401",
+      "objective": "Verify the endpoint requires authentication and rejects unauthenticated callers with 401.",
+      "preconditions": [
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "authorization_header": null
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/session-time-series?range=30d with no Authorization header",
+        "Repeat with Authorization: Bearer <PLACEHOLDER_INVALID_TOKEN>"
+      ],
+      "expected_results": [
+        "Both requests return status 401"
+      ],
+      "tags": [
+        "negative",
+        "auth"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#461",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_unauthenticated_request_returns_401_tc12",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-13",
+      "title": "Soft-deleted roster member (removed_at populated) still appears in historical session_series data",
+      "type": "integration",
+      "category": "regression",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-1",
+      "given": "a program_roster member with removed_at populated, but whose historical session_series rows remain in the table",
+      "when": "GET .../session-time-series?range=90d is called with no member filter, covering the period when that member was active",
+      "then": "the removed member's historical session_time_seconds is still included in the org-wide daily sum, since the query filters only on session_series data, never on roster status",
+      "objective": "Verify soft-deleted members are not silently excluded from historical aggregates, per research condition C-4.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-offboard with member-X having removed_at populated in program_roster",
+        "member-X has session_series rows with non-zero session_time_seconds within the last 90 days, predating removal"
+      ],
+      "test_data": {
+        "program_id": "prog-offboard",
+        "range": "90d",
+        "removed_member": "member-X"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-offboard/session-time-series?range=90d with a valid bearer token",
+        "Independently sum member-X's session_series rows for the same window from the fixture",
+        "Confirm the org-wide daily totals include member-X's contribution"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "The day(s) matching member-X's historical activity include their session_time_seconds in the total, not excluded due to removed_at"
+      ],
+      "tags": [
+        "regression",
+        "C-4",
+        "roster"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#462",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_service.py::test_soft_deleted_roster_member_still_contributes_to_aggregate_tc13",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-14",
+      "title": "Omitted range query param defaults to 30d",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-2",
+      "given": "a valid program_id and no range query param supplied",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series is called by an authenticated session",
+      "then": "the response is computed as if range=30d",
+      "objective": "Verify the range default of 30d applies when the query param is omitted.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with session_series rows spanning 7d/30d/90d windows"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": null
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/session-time-series (no range param) with a valid bearer token",
+        "Separately send GET /api/overview/program-detail/prog-001/session-time-series?range=30d with the same token"
+      ],
+      "expected_results": [
+        "Both responses return status 200",
+        "The two responses are byte-identical"
+      ],
+      "tags": [
+        "default-behavior",
+        "range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#463",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_omitted_range_defaults_to_30d_tc14",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-15",
+      "title": "Each 7D/30D/90D range returns its own window and series length",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-AC-2",
+      "given": "a program with session_series activity distributed across 7d/30d/90d windows",
+      "when": "the endpoint is called in turn for range=7d, range=30d, and range=90d",
+      "then": "each response's points[] reflects the newly selected range's window and length, distinct per range",
+      "objective": "Verify range-toggle behavior is honored end-to-end at the API layer (the chart itself is out of scope; this covers the API's role in AC-2).",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-multi-window with session_series rows split: some within 7 days, some between 8-90 days ago"
+      ],
+      "test_data": {
+        "program_id": "prog-multi-window",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Send GET .../session-time-series?range=7d; capture points_7d",
+        "Send GET .../session-time-series?range=30d; capture points_30d",
+        "Send GET .../session-time-series?range=90d; capture points_90d"
+      ],
+      "expected_results": [
+        "points_7d has 7 entries, points_30d has 30, points_90d has 90",
+        "period_total_seconds differs between at least two of the three responses given the seeded fixture"
+      ],
+      "tags": [
+        "range",
+        "refetch"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#464",
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_each_range_returns_own_window_and_length_tc15",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-16",
+      "title": "Structured log emitted with method, path, program_id, range, status, latency on successful fetch",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-06-NFR-observability",
+      "given": "a valid request to the session-time-series endpoint",
+      "when": "GET /api/overview/program-detail/{program_id}/session-time-series?range=30d is called",
+      "then": "a structured log entry program_drilldown is emitted with method, path, program_id, range, status, latency_ms, matching PGD-03/04/05's shape",
+      "objective": "Verify observability logging captures the required fields on a successful fetch.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Log capture/interception configured for the test run",
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/session-time-series?range=30d with a valid bearer token",
+        "Inspect captured structured logs for this request"
+      ],
+      "expected_results": [
+        "A structured log entry event=program_drilldown exists with fields: method=GET, path containing /session-time-series, program_id=prog-001, range=30d, status=200, latency_ms numeric"
+      ],
+      "tags": [
+        "observability",
+        "logging"
+      ],
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 400,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 400,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_session_series_route.py::test_program_drilldown_log_emitted_on_success_tc16",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-06-TC-17",
+      "title": "Range/member-filter refresh completes within 2s performance budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-06-NFR-performance",
+      "given": "a program_id with a realistic volume of session_series rows (e.g. thousands of rows across 90 days x many members)",
+      "when": "GET .../session-time-series is called for each of range=7d, 30d, 90d, unfiltered and self-filtered",
+      "then": "each request completes within the 2-second budget (NFR-002), via a single aggregate query with no N+1 fan-out",
+      "objective": "Verify the endpoint meets the inherited <=2s range-refresh performance budget under realistic data volume.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-perf with >=50 members and >=5,000 session_series rows spread across 90 days"
+      ],
+      "test_data": {
+        "program_id": "prog-perf",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Measure wall-clock latency of GET .../session-time-series?range=7d (unfiltered)",
+        "Measure wall-clock latency of GET .../session-time-series?range=30d (unfiltered)",
+        "Measure wall-clock latency of GET .../session-time-series?range=90d (unfiltered)",
+        "Measure wall-clock latency of GET .../session-time-series?range=30d&member_id=<self> (self-filtered)",
+        "Capture query count to confirm a single aggregate query per request (no N+1)"
+      ],
+      "expected_results": [
+        "Each request's latency is < 2000ms",
+        "Exactly one session_series aggregate query is issued per request"
+      ],
+      "tags": [
+        "performance",
+        "budget"
+      ],
+      "last_run": {
+        "started_at": "2026-09-17T15:55:00+00:00",
+        "duration_ms": 4450,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 4450,
+            "reason": null
+          }
+        ],
+        "budget": {
+          "target": "p95 < 2000ms (NFR-002), single aggregate query per request (no N+1)",
+          "measured": "max 7.10ms across range=7d/30d/90d unfiltered + self-filtered 30d; 1 query per request",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_program_session_series_perf.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-06-AC-1",
+        "covered_by": [
+          "PGD-06-TC-01",
+          "PGD-06-TC-13"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-2",
+        "covered_by": [
+          "PGD-06-TC-14",
+          "PGD-06-TC-15"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-3",
+        "covered_by": [
+          "PGD-06-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-4",
+        "covered_by": [
+          "PGD-06-TC-02",
+          "PGD-06-TC-06"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-5",
+        "covered_by": [
+          "PGD-06-TC-08"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-6",
+        "covered_by": [
+          "PGD-06-TC-09",
+          "PGD-06-TC-10"
+        ]
+      },
+      {
+        "id": "PGD-06-AC-7",
+        "covered_by": [
+          "PGD-06-TC-11"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-06-FR-1",
+        "covered_by": [
+          "PGD-06-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-06-FR-2",
+        "covered_by": [
+          "PGD-06-TC-02"
+        ]
+      },
+      {
+        "id": "PGD-06-FR-3",
+        "covered_by": [
+          "PGD-06-TC-03"
+        ]
+      },
+      {
+        "id": "PGD-06-FR-4",
+        "covered_by": [
+          "PGD-06-TC-04",
+          "PGD-06-TC-05"
+        ]
+      },
+      {
+        "id": "PGD-06-FR-5",
+        "covered_by": [
+          "PGD-06-TC-06",
+          "PGD-06-TC-07"
+        ]
+      },
+      {
+        "id": "PGD-06-FR-6",
+        "covered_by": [
+          "PGD-06-TC-08"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-06-NFR-performance",
+        "covered_by": [
+          "PGD-06-TC-17"
+        ]
+      },
+      {
+        "id": "PGD-06-NFR-security",
+        "covered_by": [
+          "PGD-06-TC-08",
+          "PGD-06-TC-12"
+        ]
+      },
+      {
+        "id": "PGD-06-NFR-observability",
+        "covered_by": [
+          "PGD-06-TC-16"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "notes": [
+      "E2E/component UI TCs (SessionTimeChart.tsx, MemberFilter.tsx) are deliberately NOT generated. The story's own Test-mapping section names these components, but REQUIREMENTS.md Scope documents both are stale claims: no mockup shows a session-time chart or member filter (dashboards/Program Detail.html has exactly six sections, none of them this chart), and neither component exists under apps/web/src. PGD-06 ships backend-only (design: n/a). This mirrors the PGD-04 precedent for a story claiming a component that does not exist.",
+      "Accessibility NFR is explicitly N/A per REQUIREMENTS.md ('no new UI ships in this story') and is intentionally omitted from this manifest; carried forward to the follow-on story that renders the chart against a real design.",
+      "Security NFR is covered via FR-6/AC-5 (gate-before-query, PGD-06-TC-08) and a standalone 401 case (PGD-06-TC-12), rather than a separate wholly-distinct set, consistent with PGD-04/05 precedent of anchoring security NFR to the AC/FR gate tests already present.",
+      "session_series carries an org_id column, part of uq_session_series_org_id_program_id_member_id_date, that neither the story nor REQUIREMENTS.md mentions. No TC in this manifest pins org_id scoping: REQUIREMENTS.md Solution sketch describes the org-wide query as scanning by (org_id, program_id, date) but the story/PRD never states a cross-org isolation requirement or names an org-scoping FR/AC, and program_visibility/member_in_program_visibility (the only gates this story specifies) are program-scoped, not org-scoped. Treating org_id as in-scope here would fabricate a requirement id absent from both the story and the PRD. Flagging this as a gap for the orchestrator/product owner to confirm before Product Gate: either org_id scoping is implicitly covered by existing multi-tenancy tests elsewhere in the suite (out of this story's stated scope), or it needs an explicit FR/AC added to REQUIREMENTS.md and a corresponding TC in a follow-up round. RESOLVED by the orchestrator 2026-09-17 before the Product Gate: org_id is a hardcoded single-org singleton (`_ORG_ID = \"org-1\"`, services/api/app/services/rollup_rebuild.py:118, D-03 convention) \u2014 every writer stamps that one literal and the system has no multi-tenancy. There is therefore no cross-org isolation requirement to test for this story, and no FR/AC is added. Should real multi-org support ever land, org scoping becomes a system-wide concern for a dedicated story, not a PGD-06 gap.",
+      "Scope cross-check: no TC references an Out-of-scope id from REQUIREMENTS.md (chart/filter UI, session_series writes, persona-scoped filtering beyond the two named RBAC gates)."
+    ]
+  }
+}
