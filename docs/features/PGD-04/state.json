@@ -1,0 +1,133 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 77,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#26",
+  "tracker_research": "pratikpawar009/Dashboard#421",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-04/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "implementation",
+  "last_updated": "2026-09-17T00:00:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#422",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/PGD-04/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-04/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#440",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-17T06:15:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-04/evidence/typecheck-web.log, docs/features/PGD-04/evidence/typecheck-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T06:05:00Z",
+        "note": "round 1 first pass: api mypy FAILED (7 errors, test_program_commands_service.py _usage_event_row idx: int vs f-string call sites) \u2014 fixed by widening idx: int | str; re-run PASS, 0 errors, 168 source files. web tsc PASS both passes. | RE-RUN 2026-09-17 after AF-01 move + AF-02 check: mypy 169 files 0 errors, ruff clean, api 766 passed, web 237/237, eslint 0 errors."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit: (fallback test:)",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-04/evidence/unit-tests-web.log, docs/features/PGD-04/evidence/unit-tests-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T06:08:00Z",
+        "note": "web: 237/237 tests passed, 36/36 files. api: 761 passed, 10 deselected (perf, run separately below) in 203.48s. | RE-RUN 2026-09-17 after AF-01 move + AF-02 check: mypy 169 files 0 errors, ruff clean, api 766 passed, web 237/237, eslint 0 errors."
+      },
+      "unit_tests_perf_explicit": {
+        "status": "PASS",
+        "source": "tests/perf/test_program_commands_perf.py -m perf (T-06)",
+        "command": "cd services/api && uv run pytest tests/perf/test_program_commands_perf.py -m perf",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-04/evidence/perf-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T00:00:00Z",
+        "note": "Scoped to PGD-04's own perf surface: tests/perf/test_program_commands_perf.py -m perf -> 3 passed (7d/30d/90d), re-verified 2026-09-17, exit 0. The earlier hedged status string 'PASS (PGD-04 subset)' with exit_code 1 came from running the WHOLE -m perf selection, where 3 cases in tests/perf/test_ingest_files_perf.py (ING-02) fail on a p95 budget (4.0s/3.9s vs 3.0s). That file is not in PGD-04's diff (git status confirms) and is out of scope per surgical-changes; it is recorded as a carry-forward for the PR body, NOT masked inside this story's evidence row. A status must be a literal PASS/FAIL/N/A the gate can evaluate -- a qualified string is not."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-04/evidence/lint-web.log, docs/features/PGD-04/evidence/lint-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T06:11:00Z",
+        "note": "api: 'All checks passed!'. web: 0 errors, 2 pre-existing warnings in ProgramDetailView.*.test.tsx (unused _args) \u2014 not in PGD-04's shipped file list, carry-forward only. | RE-RUN 2026-09-17 after AF-01 move + AF-02 check: mypy 169 files 0 errors, ruff clean, api 766 passed, web 237/237, eslint 0 errors."
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-17T06:13:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "docker run postgres:16 (Deps) + uv run alembic upgrade head (Migrate) + uv run uvicorn app.main:app --port 8011",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-04/evidence/runtime-migrate.log, docs/features/PGD-04/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "GET /health -> 200 {\"status\":\"ok\"}. GET .../commands (no/bad bearer) -> 401. POST /auth/dev-bypass -> 200 token. GET /api/overview/program-detail/prog-1/commands (bearer) -> 200 {\"total_runs\":\"0\",\"items\":[]}. Structured log program_commands_fetched observed with allowlisted keys only (program_id, range, status, latency_ms) - no PII."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "pnpm -C apps/web dev --port 3011",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-04/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "note": "GET / -> 307 redirect to /overview, boot clean, compiled in 1820ms. render_check: n/a - PGD-04 ships no rendered UI component (backend + proxy only, per REQUIREMENTS.md Scope), so no page-mount assertion applies to this story's surface."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-04/evidence/compile-web.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T06:14:00Z",
+        "note": "Next.js build succeeded, 11/11 static pages generated, new proxy route /api/proxy/program-detail/[program_id]/commands present in route table. services/api has no compile step (interpreted, runs via uvicorn) per build: comment."
+      },
+      "design_check": {
+        "status": "PASS",
+        "source": "mockup-conformance check (AF-02 resolution); project-commands.yaml design_check: is empty and a browser-driven tool stays N/A -- no rendered UI ships",
+        "command": "cd services/api && uv run pytest tests/unit/test_program_commands_mockup_contract.py",
+        "exit_code": 0,
+        "evidence_path": "services/api/tests/unit/test_program_commands_mockup_contract.py",
+        "flag_id": "AF-02",
+        "ran_at": "2026-09-17T00:00:00Z",
+        "note": "5/5 green against docs/design/mockups/Program Detail.html SS COMMANDS; mutation-verified (synthesizing a leading slash fails 5 tests), tree restored green"
+      }
+    },
+    "post_flag_fix_revalidated_at": "2026-09-17T00:00:00Z"
+  },
+  "validation": "2026-09-17 P=17/17",
+  "validation_status": "partial",
+  "review": "PASS WITH WARNINGS",
+  "gate_rounds": 1
+}

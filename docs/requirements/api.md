@@ -191,7 +191,15 @@ shape:
 produced_by: PGD-04
 consumed_by: [ARC-01, DEV-01, PMD-01, EMD-01]
 shape:
-  fields: "program-level command name + run_count for the selected range, total run count; distinct from personal-usage-api's per-user commands"
+  endpoint: "GET /api/overview/program-detail/{program_id}/commands?range=7d|30d|90d (default 30d, via the shared _range_with_default wrapper around validate_range()) -- a fourth sibling on the existing overview router (prefix=/api/overview), not a separate program-detail router"
+  response_model: "CommandsPanel @ app/schemas/personal_usage.py -- REUSED verbatim from SHP-02 (PGD-04/DECISIONS.md D-03); no schemas/program_commands.py exists"
+  items: "list[CommandEntry { command: str, count: int, barStyle: str }], ordered by count DESC then command (deterministic tiebreak, matching SHP-02). command passes through usage_events.command VERBATIM -- real ingest data already carries the leading '/' (e.g. '/arh-init'); the API never synthesizes one. count is a RAW int (bar-formula input, deliberately not pre-formatted). barStyle is round(count / MAX(counts in this range and program) * 100)% width -- max-of-range, NOT share-of-total (PGD-04-FR-3, ADR-0009-inherited formula)."
+  total_runs: "str, pre-formatted via format_number() -- sum of in-range command counts."
+  data_source: "usage_events (per-event ts), filtered by program_id and the resolved range window -- NEVER program_commands (lifetime-only rollup with no time filter; PGD-04/DECISIONS.md D-01). This is the single highest-risk implementation detail: reading program_commands instead makes ?range= a silent no-op."
+  empty_behavior: "Unknown OR known-but-quiet program_id both return 200 {total_runs: \"0\", items: []} -- NO program_summary existence lookup, NO 404 (PGD-04/DECISIONS.md D-02). Deliberately inconsistent with the sibling /releases route on the same router, which does 404; the inconsistency is principled, not an oversight -- see D-02."
+  rbac: "program_visibility() open-aggregate veto gate (AUTH-03), called once with the real program_id; never filters by current_user.programs; byte-identical response across every persona."
+  errors: "range outside {7d,30d,90d} -> HTTPException(400, 'invalid_range'); 401 if unauthenticated. No 404 (see empty_behavior)."
+  independence: "Computed independently from personal-usage-api's commands panel (AC-6/FR-SH-15) -- both read usage_events but with different predicates (program_id vs user); neither derives from the other."
 ```
 
 ### program-team-api
