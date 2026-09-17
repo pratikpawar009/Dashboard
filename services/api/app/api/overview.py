@@ -72,6 +72,23 @@ calls SHP-02's own three service functions (`app.services.personal_usage`) direc
 HTTP call to SHP-02's route -- with `member_id` as the `user_id`, and returns
 `PersonalUsageResponse` verbatim (AC-10, no reshaping). Zero edits to `app/api/personal_usage.py`
 or `app/services/personal_usage.py` (D-04).
+
+PGD-06 -- `GET /program-detail/{program_id}/session-time-series`: an eighth sibling route on this
+router (DECISIONS.md D-04). Same open-aggregate `program_visibility` veto gate as the routes
+above, called once with the real `program_id`. When `?member_id=` is present, this route ALSO
+calls `member_in_program_visibility(current_user, program_id, member_id)` BEFORE
+`fetch_program_session_series` is invoked -- mirroring `get_program_team_member_usage` above
+exactly: `program_visibility` runs first inside that gate, then self-or-cio, and a denial raises
+`HTTPException(403)` here before any `session_series` query runs, so a 403 body carries no
+`points`/`period_total_seconds`/`avg_seconds_per_day` fields. The gate logs `member_view_denied`
+itself on denial; this route adds no logging of its own around the gate call. Like
+`get_program_commands`/`get_program_team` above (and unlike `get_program_releases`), this route
+performs NO `program_summary` existence lookup and never 404s -- an unknown `program_id` resolves
+to a `200` all-zero zero-padded series (DECISIONS.md D-01/D-04). `range` validation happens in
+`_range_with_default` via `Depends()`, before this body runs, so an out-of-range value 400s,
+never FastAPI's default 422. Emits one `program_drilldown` log line (method, path, program_id,
+range, status, latency_ms) via `time.perf_counter()` on the 200 path only, mirroring
+`program_team_fetched`/`program_commands_fetched`'s idiom.
 """
 
 import logging
@@ -97,6 +114,7 @@ from app.schemas.program_detail import (
     ProgramTokenTrendResponse,
 )
 from app.schemas.program_releases import ProgramReleasesResponse
+from app.schemas.program_session_series import SessionSeriesResponse
 from app.services.freshness import FreshnessAccessor
 from app.services.personal_usage import (
     fetch_card_totals,
@@ -106,6 +124,7 @@ from app.services.personal_usage import (
 from app.services.program_commands import fetch_program_commands
 from app.services.program_detail_token_trend import fetch_program_token_trend
 from app.services.program_releases import fetch_program_releases
+from app.services.program_session_series import fetch_program_session_series
 from app.services.program_team import fetch_program_team
 from app.services.rollup_compute import compute_adoption_percent
 from app.utils.format import format_number
@@ -421,6 +440,59 @@ async def get_program_team_member_usage(
     commands = await fetch_commands_breakdown(db, member_id, range)
 
     return PersonalUsageResponse(cards=cards, daily_tokens=daily_tokens, commands=commands)
+
+
+@router.get(
+    "/program-detail/{program_id}/session-time-series",
+    response_model=SessionSeriesResponse,
+)
+async def get_program_session_series(
+    program_id: str,
+    range: str = Depends(_range_with_default),
+    member_id: str | None = Query(None),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionSeriesResponse:
+    """Return `program_id`'s daily session-time series for `range` (default `30d`) (PGD-06).
+
+    See the module docstring for the gate ordering (`member_in_program_visibility` before any
+    `session_series` query when `member_id` is present, mirroring `get_program_team_member_usage`
+    above), the no-404 empty-behaviour (matching `get_program_commands`/`get_program_team`), and
+    the `program_drilldown` logging idiom. `range` validation happens in `_range_with_default`
+    via `Depends()`, before this body runs, so an out-of-range value 400s, never FastAPI's
+    default 422.
+    """
+    started = time.perf_counter()
+
+    # DECISIONS.md D-04: open-aggregate veto gate, called once, with the REAL program_id -- see
+    # get_program_detail's docstring above for the full contract. Never filters by
+    # current_user.programs.
+    await program_visibility(current_user, program_id)
+
+    # FR-6/D-04: when member_id is present, member_in_program_visibility runs BEFORE any
+    # session_series query -- program_visibility runs first inside that gate (already satisfied
+    # above, called again per its own contract), then self-or-cio. A denial raises
+    # HTTPException(403) here, before fetch_program_session_series is invoked, so a 403 body
+    # carries no points/period_total_seconds/avg_seconds_per_day fields. The gate logs
+    # member_view_denied itself on denial -- no logging added here.
+    if member_id is not None:
+        await member_in_program_visibility(current_user, program_id, member_id)
+
+    response = await fetch_program_session_series(db, program_id, member_id, range)
+
+    logger.info(
+        "program_drilldown",
+        extra={
+            "method": "GET",
+            "path": "/api/overview/program-detail/{program_id}/session-time-series",
+            "program_id": program_id,
+            "range": range,
+            "status": status.HTTP_200_OK,
+            "latency_ms": int((time.perf_counter() - started) * 1000),
+        },
+    )
+
+    return response
 
 
 # DECISIONS.md D-01/D-02 (corrected 2026-09-10): fixed (glyph, label) presentation constants,
