@@ -143,6 +143,15 @@ Five contract dependencies:
 
 4. **Response schema exact**: `ProgramTeamResponse` lists exact fields (`member_name, role, sessions, tokens, avg_tokens_per_session`) in exact order, sourced from api.md contract + mockup verification, field types locked (`avg_tokens_per_session: int`, not float). No additional fields added. PLAN.md's schema section names the response model files + field definitions.
 
+   **2026-09-17 amended**: `member_id: str` (`program_members.user_id`) was added and placed
+   first, making the shape 6 fields (`member_id, member_name, role, sessions, tokens,
+   avg_tokens_per_session`). This condition's original 5-field lock predated FR-AUTH-08's
+   per-member usage popup being folded into this story; none of the 5 fields is a stable
+   `user_id`, and the popup's `member_in_program_visibility` gate and SHP-02's service
+   functions require one — passing `member_name` instead caused a member's own popup to be
+   denied 403 on their own data. See `docs/features/PGD-05/DECISIONS.md` D-06 and
+   `docs/features/PGD-05/QUESTIONS.md` Q-01.
+
 5. **PLAN.md file plan** uses real paths (`services/api/app/api/overview.py` for the new route, `services/api/app/services/program_team.py` for the service layer, `services/api/app/schemas/program_detail.py` for the response schema) — not invented or incorrect paths.
 
 ---
@@ -156,3 +165,9 @@ GO-WITH-CONDITIONS. Every upstream contract PGD-05 needs — `program_members` t
 ## Clarifications
 
 <!-- None open. -->
+
+**2026-09-17 amended note**: two other places in this document name the pre-amendment 5-field
+shape (`app/schemas/program_detail.py` note at the exploration-log bullet above, and the
+Compatibility risk row) — both historical, left as originally written. The shipped shape is 6
+fields (`member_id, member_name, role, sessions, tokens, avg_tokens_per_session`); see the
+amended note under Condition 4 above and `docs/features/PGD-05/DECISIONS.md` D-06.

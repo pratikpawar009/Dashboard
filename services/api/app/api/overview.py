@@ -57,6 +57,21 @@ window" is a true empty answer, not an error -- mirroring `get_program_token_tre
 asymmetry is deliberate (see DECISIONS.md D-02). Emits one `program_commands_fetched` log line
 (method, path, program_id, range, status, latency_ms) via `time.perf_counter()`, mirroring
 `program_releases_fetched` -- no dedicated audit event for the veto gate itself.
+
+PGD-05 -- `GET /program-detail/{program_id}/team/{member_id}/usage`: a sixth sibling route on
+this router, the team table's per-member usage popup backend (DECISIONS.md D-03/D-04). Gate is
+`member_in_program_visibility` (AUTH-03, already shipped, `app/core/rbac.py`) --
+`program_visibility` runs FIRST, then self-or-cio -- deliberately DIFFERENT from
+`personal_usage.py`'s own `individual_usage_visibility` gate on `GET /api/personal-usage/{user_id}`
+(self always, else cio only); the two gates coexist without either route adopting the other's
+rule. A denial raises `HTTPException(403)` before any of SHP-02's service functions are invoked,
+so a 403 body carries no personal-usage fields (AC-12, mutual exclusivity by construction) --
+`member_in_program_visibility` logs `member_view_denied` itself on denial, not
+`individual_view_denied`; this route adds no logging of its own around the gate call. On success,
+calls SHP-02's own three service functions (`app.services.personal_usage`) directly -- not an
+HTTP call to SHP-02's route -- with `member_id` as the `user_id`, and returns
+`PersonalUsageResponse` verbatim (AC-10, no reshaping). Zero edits to `app/api/personal_usage.py`
+or `app/services/personal_usage.py` (D-04).
 """
 
 import logging
@@ -68,23 +83,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser, get_current_user
 from app.core.db import get_db
-from app.core.rbac import org_access, program_visibility
+from app.core.rbac import member_in_program_visibility, org_access, program_visibility
 from app.dependencies.pagination import MAX_OFFSET_LIMIT
 from app.dependencies.range import validate_range
 from app.models.rollup import OrgSummaryRollup, ProgramSummary
 from app.schemas.org_summary import OrgSummaryCard, OrgSummaryResponse, ProgramsUsingAi
-from app.schemas.personal_usage import CommandsPanel
+from app.schemas.personal_usage import CommandsPanel, PersonalUsageResponse
 from app.schemas.program_detail import (
     ProgramDetailHeader,
     ProgramDetailResponse,
     ProgramSummaryCard,
+    ProgramTeamResponse,
     ProgramTokenTrendResponse,
 )
 from app.schemas.program_releases import ProgramReleasesResponse
 from app.services.freshness import FreshnessAccessor
+from app.services.personal_usage import (
+    fetch_card_totals,
+    fetch_commands_breakdown,
+    fetch_daily_token_series,
+)
 from app.services.program_commands import fetch_program_commands
 from app.services.program_detail_token_trend import fetch_program_token_trend
 from app.services.program_releases import fetch_program_releases
+from app.services.program_team import fetch_program_team
 from app.services.rollup_compute import compute_adoption_percent
 from app.utils.format import format_number
 
@@ -322,6 +344,83 @@ async def get_program_commands(
     )
 
     return response
+
+
+@router.get(
+    "/program-detail/{program_id}/team",
+    response_model=ProgramTeamResponse,
+)
+async def get_program_team(
+    program_id: str,
+    range: str = Depends(_range_with_default),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProgramTeamResponse:
+    """Return `program_id`'s range-scoped team table for `range` (default `30d`) (PGD-05).
+
+    Same open-aggregate `program_visibility` veto gate as the routes above, called once with
+    the real `program_id`. Like `get_program_commands` above (and unlike `get_program_releases`),
+    this route performs NO `program_summary` existence lookup and never 404s -- an unknown
+    `program_id` resolves to `200 {items: []}` since the team table is an activity aggregate,
+    not a program-identity lookup (DECISIONS.md D-01). `range` validation happens in
+    `_range_with_default` via `Depends()`, before this body runs, so an out-of-range value 400s,
+    never FastAPI's default 422.
+    """
+    started = time.perf_counter()
+
+    # PGD-05-AC-1/AC-4: open-aggregate veto gate, called once, with the REAL program_id -- see
+    # get_program_detail's docstring above for the full contract. Never filters by
+    # current_user.programs. No program_summary existence lookup follows -- see docstring above.
+    await program_visibility(current_user, program_id)
+
+    response = await fetch_program_team(db, program_id, range)
+
+    logger.info(
+        "program_team_fetched",
+        extra={
+            "method": "GET",
+            "path": "/api/overview/program-detail/{program_id}/team",
+            "program_id": program_id,
+            "range": range,
+            "status": status.HTTP_200_OK,
+            "latency_ms": int((time.perf_counter() - started) * 1000),
+        },
+    )
+
+    return response
+
+
+@router.get(
+    "/program-detail/{program_id}/team/{member_id}/usage",
+    response_model=PersonalUsageResponse,
+)
+async def get_program_team_member_usage(
+    program_id: str,
+    member_id: str,
+    range: str = Depends(_range_with_default),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PersonalUsageResponse:
+    """Return `member_id`'s personal usage (team table popup backend) (PGD-05-AC-9..12/FR-3).
+
+    See the module docstring for the `member_in_program_visibility` gate (distinct from
+    `personal_usage.py`'s own `individual_usage_visibility`), the pre-fetch denial ordering
+    (AC-12), and the verbatim `PersonalUsageResponse` contract (AC-10). `range` validation
+    happens in `_range_with_default` via `Depends()`, before this body runs, so an
+    out-of-range value 400s, never FastAPI's default 422.
+    """
+    # PGD-05-FR-3/D-04: program_visibility runs FIRST inside this gate, then self-or-cio; a
+    # denial raises HTTPException(403) here, before any service function below is invoked
+    # (AC-12) -- the gate logs member_view_denied itself on denial, no logging added here.
+    await member_in_program_visibility(current_user, program_id, member_id)
+
+    # AC-10: SHP-02's own service functions, called directly with member_id as user_id -- no
+    # HTTP call to personal_usage.py's route, no reshaping of the result.
+    cards = await fetch_card_totals(db, member_id)
+    daily_tokens = await fetch_daily_token_series(db, member_id, range)
+    commands = await fetch_commands_breakdown(db, member_id, range)
+
+    return PersonalUsageResponse(cards=cards, daily_tokens=daily_tokens, commands=commands)
 
 
 # DECISIONS.md D-01/D-02 (corrected 2026-09-10): fixed (glyph, label) presentation constants,

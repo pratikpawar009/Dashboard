@@ -68,11 +68,13 @@ check distinct from SHP-02's own gate. The popup's visual design is pending
   rebuild coordination needed. All five carry provenance per `clarification-marker` discipline;
   none are silent guesses.
 - **C-4 (response schema exact)**: `ProgramTeamResponse` is `{items: [ProgramTeamRow]}`, where
-  `ProgramTeamRow = {member_name: str, role: str, sessions: int, tokens: int,
+  `ProgramTeamRow = {member_id: str, member_name: str, role: str, sessions: int, tokens: int,
   avg_tokens_per_session: int}`, field order locked as listed, sourced from
   `docs/stories/PGD-05.md` AC-1/FR-PD-13/14 + mockup team-table column order (Program Detail
   mockup, `<!-- TEAM -->` section, per research Exploration Log). No additional fields. See
-  PGD-05-FR-2.
+  PGD-05-FR-2. **Amended 2026-09-17 (D-06)**: `member_id` was added and placed first to give
+  the per-member usage popup a stable `user_id` — see PGD-05-FR-2 below and `DECISIONS.md` D-06 /
+  `QUESTIONS.md` Q-01.
 - **C-5 (PLAN.md file plan uses real paths)**: `/arh-plan-implementation` MUST use
   `services/api/app/api/overview.py` (new route), `services/api/app/services/program_team.py`
   (new service module, `fetch_program_team()`), and `services/api/app/schemas/program_detail.py`
@@ -122,9 +124,18 @@ asserts the two-query bound and a ≤2s duration under NFR-002.
 **PGD-05-FR-2** — Response schema field order and types  *(extends AC #1 with: exact schema)*
 
 `ProgramTeamResponse = {items: [ProgramTeamRow]}`. `ProgramTeamRow` fields, in this exact
-order: `member_name: str`, `role: str`, `sessions: int`, `tokens: int`,
+order: `member_id: str`, `member_name: str`, `role: str`, `sessions: int`, `tokens: int`,
 `avg_tokens_per_session: int` (rounded to nearest integer server-side, never `float`). No
 additional fields. Rows ordered descending by `tokens`.
+
+**Amended 2026-09-17 (D-06)**: this FR originally locked a 5-field shape (no `member_id`) on
+2026-08-26. `member_id` (`program_members.user_id`) was added and placed first to resolve
+blocking question Q-01: neither `member_name` nor any other original field is a stable
+identifier, but the per-member usage popup's `member_in_program_visibility` gate
+(`app/core/rbac.py:177`) and SHP-02's service functions all require a real `user_id` — passing
+`member_name` caused a member's own popup to be denied 403 on their own data (contradicting
+AC-9). No new query: `member_id` is populated from the `user_id` the existing roster SELECT
+already reads (D-01's two-SELECT contract is unchanged). See `DECISIONS.md` D-06.
 
 **PGD-05-FR-3** — Popup authorization gate is story-local  *(extends AC #9/#11/#12 with: exact
 gate name and denial contract)*

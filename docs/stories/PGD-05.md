@@ -133,3 +133,14 @@ an individual member's usage, without leaving the page.
   project's `api-conventions`/`rbac-checks` pattern of `403` for an authenticated-but-
   unauthorized request (cf. ingest-token-auth's own program-scope `403`); FR-AUTH-08 specifies
   the gate rule, not the wire status code.
+- 2026-09-17 amended: `ProgramTeamRow` field list (originally locked 2026-08-26 above as
+  `member_name, role, sessions, tokens, avg_tokens_per_session`) gained a sixth field,
+  `member_id: str` (`program_members.user_id`), placed first — shipped shape is now
+  `member_id, member_name, role, sessions, tokens, avg_tokens_per_session`. The 2026-08-26
+  lock predated FR-AUTH-08's per-member usage popup being folded into this story; none of the
+  original 5 fields is a stable identifier, but the popup's `member_in_program_visibility`
+  gate and SHP-02's service functions require a real `user_id` — an interim implementation
+  passed `member_name` instead, which caused a member's own popup to be denied 403 on their
+  own data (contradicting AC-9). Filed as `docs/features/PGD-05/QUESTIONS.md` Q-01; resolved
+  as `docs/features/PGD-05/DECISIONS.md` D-06. No new query — `member_id` is populated from
+  the `user_id` the roster SELECT already reads.

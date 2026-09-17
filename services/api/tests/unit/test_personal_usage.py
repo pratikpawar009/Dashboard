@@ -50,6 +50,7 @@ from app.core.persona_resolver import PersonaResolver
 from app.models.ingestion import UsageEvent
 from app.models.rollup import UserSessions
 from app.services import personal_usage as personal_usage_module
+from app.utils.format import format_number
 from tests.conftest import AlembicRunner
 
 AsyncClientFactory = Callable[..., AbstractAsyncContextManager[AsyncClient]]
@@ -262,11 +263,19 @@ async def test_personal_usage_full_envelope_contract_tc01(
     points = body["daily_tokens"]["points"]
     assert len(points) == 30
     expected_by_days_ago = {0: "500", 1: "1.5K", 5: "2.0K", 10: "2.0K", 20: "3.0K", 29: "3.0K"}
+    expected_tokens_by_days_ago = {0: 500, 1: 1500, 5: 2000, 10: 2000, 20: 3000, 29: 3000}
     for days_ago, point in enumerate(reversed(points)):
         expected_value = expected_by_days_ago.get(days_ago, "0")
+        expected_tokens = expected_tokens_by_days_ago.get(days_ago, 0)
         assert point["value"] == expected_value, (
             f"days_ago={days_ago}: expected {expected_value!r}, got {point['value']!r} "
             f"(date={point['date']!r})"
+        )
+        # ADR-0009 amendment (AF-05): raw `tokens` is additive alongside `value`, populated
+        # from the same integer, never re-derived by parsing `value` back into a number.
+        assert point["tokens"] == expected_tokens, (
+            f"days_ago={days_ago}: expected tokens={expected_tokens!r}, got "
+            f"{point['tokens']!r} (date={point['date']!r})"
         )
 
     # The 40-day-old session's 6000 tokens are excluded from both the daily
@@ -289,6 +298,63 @@ async def test_personal_usage_full_envelope_contract_tc01(
     assert items_by_command["implement"]["barStyle"] == "width: 25%;"
     assert items_by_command["review"]["count"] == 10
     assert items_by_command["review"]["barStyle"] == "width: 25%;"
+
+
+# -----------------------------------------------------------------------------
+# ADR-0009 amendment (AF-05) -- `daily_tokens.points[].tokens` (raw) and
+# `.value` (pre-formatted) must never drift: value == format_number(tokens)
+# for every point, always. This is the regression guard for the whole
+# amendment -- it fails the instant the two fields are populated from
+# different sources.
+# -----------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_daily_token_points_raw_and_formatted_agree(
+    migrated_db: AlembicRunner,
+    test_session: AsyncSession,
+    build_app: Callable[..., FastAPI],
+    async_client_for: AsyncClientFactory,
+) -> None:
+    """Every `daily_tokens.points[]` entry satisfies
+    `format_number(point["tokens"]) == point["value"]` -- proving `tokens` is populated
+    from the same integer `value` formats, not independently computed or parsed back out of
+    the display string."""
+    app = _build_personal_usage_app(build_app, test_session)
+
+    async with async_client_for(app) as client:
+        token, user_id = await _mint_dev_bypass_token(client, role="developer")
+
+        now = datetime.now(UTC)
+        session_specs = [(0, 500, 600), (3, 45_000, 1200), (10, 3_400_000, 1800)]
+        session_rows = [
+            _user_session_row(
+                user_id=user_id, days_ago=d, tokens=tokens, duration_seconds=dur, now=now
+            )
+            for d, tokens, dur in session_specs
+        ]
+        await test_session.execute(sa.insert(UserSessions), session_rows)
+        await test_session.commit()
+
+        resp = await client.get(
+            f"/api/personal-usage/{user_id}?range=30d",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200, resp.text
+    points = resp.json()["daily_tokens"]["points"]
+    assert len(points) == 30
+
+    # At least one point carries each seeded magnitude (K, M, and a bare int),
+    # so this isn't just re-checking the all-zero padding.
+    nonzero_points = [p for p in points if p["tokens"] != 0]
+    assert len(nonzero_points) == 3
+
+    for point in points:
+        assert point["value"] == format_number(point["tokens"]), (
+            f"drift at date={point['date']!r}: value={point['value']!r} != "
+            f"format_number({point['tokens']!r})={format_number(point['tokens'])!r}"
+        )
 
 
 # -----------------------------------------------------------------------------

@@ -3,10 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { fetchProgramTokenTrend } from "@/lib/programTokenTrendApi.client";
-import type {
-  ProgramTokenPointData,
-  ProgramTokenTrendData,
-} from "@/types/programTokenTrend";
+import type { ProgramTokenTrendData } from "@/types/programTokenTrend";
 
 import styles from "./DailyTokenTrendChart.module.css";
 
@@ -108,18 +105,36 @@ function formatTickLabel(dateStr: string): string {
   return `${MONTH_ABBREVIATIONS[month - 1]} ${day}`;
 }
 
+/** Minimal point shape `TokenAreaChart` needs -- satisfied by both
+ * `ProgramTokenPointData` (PGD-02) and `MemberDailyTokenPointData` (PGD-05's
+ * popup, ADR-0009 amendment), whose raw field is named `tokens` in both
+ * shapes on purpose (see `@/types/memberUsage`'s module docstring). */
+export interface TokenAreaChartPoint {
+  date: string;
+  tokens: number;
+}
+
 /**
  * Inline SVG area chart over `points[]`, geometry ported from the mockup's
  * `areaChart(vals, days, color)` (DESIGN.md § Chart area) — the function's
  * shape is the spec, its input (`genDaily`'s seeded demo data) is not
  * ported.
+ *
+ * Exported so PGD-05's `MemberUsagePopup` (DESIGN.md § 2.3 Block 2) can reuse
+ * this exact geometry at a shorter rendered height, rather than a second
+ * chart implementation (`.claude/rules/reusability-baseline.md`).
  */
-function TokenAreaChart({
+export function TokenAreaChart({
   points,
   accentColor,
+  height = 240,
 }: {
-  points: ProgramTokenPointData[];
+  points: TokenAreaChartPoint[];
   accentColor: string;
+  /** Rendered SVG height in px. `viewBox` stays fixed at `CHART_HEIGHT`
+   * (`preserveAspectRatio="none"` scales it) -- DESIGN.md § 2.3 Block 2 calls
+   * for `180px` in the popup vs. the default `240px` on Program Detail. */
+  height?: number;
 }) {
   const n = points.length;
   const vals = points.map((p) => p.tokens);
@@ -156,7 +171,7 @@ function TokenAreaChart({
   return (
     <svg
       viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-      style={{ width: "100%", height: "240px", display: "block" }}
+      style={{ width: "100%", height: `${height}px`, display: "block" }}
       preserveAspectRatio="none"
       role="img"
       aria-label={`Daily token usage trend, ${n} days, total ${formatTokens(

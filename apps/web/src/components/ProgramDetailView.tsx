@@ -21,6 +21,7 @@ import { ProgramSummaryCards } from "./ProgramSummaryCards";
 import { ProgramDetailErrorPanel } from "./ProgramDetailErrorPanel";
 import { DailyTokenTrendChart } from "./DailyTokenTrendChart";
 import { ReleasesList } from "./ReleasesList";
+import { ProgramTeamPanel } from "./ProgramTeamPanel";
 import styles from "./ProgramDetailView.module.css";
 
 export interface ProgramDetailViewProps {
@@ -205,6 +206,14 @@ export function ProgramDetailView({
                   Commands+Team section. Gated on the same
                   `result.status === "ok"` check. */}
               <ReleasesList programId={programId} />
+              {/* T-15 (PGD-05), DESIGN.md § Screen 1: right card of the
+                  COMMANDS + TEAM two-up section, below the releases list.
+                  The left card (PGD-04's Commands panel) has no component in
+                  this codebase yet, so this mounts standalone rather than
+                  inside a two-up wrapper -- adding that wrapper is PGD-04's
+                  or a follow-up task's concern, not in this task's file
+                  scope. Gated on the same `result.status === "ok"` check. */}
+              <ProgramTeamPanel programId={programId} />
             </>
           ) : (
             <ProgramDetailErrorPanel />

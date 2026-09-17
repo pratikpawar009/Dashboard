@@ -148,6 +148,21 @@ vi.mock("@/lib/programTokenTrendApi.client", () => ({
   fetchProgramTokenTrend: () => fetchProgramTokenTrendClientMock(),
 }));
 
+// PGD-05 T-15 mounted the self-fetching ProgramTeamPanel inside
+// ProgramDetailView (after ReleasesList), so this file's "no real request
+// left the browser" assertion below now has a fourth client call to account
+// for. Resolves an `ok` result for the same reason as the mocks above -- a
+// bare vi.fn() returning undefined would throw inside ProgramTeamPanel's
+// effect.
+const fetchProgramTeamClientMock = vi.fn(async (..._args: unknown[]) => ({
+  status: "ok" as const,
+  data: { items: [] },
+}));
+
+vi.mock("@/lib/programTeamApi.client", () => ({
+  fetchProgramTeam: (...args: unknown[]) => fetchProgramTeamClientMock(...args),
+}));
+
 // test_data fixture anchors (docs/test-cases/AUTH-05.json AUTH-05-TC-02)
 const MOCKED_KEYCLOAK_URL =
   "https://lab.apexonlab.com/apexonlogin/realms/Apexon/protocol/openid-connect/auth?client_id=test&redirect_uri=http://localhost:3000/callback";
@@ -405,6 +420,7 @@ describe("AUTH-05-TC-02: OAuth handshake relay + dual-path bearer forwarding + d
       ...fetchProgramDetailClientMock.mock.calls,
       ...fetchProgramTokenTrendClientMock.mock.calls,
       ...fetchProgramReleasesClientMock.mock.calls,
+      ...fetchProgramTeamClientMock.mock.calls,
     ];
     const serializedArgs = JSON.stringify(allClientCallArgs);
     expect(serializedArgs).not.toContain("Authorization");

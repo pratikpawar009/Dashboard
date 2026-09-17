@@ -11,7 +11,7 @@
   "design": "complete",
   "design_artifact": "docs/features/PGD-05/DESIGN.md",
   "design_provider": "html-mockup",
-  "design_iteration": 0,
+  "design_iteration": 1,
   "gate": "APPROVE",
   "plan": "complete",
   "plan_artifact": "docs/features/PGD-05/PLAN.md",
@@ -26,14 +26,98 @@
   "data_design": {
     "file": "docs/features/PGD-05/DATA-DESIGN.md"
   },
-  "impl": null,
-  "validation": null,
-  "review": null,
+  "impl": "branch:feature/PGD-05",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-17T12:21:44Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-05/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T12:14:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && HARNESS_TEST_DB_SUFFIX=pgd05evidence uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-05/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T12:17:00Z",
+        "detail": "web: 286/286 passed (40 files). api: 797 passed, 13 deselected (perf-marked). tests/perf/test_rollup_rebuild_perf.py::test_org_rebuild_budget_and_growth_curve (BED-05, known flaky wall-clock assertion, out of PGD-05 scope) ran and PASSED this session -- did not fail, did not affect verdict."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-05/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T12:20:00Z"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-07",
+        "ran_at": "2026-09-17T12:21:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "uv run alembic upgrade head && uv run uvicorn app.main:app --port 8010 (evidence run used a non-default port; 8000 was occupied by an unrelated local process)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-05/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "migration 008_program_team_index applied cleanly against the existing .env-configured Postgres; GET /health returned 200"
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "NEXT_PUBLIC_API_URL=http://localhost:8010 pnpm dev --port 3021 (evidence run used a non-default port; 3000/3010 had unrelated local listeners)",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-05/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "GET / server-redirects 307 -> /overview (raw curl w/o -L shows the Next.js not-found boundary for the unauthenticated 200-body test scaffold, expected per README auth flow); curl -L / and /login both returned 200. Playwright CLI present (v1.63.0) but its execution is explicitly deferred to /arh-validate-feature per project-commands.yaml test_e2e: comment -- no browser-rendered mount assertion performed this session."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-05/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T12:20:30Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-08",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "2026-09-17 P=18/18",
+  "review": "PASS",
   "security": null,
   "tracker_story": "pratikpawar009/Dashboard#27",
   "tracker_research": "pratikpawar009/Dashboard#443",
   "tracker_prd": "pratikpawar009/Dashboard#444",
   "tracker_plan": "pratikpawar009/Dashboard#445",
-  "phase": "plan-implementation",
-  "last_updated": "2026-09-17T16:10:00Z"
+  "phase": "implemented",
+  "last_updated": "2026-09-17T20:30:00Z",
+  "validation_status": "passed",
+  "gate_rounds": 1
 }

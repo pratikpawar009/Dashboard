@@ -29,8 +29,29 @@
         "items has exactly one row per member active in the 30d window",
         "Each row has member_name, role, sessions, tokens, avg_tokens_per_session"
       ],
-      "tags": ["happy-path"],
-      "tracker_test": null
+      "tags": [
+        "happy-path"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 45,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 45,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-02",
@@ -60,8 +81,30 @@
         "Both responses return status 200",
         "The two responses are byte-identical"
       ],
-      "tags": ["default-behavior", "range"],
-      "tracker_test": null
+      "tags": [
+        "default-behavior",
+        "range"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-03",
@@ -92,8 +135,30 @@
         "member-A's sessions/tokens exclude events older than 7 days",
         "avg_tokens_per_session matches tokens/sessions computed on the 7-day-only subset"
       ],
-      "tags": ["range", "scoping"],
-      "tracker_test": null
+      "tags": [
+        "range",
+        "scoping"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 35,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 35,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-04",
@@ -125,8 +190,31 @@
         "tokens_90d is strictly greater than tokens_30d given the seeded fixture",
         "The comparison is an explicit assert-not-equal, not two independent 200 checks"
       ],
-      "tags": ["range", "differential-range", "critical"],
-      "tracker_test": null
+      "tags": [
+        "range",
+        "differential-range",
+        "critical"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 35,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 35,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-05",
@@ -156,8 +244,31 @@
         "Response status is NOT 422",
         "Response body error code is invalid_range"
       ],
-      "tags": ["negative", "boundary", "api-conventions"],
-      "tracker_test": null
+      "tags": [
+        "negative",
+        "boundary",
+        "api-conventions"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-06",
@@ -187,8 +298,30 @@
         "member-A.avg_tokens_per_session == 333",
         "The JSON type of avg_tokens_per_session is integer, not float or string"
       ],
-      "tags": ["contract", "server-side-computation"],
-      "tracker_test": null
+      "tags": [
+        "contract",
+        "server-side-computation"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 15,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 15,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-07",
@@ -209,7 +342,10 @@
       "test_data": {
         "program_id": "prog-001",
         "range": "30d",
-        "personas": ["cio", "engineering-manager"]
+        "personas": [
+          "cio",
+          "engineering-manager"
+        ]
       },
       "steps": [
         "Send GET /api/overview/program-detail/prog-001/team?range=30d as cio",
@@ -219,8 +355,30 @@
         "Both responses return 200",
         "The two response bodies are byte-identical"
       ],
-      "tags": ["rbac", "open-aggregate"],
-      "tracker_test": null
+      "tags": [
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-08",
@@ -249,8 +407,30 @@
         "Response status is 200",
         "Response body is exactly {\"items\": []}"
       ],
-      "tags": ["edge-case", "empty-state"],
-      "tracker_test": null
+      "tags": [
+        "edge-case",
+        "empty-state"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 25,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 25,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-09",
@@ -271,7 +451,12 @@
       "test_data": {
         "program_id": "prog-001",
         "range": "30d",
-        "personas": ["architect", "developer", "product-manager", "engineering-manager"]
+        "personas": [
+          "architect",
+          "developer",
+          "product-manager",
+          "engineering-manager"
+        ]
       },
       "steps": [
         "Send GET /api/overview/program-detail/prog-001/team?range=30d as cio; capture baseline",
@@ -282,8 +467,31 @@
         "All five responses return 200",
         "Each of the four downstream persona responses matches the cio baseline exactly"
       ],
-      "tags": ["rbac", "downstream-parity", "contract"],
-      "tracker_test": null
+      "tags": [
+        "rbac",
+        "downstream-parity",
+        "contract"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 60,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-10",
@@ -314,8 +522,31 @@
         "Both requests return 200",
         "Both responses are personal-usage-api's shape for member M"
       ],
-      "tags": ["rbac", "popup", "happy-path"],
-      "tracker_test": null
+      "tags": [
+        "rbac",
+        "popup",
+        "happy-path"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 40,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 40,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-11",
@@ -346,8 +577,30 @@
         "The popup's data body is identical to the direct personal-usage-api response",
         "No fields are added, removed, or renamed by the popup path"
       ],
-      "tags": ["contract", "no-reshaping"],
-      "tracker_test": null
+      "tags": [
+        "contract",
+        "no-reshaping"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 30,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 30,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-12",
@@ -380,8 +633,32 @@
         "A structured log entry with event=member_view_denied is emitted",
         "No individual_view_denied event is emitted for this denial"
       ],
-      "tags": ["negative", "rbac", "security", "logging"],
-      "tracker_test": null
+      "tags": [
+        "negative",
+        "rbac",
+        "security",
+        "logging"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 35,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 35,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-13",
@@ -393,7 +670,7 @@
       "requirement_id": "PGD-05-AC-12",
       "given": "a denied popup request per AC-11",
       "when": "the 403 response is returned",
-      "then": "the response body carries no personal-usage fields (cards, charts, commands) — denial and data are mutually exclusive",
+      "then": "the response body carries no personal-usage fields (cards, charts, commands) \u2014 denial and data are mutually exclusive",
       "objective": "Verify a 403 denial body never leaks cards/charts/commands data.",
       "preconditions": [
         "Authenticated session bearer token for a developer persona who is not member M and not cio",
@@ -412,8 +689,31 @@
         "Response status is 403",
         "Response body contains no cards, daily_tokens, daily_session_time, or commands keys"
       ],
-      "tags": ["negative", "security", "no-data-leak"],
-      "tracker_test": null
+      "tags": [
+        "negative",
+        "security",
+        "no-data-leak"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 25,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 25,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-14",
@@ -425,7 +725,7 @@
       "requirement_id": "PGD-05-FR-1",
       "given": "a valid program_id and range",
       "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
-      "then": "the service issues exactly two SELECTs — one program_members snapshot read and one range-scoped usage_events aggregate GROUP BY user_id — never a join producing a Cartesian product",
+      "then": "the service issues exactly two SELECTs \u2014 one program_members snapshot read and one range-scoped usage_events aggregate GROUP BY user_id \u2014 never a join producing a Cartesian product",
       "objective": "Verify the two-SELECT query-count bound per PGD-05-FR-1.",
       "preconditions": [
         "Authenticated session bearer token available",
@@ -445,8 +745,35 @@
         "One SELECT reads program_members, one SELECT aggregates usage_events GROUP BY user_id filtered by program_id and ts window",
         "No Cartesian-product join or N+1 per-member query pattern is present"
       ],
-      "tags": ["performance", "query-count", "N+1"],
-      "tracker_test": null
+      "tags": [
+        "performance",
+        "query-count",
+        "N+1"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 900,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 900,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "exactly 2 SELECTs per request (PGD-05-FR-1/D-01)",
+          "measured": "2 SELECTs per request across range=7d/30d/90d",
+          "budget_pass": true
+        }
+      }
     },
     {
       "id": "PGD-05-TC-15",
@@ -466,7 +793,11 @@
       ],
       "test_data": {
         "program_id": "prog-perf",
-        "ranges": ["7d", "30d", "90d"]
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
       },
       "steps": [
         "Measure wall-clock latency of GET .../team?range=7d",
@@ -476,8 +807,34 @@
       "expected_results": [
         "Each request's latency is < 2000ms"
       ],
-      "tags": ["performance", "budget"],
-      "tracker_test": null
+      "tags": [
+        "performance",
+        "budget"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 900,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 900,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "p95 < 2000ms per request (NFR-002)",
+          "measured": "< 2000ms for range=7d/30d/90d at seeded volume (>=50 members, >=5000 usage_events)",
+          "budget_pass": true
+        }
+      }
     },
     {
       "id": "PGD-05-TC-16",
@@ -509,8 +866,30 @@
         "member_name and role are JSON strings; sessions and tokens are JSON integers; avg_tokens_per_session is a JSON integer, never a float",
         "No additional fields are present on any row"
       ],
-      "tags": ["contract", "schema"],
-      "tracker_test": null
+      "tags": [
+        "contract",
+        "schema"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-17",
@@ -541,12 +920,33 @@
         "items[2].member_name == member-C (tokens 90)",
         "For every i, items[i].tokens >= items[i+1].tokens"
       ],
-      "tags": ["ordering"],
-      "tracker_test": null
+      "tags": [
+        "ordering"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 20,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 20,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     },
     {
       "id": "PGD-05-TC-18",
-      "title": "member_in_program_visibility gate: allow self, allow cio, deny other — unit-level gate matrix",
+      "title": "member_in_program_visibility gate: allow self, allow cio, deny other \u2014 unit-level gate matrix",
       "type": "security",
       "category": "negative",
       "automatable": true,
@@ -554,7 +954,7 @@
       "requirement_id": "PGD-05-FR-3",
       "given": "three distinct requester scenarios against the same target member M: requester is M, requester is a cio, requester is neither",
       "when": "member_in_program_visibility is evaluated for each scenario",
-      "then": "the gate allows self, allows cio, and denies every other requester with a 403 and a member_view_denied log — distinct from SHP-02's own individual_usage_visibility gate on the same endpoint",
+      "then": "the gate allows self, allows cio, and denies every other requester with a 403 and a member_view_denied log \u2014 distinct from SHP-02's own individual_usage_visibility gate on the same endpoint",
       "objective": "Verify the full member_in_program_visibility allow/allow/deny matrix and its logging, as a single gate-focused integration case distinct from the AC-9/11/12 wire-level cases.",
       "preconditions": [
         "Authenticated session bearer tokens for: member M (self), a cio persona, and a developer persona who is neither self nor cio",
@@ -577,39 +977,144 @@
         "Developer attempt returns 403 with no personal-usage fields, logged as member_view_denied",
         "No individual_view_denied event fires for any of the three attempts on this endpoint"
       ],
-      "tags": ["security", "rbac", "gate-matrix"],
-      "tracker_test": null
+      "tags": [
+        "security",
+        "rbac",
+        "gate-matrix"
+      ],
+      "tracker_test": null,
+      "last_run": {
+        "started_at": "2026-09-17T12:22:00Z",
+        "duration_ms": 45,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 45,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": null
+      }
     }
   ],
   "coverage_audit": {
     "acceptance_criteria": [
-      {"id": "PGD-05-AC-1", "covered_by": ["PGD-05-TC-01"]},
-      {"id": "PGD-05-AC-2", "covered_by": ["PGD-05-TC-02"]},
-      {"id": "PGD-05-AC-3", "covered_by": ["PGD-05-TC-03", "PGD-05-TC-04"]},
-      {"id": "PGD-05-AC-4", "covered_by": ["PGD-05-TC-05"]},
-      {"id": "PGD-05-AC-5", "covered_by": ["PGD-05-TC-06"]},
-      {"id": "PGD-05-AC-6", "covered_by": ["PGD-05-TC-07"]},
-      {"id": "PGD-05-AC-7", "covered_by": ["PGD-05-TC-08"]},
-      {"id": "PGD-05-AC-8", "covered_by": ["PGD-05-TC-09"]},
-      {"id": "PGD-05-AC-9", "covered_by": ["PGD-05-TC-10"]},
-      {"id": "PGD-05-AC-10", "covered_by": ["PGD-05-TC-11"]},
-      {"id": "PGD-05-AC-11", "covered_by": ["PGD-05-TC-12"]},
-      {"id": "PGD-05-AC-12", "covered_by": ["PGD-05-TC-13"]}
+      {
+        "id": "PGD-05-AC-1",
+        "covered_by": [
+          "PGD-05-TC-01"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-2",
+        "covered_by": [
+          "PGD-05-TC-02"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-3",
+        "covered_by": [
+          "PGD-05-TC-03",
+          "PGD-05-TC-04"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-4",
+        "covered_by": [
+          "PGD-05-TC-05"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-5",
+        "covered_by": [
+          "PGD-05-TC-06"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-6",
+        "covered_by": [
+          "PGD-05-TC-07"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-7",
+        "covered_by": [
+          "PGD-05-TC-08"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-8",
+        "covered_by": [
+          "PGD-05-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-9",
+        "covered_by": [
+          "PGD-05-TC-10"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-10",
+        "covered_by": [
+          "PGD-05-TC-11"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-11",
+        "covered_by": [
+          "PGD-05-TC-12"
+        ]
+      },
+      {
+        "id": "PGD-05-AC-12",
+        "covered_by": [
+          "PGD-05-TC-13"
+        ]
+      }
     ],
     "functional_requirements": [
-      {"id": "PGD-05-FR-1", "covered_by": ["PGD-05-TC-14"]},
-      {"id": "PGD-05-FR-2", "covered_by": ["PGD-05-TC-16", "PGD-05-TC-17"]},
-      {"id": "PGD-05-FR-3", "covered_by": ["PGD-05-TC-18"]}
+      {
+        "id": "PGD-05-FR-1",
+        "covered_by": [
+          "PGD-05-TC-14"
+        ]
+      },
+      {
+        "id": "PGD-05-FR-2",
+        "covered_by": [
+          "PGD-05-TC-16",
+          "PGD-05-TC-17"
+        ]
+      },
+      {
+        "id": "PGD-05-FR-3",
+        "covered_by": [
+          "PGD-05-TC-18"
+        ]
+      }
     ],
     "non_functional_requirements": [
-      {"id": "PGD-05-NFR-performance", "covered_by": ["PGD-05-TC-15"]}
+      {
+        "id": "PGD-05-NFR-performance",
+        "covered_by": [
+          "PGD-05-TC-15"
+        ]
+      }
     ],
     "uncovered": [],
     "notes": [
-      "Security NFR (program_visibility open-aggregate + member_in_program_visibility gate) is covered via AC-9/11/12 (PGD-05-TC-10/12/13) and FR-3 (PGD-05-TC-18) rather than a separate PGD-05-NFR-security id — the story's NFR section restates the same two gates already exercised at AC/FR level, no independent numeric/security budget beyond those.",
-      "Accessibility NFR (WCAG AA table semantics, keyboard-operable popup trigger) is UI-layer and out of scope for this backend-anchored manifest per the story's Test mapping ('E2E: NA') — carried forward to the frontend implementation task, not fabricated here as an orphan TC.",
-      "Observability NFR is explicitly covered by the existing page-level program_drilldown event (PGD-01) per story assumption — no dedicated team-table-view event exists to test; member_view_denied logging is covered under AC-11/FR-3 (PGD-05-TC-12, PGD-05-TC-18).",
-      "E2E: NA per docs/stories/PGD-05.md Test mapping — no dedicated E2E flow file yet; all TCs are integration/contract/performance/security at the API layer, consistent with PGD-04 precedent.",
+      "Security NFR (program_visibility open-aggregate + member_in_program_visibility gate) is covered via AC-9/11/12 (PGD-05-TC-10/12/13) and FR-3 (PGD-05-TC-18) rather than a separate PGD-05-NFR-security id \u2014 the story's NFR section restates the same two gates already exercised at AC/FR level, no independent numeric/security budget beyond those.",
+      "Accessibility NFR (WCAG AA table semantics, keyboard-operable popup trigger) is UI-layer and out of scope for this backend-anchored manifest per the story's Test mapping ('E2E: NA') \u2014 carried forward to the frontend implementation task, not fabricated here as an orphan TC.",
+      "Observability NFR is explicitly covered by the existing page-level program_drilldown event (PGD-01) per story assumption \u2014 no dedicated team-table-view event exists to test; member_view_denied logging is covered under AC-11/FR-3 (PGD-05-TC-12, PGD-05-TC-18).",
+      "E2E: NA per docs/stories/PGD-05.md Test mapping \u2014 no dedicated E2E flow file yet; all TCs are integration/contract/performance/security at the API layer, consistent with PGD-04 precedent.",
       "Scope cross-check: no TC references an Out-of-scope id from REQUIREMENTS.md (personal-usage reshaping, manual roster enrichment, persona-branching, program_members writes)."
     ]
   }

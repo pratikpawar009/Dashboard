@@ -102,3 +102,35 @@ commands: { total_runs, items: [ { command, count, barStyle }, ... ] }
   is **not** settled by this ADR — see the Scope note above. It remains open per
   `docs/requirements/RTM.md` § Decisions (2026-09-07) and must be resolved, as its own ADR, before
   ARC-01/DEV-01/PMD-01 plan their consumption of `daily_tokens.points`.
+
+## Amendment (2026-09-17): `DailyTokenPoint` gains a raw `tokens: int` field, additive
+
+**Driver**: PGD-05's per-member usage popup (T-16) reuses this endpoint verbatim (as this ADR
+already documents) to render a "Daily token consumption" chart block, per
+`docs/features/PGD-05/DESIGN.md` § 2.3 Block 2. T-16 shipped without that block (FLAGS.md AF-05)
+because `DailyTokenPoint.value` is a pre-formatted display string (`"4.2M"`) and the shipped
+`DailyTokenTrendChart` (PGD-02) plots raw ints — a chart cannot plot `"4.2M"`, and recovering a
+number from it by parsing the magnitude suffix back out is lossy (`"4.2M"` covers anywhere in
+4,150,000–4,249,999).
+
+**Decision**: add `tokens: int` to `DailyTokenPoint`, alongside the existing `date` and
+`value: str`. `value` is unchanged and stays pre-formatted — this is additive only, no existing
+consumer's field is renamed, retyped, or removed.
+
+**This is not a new exception — it extends an existing one.** This ADR's own Consequences section
+(above) already documents that `commands[].count` deliberately breaks the "everything
+pre-formatted" convention *because it is a computation input* — the bar-formula's numerator/
+denominator, which cannot be recovered from a formatted string. A chart's plotted series is
+exactly the same category of value: a number a renderer must compute against (here, a plot
+coordinate), not merely display. `DailyTokenPoint.tokens` is the same precedent applied to the
+same shape `program-token-trend-api`'s `ProgramTokenPoint.tokens` (PGD-02) already uses for an
+identical purpose — two sibling daily-series shapes, both now carrying a raw numeric field for
+their one computation-consuming caller, while every purely-display field on both stays a
+pre-formatted string.
+
+**Consequences**: `services/api/app/services/personal_usage.py::_zero_padded_points` populates
+`tokens` directly from the same integer `format_number()` formats — never re-derived by parsing
+`value` back into a number. `docs/requirements/api.md#personal-usage-api`, `README.md`, and
+`services/api/tests/unit/test_personal_usage.py` updated to match. Reversible at the same low
+cost the original ADR text already describes for this endpoint (no persisted data depends on the
+wire shape); removing an additive field is lower-risk than the original shape decision.

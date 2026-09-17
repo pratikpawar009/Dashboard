@@ -11,7 +11,7 @@ New index only (no new table/column). Reads two existing tables (Postgres, SQLAl
 | Field | Type | Key/Constraint | Class | Notes |
 |---|---|---|---|---|
 | program_id | str | part of `ix_program_members_program_id` | — | filter predicate |
-| user_id | str | — | PII (identifier) | joined against `usage_events."user"` in Python (D-01) |
+| user_id | str | — | PII (identifier) | joined against `usage_events."user"` in Python (D-01); also sourced verbatim as `member_id` on the wire (D-06, amended 2026-09-17 — see DECISIONS.md D-06) |
 | name | str | — | PII | sourced verbatim, `member_name` on the wire |
 | role | str | — | — | sourced verbatim, `role` on the wire |
 
@@ -60,6 +60,9 @@ introduced — both fields are already covered by their owning tables' existing 
 (BED-01, ING-02). Retention of both tables is owned by their original ingest stories, unchanged
 here. No new PII field ships on the wire beyond `member_name` (already an existing
 `program_members.name` passthrough for every other PGD sibling's roster-adjacent reads).
+**Amended 2026-09-17 (D-06)**: `member_id` (`program_members.user_id`, already PII per the § 1
+table) was added to the wire shape to give the popup a stable identity field — no new
+classification, `user_id` was already classified PII before this amendment.
 
 ## 5. Consistency & concurrency
 
@@ -108,9 +111,11 @@ Contract: `program-team-api` → `docs/requirements/api.md#program-team-api`
 
 Route summary (full detail in the contract above and in `README.md`'s API table):
 `GET /api/overview/program-detail/{program_id}/team?range=7d|30d|90d` (default `30d`) →
-`200 ProgramTeamResponse { items: [{member_name: str, role: str, sessions: int, tokens: int,
-avg_tokens_per_session: int}] }`, ordered descending by `tokens`; `400 invalid_range`; `401`
-unauthenticated. No `404` — zero active members returns `200 {items: []}` (decision log (b)).
+`200 ProgramTeamResponse { items: [{member_id: str, member_name: str, role: str, sessions: int,
+tokens: int, avg_tokens_per_session: int}] }`, ordered descending by `tokens`; `400
+invalid_range`; `401` unauthenticated. No `404` — zero active members returns `200 {items: []}`
+(decision log (b)). `member_id` (`program_members.user_id`) amended in 2026-09-17 (D-06) to
+supply the popup's sibling route with a stable identity field — see § 1 `user_id` row above.
 
 Popup data path (D-03/D-04, not a registered cross-story contract — reuses `personal-usage-api`
 verbatim, `docs/requirements/api.md#personal-usage-api`, `authz_note`): new sibling route

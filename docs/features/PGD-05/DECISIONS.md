@@ -66,10 +66,11 @@ authorization model.
 **Decision**: Add a fifth sibling route on the existing `overview` router:
 `GET /api/overview/program-detail/{program_id}/team/{member_id}/usage?range=`. This route calls
 `member_in_program_visibility(current_user, program_id, member_id)` (already shipped,
-`app/core/rbac.py`) and, on success, calls `fetch_personal_usage()` (SHP-02's own service
+`app/core/rbac.py`) and, on success, calls SHP-02's own service functions `fetch_card_totals`/`fetch_daily_token_series`/
+`fetch_commands_breakdown` (SHP-02's own service
 function, imported directly — not an HTTP call to SHP-02's own route) with `member_id` as the
 `user_id`, returning `PersonalUsageResponse` verbatim (AC-10, no reshaping). A denial raises
-`HTTPException(403)` before `fetch_personal_usage()` is ever invoked, so a 403 response body
+`HTTPException(403)` before any of those service functions is ever invoked, so a 403 response body
 carries no personal-usage fields (AC-12, mutual exclusivity by construction — the function that
 produces card/chart/command data is never called on the denied path). This keeps
 `personal_usage.py`'s own route and gate completely untouched (zero edits to SHP-02's contract)
@@ -96,3 +97,30 @@ component** (row trigger, modal chrome, loading/denied/error rendering) is repre
 single blocked task (T-16, § 6 below) with an explicit precondition —
 `/arh-iterate-design PGD-05` must produce DESIGN.md § Screen 2 content before T-16 can be
 started — rather than left as an implicit gap or an invented UI.
+
+### D-06: `ProgramTeamRow` amended with `member_id`, placed first · blast:feature · rev:mechanical · adr:—
+
+**Context**: PGD-05-FR-2/C-4 locked `ProgramTeamRow` to exactly 5 fields
+(`member_name, role, sessions, tokens, avg_tokens_per_session`) on 2026-08-26 — BEFORE
+FR-AUTH-08's per-member usage popup (AC-9..12) was folded into this story. That lock therefore
+predates the requirement that broke it: none of the 5 fields is a stable member identifier, but
+`member_in_program_visibility` (`app/core/rbac.py:177`, `target_member_id ==
+current_user.user_id`) and `fetch_card_totals`/`fetch_daily_token_series`/
+`fetch_commands_breakdown` (`app/services/personal_usage.py`) all require a real `user_id`. T-16
+shipped an interim that passed `member_name` as the popup's identity argument — a display name
+never equals a user id, so a member opening their OWN popup fell through to the persona branch
+and was denied 403 on their own data, contradicting AC-9. Filed as
+`docs/features/PGD-05/QUESTIONS.md` Q-01; `program_members` already carries `user_id` and `name`
+as separate columns (`app/models/rollup.py:124-125`), and `fetch_program_team()` already selects
+`user_id` and discarded it before building the row.
+
+**Decision**: Add `member_id: str` (`program_members.user_id`) to `ProgramTeamRow`, amending
+FR-2/C-4's lock rather than working around it. Placed FIRST in field order — identity before
+display attributes, matching `fetch_program_team()`'s own merge order (roster identity read
+before metrics are attached) and the existing `.../team/{member_id}/usage` sibling route's own
+path-parameter naming (D-04) — not appended last as a 6th field. No new query: `member_id` is
+populated from the `user_id` the roster SELECT already reads (D-01's two-SELECT contract is
+unchanged; `tests/perf/test_program_team_perf.py` still asserts exactly 2 SELECTs).
+`ProgramTeamPanel.tsx` now passes `row.member_id` into `MemberUsagePopup`, not `row.member_name`
+— `member_name` remains display-only. `docs/requirements/api.md` § program-team-api and
+`README.md`'s API table are updated to the 6-field shape.

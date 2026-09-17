@@ -1,0 +1,454 @@
+/* DESIGN.md § 2.2 Modal chrome -- reused from the EMD popup verbatim, deltas noted inline. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 26, 46, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.panel {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(15, 26, 46, 0.28);
+  overflow: hidden;
+  width: 100%;
+  max-width: 760px;
+  max-height: min(78vh, 760px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Denied/Error (DESIGN.md § 2.5/2.6): panel shrinks to content instead of
+   holding a 760px frame around one line. */
+.panelCompact {
+  max-height: none;
+}
+
+.header {
+  padding: 20px 22px;
+  border-bottom: 1px solid #f0f1f4;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex: none;
+}
+
+.headerAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.headerText {
+  min-width: 0;
+  flex: 1;
+}
+
+.headerName {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.headerSub {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 2px;
+}
+
+.toggleTrack {
+  display: flex;
+  flex: none;
+  background: #eef0f3;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  color: #7a828f;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.toggleButtonActive {
+  background: #fff;
+  color: #151a22;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.closeButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  color: #7a828f;
+  font-size: 16px;
+  cursor: pointer;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closeButton:hover {
+  background: #f4f6f9;
+}
+
+/* DESIGN.md § 2.2: body region wraps the entire scrollable content --
+   cards + commands (chart block omitted, AF-05). */
+.body {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Block 1 -- cards row (DESIGN.md § 2.3 Block 1, ProgramSummaryCards.module.css language). */
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid #e6e9ef;
+  border-radius: 16px;
+  padding: 18px 19px;
+  box-shadow: 0 1px 2px rgba(15, 26, 46, 0.04);
+}
+
+.cardGlyph {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.cardValue {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  line-height: 1;
+  color: #0f1a2e;
+}
+
+.cardLabel {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 7px;
+}
+
+.cardSkeletonGlyph {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #f5f6f8;
+}
+
+.cardSkeletonValue {
+  width: 60%;
+  height: 25px;
+  border-radius: 6px;
+  background: #f5f6f8;
+}
+
+.cardSkeletonLabel {
+  width: 80%;
+  height: 12px;
+  border-radius: 4px;
+  background: #f5f6f8;
+}
+
+/* Block 2 -- daily tokens chart (DESIGN.md § 2.3 Block 2), reusing
+   DailyTokenTrendChart.module.css's `.section`/`.header`/`.title`/`.subtitle`/
+   `.statBlock`/`.statTotal`/`.statAvg`/`.chartSkeleton`/`.statSkeleton`
+   language at modal scale -- panel padding differs (22px 24px 16px, same as
+   the source), chart render height is 180px not 240px (DESIGN.md § 2.3
+   Block 2 Plot row). */
+.chartSection {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  padding: 22px 24px 16px;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.chartStatBlock {
+  text-align: right;
+}
+
+.chartStatTotal {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.chartStatAvg {
+  font-size: 10.5px;
+  color: #a2abb8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.chartArea {
+  margin-top: 6px;
+}
+
+.chartSkeleton {
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+  background: #f5f6f8;
+}
+
+.chartStatSkeleton {
+  width: 88px;
+  height: 20px;
+  border-radius: 6px;
+  background: #f5f6f8;
+}
+
+/* Block 3 -- commands list (DESIGN.md § 2.3 Block 3). */
+.commandsCard {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.commandsHeader {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a828f;
+  margin-top: 3px;
+}
+
+.totalStrip {
+  padding: 14px 22px 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.totalFigure {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+
+.totalCaption {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #a2abb8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.commandsList {
+  padding: 4px 22px 16px;
+}
+
+.commandRow {
+  padding: 13px 0;
+  border-bottom: 1px solid #f4f5f7;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commandRow:last-child {
+  border-bottom: none;
+}
+
+.commandLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.commandChip {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+  color: #2a3441;
+  background: #f2f4f7;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commandCount {
+  font-size: 13px;
+  font-weight: 700;
+  flex: none;
+}
+
+.commandCountLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #a2abb8;
+  margin-left: 3px;
+}
+
+.barTrack {
+  height: 6px;
+  border-radius: 4px;
+  background: #eef0f3;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 4px;
+  background: #2a6fdb;
+}
+
+.emptyCommands {
+  text-align: center;
+  color: #7a828f;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 20px 0;
+}
+
+.commandSkeletonChip {
+  width: 45%;
+  height: 20px;
+  border-radius: 6px;
+  background: #f5f6f8;
+}
+
+.commandSkeletonBar {
+  height: 6px;
+  border-radius: 4px;
+  background: #f5f6f8;
+}
+
+/* Denied / Error states (DESIGN.md § 2.5 / § 2.6). */
+.messageBody {
+  padding: 32px 22px 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.messageGlyph {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #f2f4f7;
+  color: #7a828f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.messageHeadline {
+  font-size: 14px;
+  font-weight: 700;
+  color: #151a22;
+}
+
+.messageCopy {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7a828f;
+  max-width: 42ch;
+}
+
+.retryButton {
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  color: #151a22;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (pointer: coarse) {
+  .toggleButton {
+    padding: 11px 14px;
+  }
+}
