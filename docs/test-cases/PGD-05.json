@@ -1,0 +1,616 @@
+{
+  "story_id": "PGD-05",
+  "test_cases": [
+    {
+      "id": "PGD-05-TC-01",
+      "title": "Valid request returns one row per active member with required fields",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-1",
+      "given": "an authenticated session passing program_visibility and a program with members active in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
+      "then": "the response returns one row per active member with member_name, role, sessions, tokens, avg_tokens_per_session",
+      "objective": "Verify the team endpoint returns one row per program member active in the range, with all five required fields.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with program_members and usage_events for at least 3 distinct members within the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items has exactly one row per member active in the 30d window",
+        "Each row has member_name, role, sessions, tokens, avg_tokens_per_session"
+      ],
+      "tags": ["happy-path"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-02",
+      "title": "Omitted range query param defaults to 30d",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-2",
+      "given": "a valid program_id and no range query param supplied",
+      "when": "GET /api/overview/program-detail/{program_id}/team is called",
+      "then": "the response is computed as if range=30d",
+      "objective": "Verify the range default of 30d applies when the query param is omitted.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events spanning 7d/30d/90d windows"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": null
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team (no range param) with a valid bearer token",
+        "Separately send GET /api/overview/program-detail/prog-001/team?range=30d with the same token"
+      ],
+      "expected_results": [
+        "Both responses return status 200",
+        "The two responses are byte-identical"
+      ],
+      "tags": ["default-behavior", "range"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-03",
+      "title": "range=7d scopes sessions/tokens/avg to the 7-day window",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-3",
+      "given": "a program_id with usage_events distributed across a 7-day window and a separate window only reachable at 90 days",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=7d is called",
+      "then": "sessions, tokens, and avg_tokens_per_session for each member reflect only activity within the last 7 days",
+      "objective": "Verify range=7d scopes the aggregation window correctly.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-multi-window with member-A usage_events split: some within 7 days, some between 8-90 days ago"
+      ],
+      "test_data": {
+        "program_id": "prog-multi-window",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-multi-window/team?range=7d with a valid bearer token",
+        "Compare member-A's sessions/tokens to a manually computed 7-day-window aggregate from the fixture"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "member-A's sessions/tokens exclude events older than 7 days",
+        "avg_tokens_per_session matches tokens/sessions computed on the 7-day-only subset"
+      ],
+      "tags": ["range", "scoping"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-04",
+      "title": "range=30d and range=90d on same multi-window fixture yield different totals",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-3",
+      "given": "a program_id seeded with usage_events distributed across 30d and 90d windows with differing totals",
+      "when": "GET .../team?range=30d and GET .../team?range=90d are both called for the same program_id",
+      "then": "at least one member's sessions/tokens differ between the two responses, proving range-scoping reads usage_events per-window rather than a static snapshot",
+      "objective": "Catch a silent-no-op defect where ?range= does not actually filter usage_events.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-multi-window with member-A events split across 30d and 31-90d windows, both non-zero"
+      ],
+      "test_data": {
+        "program_id": "prog-multi-window",
+        "range_a": "30d",
+        "range_b": "90d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-multi-window/team?range=30d; capture member-A tokens_30d",
+        "Send GET /api/overview/program-detail/prog-multi-window/team?range=90d; capture member-A tokens_90d",
+        "Assert tokens_30d != tokens_90d"
+      ],
+      "expected_results": [
+        "tokens_90d is strictly greater than tokens_30d given the seeded fixture",
+        "The comparison is an explicit assert-not-equal, not two independent 200 checks"
+      ],
+      "tags": ["range", "differential-range", "critical"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-05",
+      "title": "Invalid range value returns 400, not FastAPI default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-4",
+      "given": "a valid program_id and an invalid range value",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=1y is called",
+      "then": "the response is 400 via the shared range-validation dependency, never FastAPI's default 422",
+      "objective": "Verify invalid range is rejected with an explicit 400 per api-conventions, not the framework's default validation-error status.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "1y"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=1y with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is exactly 400",
+        "Response status is NOT 422",
+        "Response body error code is invalid_range"
+      ],
+      "tags": ["negative", "boundary", "api-conventions"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-06",
+      "title": "avg_tokens_per_session is computed server-side as tokens/sessions, rounded to nearest integer",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-5",
+      "given": "a member row with known tokens and sessions counts that do not divide evenly",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
+      "then": "avg_tokens_per_session equals round(tokens/sessions) as a JSON integer, never a float and never left for the frontend to compute",
+      "objective": "Verify server-side computation and rounding of avg_tokens_per_session.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-round with member-A: tokens=1000, sessions=3 (333.33 -> rounds to 333)"
+      ],
+      "test_data": {
+        "program_id": "prog-round",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-round/team?range=30d with a valid bearer token",
+        "Inspect member-A's avg_tokens_per_session value and JSON type"
+      ],
+      "expected_results": [
+        "member-A.avg_tokens_per_session == 333",
+        "The JSON type of avg_tokens_per_session is integer, not float or string"
+      ],
+      "tags": ["contract", "server-side-computation"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-07",
+      "title": "CIO and Engineering Manager for their own program receive byte-identical team responses",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-6",
+      "given": "the same program_id and range requested by a CIO and by an Engineering Manager scoped to that program",
+      "when": "each persona calls GET /api/overview/program-detail/{program_id}/team?range=30d",
+      "then": "the two responses are byte-identical with no persona-branching logic",
+      "objective": "Verify the team-table response is open-aggregate and does not branch by persona.",
+      "preconditions": [
+        "Authenticated session tokens for cio persona and engineering-manager persona (scoped to prog-001)",
+        "Seeded program_id=prog-001 with team activity in the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "personas": ["cio", "engineering-manager"]
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=30d as cio",
+        "Send the identical request as engineering-manager"
+      ],
+      "expected_results": [
+        "Both responses return 200",
+        "The two response bodies are byte-identical"
+      ],
+      "tags": ["rbac", "open-aggregate"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-08",
+      "title": "Zero active members in range returns an empty list, not an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-7",
+      "given": "a valid program_id with zero members active in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=7d is called",
+      "then": "the response is 200 with items: [], not an error",
+      "objective": "Verify the zero-active-members empty-list contract.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-quiet exists in program_members with zero usage_events in the last 7 days"
+      ],
+      "test_data": {
+        "program_id": "prog-quiet",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-quiet/team?range=7d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Response body is exactly {\"items\": []}"
+      ],
+      "tags": ["edge-case", "empty-state"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-09",
+      "title": "Downstream consumer personas (ARC-01/DEV-01/PMD-01/EMD-01) match the CIO Program Detail table exactly",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-8",
+      "given": "authenticated sessions for architect, developer, product-manager, and engineering-manager personas scoped to a program",
+      "when": "each persona requests the team endpoint for the same program_id and range as a CIO",
+      "then": "each downstream persona's response matches the CIO's response exactly, per the program-team-api contract",
+      "objective": "Verify downstream-consumer parity across all four non-CIO personas against the CIO baseline.",
+      "preconditions": [
+        "Authenticated session tokens for cio, architect, developer, product-manager, engineering-manager, all scoped to prog-001",
+        "Seeded program_id=prog-001 with team activity in the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "personas": ["architect", "developer", "product-manager", "engineering-manager"]
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=30d as cio; capture baseline",
+        "Send the identical request as architect, developer, product-manager, and engineering-manager in turn",
+        "Compare each response to the cio baseline"
+      ],
+      "expected_results": [
+        "All five responses return 200",
+        "Each of the four downstream persona responses matches the cio baseline exactly"
+      ],
+      "tags": ["rbac", "downstream-parity", "contract"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-10",
+      "title": "Self or CIO clicking a team row opens the per-member popup via personal-usage-api",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-9",
+      "given": "a team-table row for member M and a requester who is either M themself or a CIO",
+      "when": "the requester opens the per-member popup for M (calling GET /api/personal-usage/{user_id} for M's user_id)",
+      "then": "member_in_program_visibility passes and the call succeeds, returning M's personal-usage-api data",
+      "objective": "Verify the popup gate allows self and cio, and correctly invokes personal-usage-api for the target member.",
+      "preconditions": [
+        "Authenticated session bearer token for member M, and separately for a cio persona",
+        "Seeded program_id=prog-001 with member M active and personal-usage data for M"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "user_id": "member-M",
+        "range": "30d"
+      },
+      "steps": [
+        "As member M, request the popup data (GET /api/personal-usage/member-M?range=30d)",
+        "As a cio persona, request the popup data for member M"
+      ],
+      "expected_results": [
+        "Both requests return 200",
+        "Both responses are personal-usage-api's shape for member M"
+      ],
+      "tags": ["rbac", "popup", "happy-path"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-11",
+      "title": "Popup renders personal-usage-api's shape verbatim, no PGD-05-specific reshaping",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-10",
+      "given": "a popup data response for an authorized requester",
+      "when": "the response is rendered",
+      "then": "it shows exactly personal-usage-api's shape: cards (sessions, total_time, total_tokens, avg_tokens_per_session) + daily token chart + daily session-time chart + commands, ranged 7d|30d|90d default 30d, with no additional or reshaped fields",
+      "objective": "Verify the popup performs zero reshaping of the personal-usage-api response.",
+      "preconditions": [
+        "Authenticated session bearer token for member M (self)",
+        "Seeded personal-usage data for member M covering cards, daily_tokens, and commands"
+      ],
+      "test_data": {
+        "user_id": "member-M",
+        "range": "30d"
+      },
+      "steps": [
+        "Request GET /api/personal-usage/member-M?range=30d directly",
+        "Trigger the popup path for member M with the same range",
+        "Diff the two response bodies field-by-field"
+      ],
+      "expected_results": [
+        "The popup's data body is identical to the direct personal-usage-api response",
+        "No fields are added, removed, or renamed by the popup path"
+      ],
+      "tags": ["contract", "no-reshaping"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-12",
+      "title": "Requester who is neither member M nor a CIO is denied 403 opening M's popup, logged as member_view_denied",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-11",
+      "given": "a requester who is not member M and does not hold the cio persona",
+      "when": "the requester attempts to open M's popup directly or via the row",
+      "then": "the request is denied with HTTP 403 and the denial is logged as member_view_denied, not individual_view_denied",
+      "objective": "Verify the member_in_program_visibility gate denies a non-self, non-cio requester and logs the correct denial event name.",
+      "preconditions": [
+        "Authenticated session bearer token for a developer persona who is not member M and not cio",
+        "Log capture configured for the test run",
+        "Seeded program_id=prog-001 with member M distinct from the requester"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "requester_persona": "developer",
+        "target_user_id": "member-M"
+      },
+      "steps": [
+        "As the developer persona, request the popup for member M (directly and via the row trigger)",
+        "Inspect captured logs for the denial event"
+      ],
+      "expected_results": [
+        "Both attempts return HTTP 403",
+        "A structured log entry with event=member_view_denied is emitted",
+        "No individual_view_denied event is emitted for this denial"
+      ],
+      "tags": ["negative", "rbac", "security", "logging"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-13",
+      "title": "Denied popup response body carries no personal-usage fields",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-AC-12",
+      "given": "a denied popup request per AC-11",
+      "when": "the 403 response is returned",
+      "then": "the response body carries no personal-usage fields (cards, charts, commands) — denial and data are mutually exclusive",
+      "objective": "Verify a 403 denial body never leaks cards/charts/commands data.",
+      "preconditions": [
+        "Authenticated session bearer token for a developer persona who is not member M and not cio",
+        "Seeded program_id=prog-001 with member M distinct from the requester"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "requester_persona": "developer",
+        "target_user_id": "member-M"
+      },
+      "steps": [
+        "As the developer persona, request the popup for member M",
+        "Inspect the full JSON body of the 403 response"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body contains no cards, daily_tokens, daily_session_time, or commands keys"
+      ],
+      "tags": ["negative", "security", "no-data-leak"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-14",
+      "title": "Exactly two SELECTs issued per team-table request, no Cartesian join",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-FR-1",
+      "given": "a valid program_id and range",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
+      "then": "the service issues exactly two SELECTs — one program_members snapshot read and one range-scoped usage_events aggregate GROUP BY user_id — never a join producing a Cartesian product",
+      "objective": "Verify the two-SELECT query-count bound per PGD-05-FR-1.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Query-count instrumentation (e.g. SQLAlchemy event listener) configured for the test run",
+        "Seeded program_id=prog-001 with multiple members and usage_events"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=30d with a valid bearer token",
+        "Capture the exact count and shape of SQL statements issued during the request"
+      ],
+      "expected_results": [
+        "Exactly two SELECT statements are issued",
+        "One SELECT reads program_members, one SELECT aggregates usage_events GROUP BY user_id filtered by program_id and ts window",
+        "No Cartesian-product join or N+1 per-member query pattern is present"
+      ],
+      "tags": ["performance", "query-count", "N+1"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-15",
+      "title": "Range/filter refresh completes within 2s performance budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-NFR-performance",
+      "given": "a program_id with a realistic volume of usage_events and program_members (e.g. thousands of rows across a 90-day span)",
+      "when": "GET /api/overview/program-detail/{program_id}/team is called for each of range=7d, 30d, 90d",
+      "then": "each request completes within the 2-second budget (NFR-002)",
+      "objective": "Verify the endpoint meets the inherited <=2s range-refresh performance budget under realistic data volume.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-perf with >=50 members and >=5,000 usage_events rows spread across 90 days"
+      ],
+      "test_data": {
+        "program_id": "prog-perf",
+        "ranges": ["7d", "30d", "90d"]
+      },
+      "steps": [
+        "Measure wall-clock latency of GET .../team?range=7d",
+        "Measure wall-clock latency of GET .../team?range=30d",
+        "Measure wall-clock latency of GET .../team?range=90d"
+      ],
+      "expected_results": [
+        "Each request's latency is < 2000ms"
+      ],
+      "tags": ["performance", "budget"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-16",
+      "title": "ProgramTeamRow field order and types match the locked schema exactly",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-FR-2",
+      "given": "a program_id with at least one active member in range",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
+      "then": "each row's fields appear in exactly this order and type: member_name (str), role (str), sessions (int), tokens (int), avg_tokens_per_session (int, rounded, never float), with no additional fields",
+      "objective": "Verify the ProgramTeamResponse/ProgramTeamRow schema's exact field order and JSON types per PGD-05-FR-2.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with at least one active member in the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/team?range=30d with a valid bearer token",
+        "Inspect raw JSON key order and value types of the first item and the top-level envelope"
+      ],
+      "expected_results": [
+        "Top-level envelope is exactly {items: [...]}",
+        "Each row's keys appear in the order member_name, role, sessions, tokens, avg_tokens_per_session",
+        "member_name and role are JSON strings; sessions and tokens are JSON integers; avg_tokens_per_session is a JSON integer, never a float",
+        "No additional fields are present on any row"
+      ],
+      "tags": ["contract", "schema"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-17",
+      "title": "Rows are ordered descending by tokens",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-FR-2",
+      "given": "a program_id with at least 3 members with differing token totals in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/team?range=30d is called",
+      "then": "items[] is ordered descending by tokens",
+      "objective": "Verify row ordering is descending by tokens per PGD-05-FR-2.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-ordered with member token totals: member-A=500, member-B=1200, member-C=90 within the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-ordered",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-ordered/team?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "items[0].member_name == member-B (tokens 1200)",
+        "items[1].member_name == member-A (tokens 500)",
+        "items[2].member_name == member-C (tokens 90)",
+        "For every i, items[i].tokens >= items[i+1].tokens"
+      ],
+      "tags": ["ordering"],
+      "tracker_test": null
+    },
+    {
+      "id": "PGD-05-TC-18",
+      "title": "member_in_program_visibility gate: allow self, allow cio, deny other — unit-level gate matrix",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-05-FR-3",
+      "given": "three distinct requester scenarios against the same target member M: requester is M, requester is a cio, requester is neither",
+      "when": "member_in_program_visibility is evaluated for each scenario",
+      "then": "the gate allows self, allows cio, and denies every other requester with a 403 and a member_view_denied log — distinct from SHP-02's own individual_usage_visibility gate on the same endpoint",
+      "objective": "Verify the full member_in_program_visibility allow/allow/deny matrix and its logging, as a single gate-focused integration case distinct from the AC-9/11/12 wire-level cases.",
+      "preconditions": [
+        "Authenticated session bearer tokens for: member M (self), a cio persona, and a developer persona who is neither self nor cio",
+        "Log capture configured for the test run",
+        "Seeded program_id=prog-001 with member M"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "target_user_id": "member-M"
+      },
+      "steps": [
+        "Invoke the popup path as member M targeting member-M",
+        "Invoke the popup path as cio targeting member-M",
+        "Invoke the popup path as developer (neither self nor cio) targeting member-M",
+        "Inspect logs for each of the three attempts"
+      ],
+      "expected_results": [
+        "Self attempt returns 200 with personal-usage-api data",
+        "CIO attempt returns 200 with personal-usage-api data",
+        "Developer attempt returns 403 with no personal-usage fields, logged as member_view_denied",
+        "No individual_view_denied event fires for any of the three attempts on this endpoint"
+      ],
+      "tags": ["security", "rbac", "gate-matrix"],
+      "tracker_test": null
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {"id": "PGD-05-AC-1", "covered_by": ["PGD-05-TC-01"]},
+      {"id": "PGD-05-AC-2", "covered_by": ["PGD-05-TC-02"]},
+      {"id": "PGD-05-AC-3", "covered_by": ["PGD-05-TC-03", "PGD-05-TC-04"]},
+      {"id": "PGD-05-AC-4", "covered_by": ["PGD-05-TC-05"]},
+      {"id": "PGD-05-AC-5", "covered_by": ["PGD-05-TC-06"]},
+      {"id": "PGD-05-AC-6", "covered_by": ["PGD-05-TC-07"]},
+      {"id": "PGD-05-AC-7", "covered_by": ["PGD-05-TC-08"]},
+      {"id": "PGD-05-AC-8", "covered_by": ["PGD-05-TC-09"]},
+      {"id": "PGD-05-AC-9", "covered_by": ["PGD-05-TC-10"]},
+      {"id": "PGD-05-AC-10", "covered_by": ["PGD-05-TC-11"]},
+      {"id": "PGD-05-AC-11", "covered_by": ["PGD-05-TC-12"]},
+      {"id": "PGD-05-AC-12", "covered_by": ["PGD-05-TC-13"]}
+    ],
+    "functional_requirements": [
+      {"id": "PGD-05-FR-1", "covered_by": ["PGD-05-TC-14"]},
+      {"id": "PGD-05-FR-2", "covered_by": ["PGD-05-TC-16", "PGD-05-TC-17"]},
+      {"id": "PGD-05-FR-3", "covered_by": ["PGD-05-TC-18"]}
+    ],
+    "non_functional_requirements": [
+      {"id": "PGD-05-NFR-performance", "covered_by": ["PGD-05-TC-15"]}
+    ],
+    "uncovered": [],
+    "notes": [
+      "Security NFR (program_visibility open-aggregate + member_in_program_visibility gate) is covered via AC-9/11/12 (PGD-05-TC-10/12/13) and FR-3 (PGD-05-TC-18) rather than a separate PGD-05-NFR-security id — the story's NFR section restates the same two gates already exercised at AC/FR level, no independent numeric/security budget beyond those.",
+      "Accessibility NFR (WCAG AA table semantics, keyboard-operable popup trigger) is UI-layer and out of scope for this backend-anchored manifest per the story's Test mapping ('E2E: NA') — carried forward to the frontend implementation task, not fabricated here as an orphan TC.",
+      "Observability NFR is explicitly covered by the existing page-level program_drilldown event (PGD-01) per story assumption — no dedicated team-table-view event exists to test; member_view_denied logging is covered under AC-11/FR-3 (PGD-05-TC-12, PGD-05-TC-18).",
+      "E2E: NA per docs/stories/PGD-05.md Test mapping — no dedicated E2E flow file yet; all TCs are integration/contract/performance/security at the API layer, consistent with PGD-04 precedent.",
+      "Scope cross-check: no TC references an Out-of-scope id from REQUIREMENTS.md (personal-usage reshaping, manual roster enrichment, persona-branching, program_members writes)."
+    ]
+  }
+}

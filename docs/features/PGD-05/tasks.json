@@ -1,0 +1,354 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-05",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-17T16:30:00+00:00",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/migrations/versions/008_program_team_index.py",
+      "reason": "Alembic migration adding Index(ix_usage_events_program_id_user_ts, program_id, user, ts) on usage_events (D-02/ADR-0016, research C-1)"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/models/ingestion.py",
+      "reason": "declare ix_usage_events_program_id_user_ts in UsageEvent.__table_args__ so the schema-diff gate (TestSchemaDiffGate) and F-01 agree, per alembic-patterns idiom"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/tests/fixtures/prd_8_4_schema.json",
+      "reason": "add the new index to the fixture TestFixtureDrivenTableConstraints compares against"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/app/services/program_team.py",
+      "reason": "fetch_program_team() -- two-SELECT aggregation (program_members snapshot + range-scoped usage_events aggregate), merged in Python by user_id/user (D-01)"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "services/api/app/schemas/program_detail.py",
+      "reason": "add ProgramTeamRow + ProgramTeamResponse (PGD-05-FR-2 locked field order)"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "register GET /api/overview/program-detail/{program_id}/team as a fifth sibling route (entry-registration site for F-04/F-05); program_visibility veto gate + _range_with_default + structured logging"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "register GET /api/overview/program-detail/{program_id}/team/{member_id}/usage as a sixth sibling route (D-04) -- member_in_program_visibility gate, delegates to SHP-02's fetch_card_totals/fetch_daily_token_series/fetch_commands_breakdown, returns PersonalUsageResponse verbatim"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_team_route.py",
+      "reason": "route-level integration tests for the team-table endpoint: TC-01,02,03,04,05,07,08,09,17"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_team_service.py",
+      "reason": "service-level unit tests: TC-06 (avg rounding, contract), TC-17 (ordering, folded here alongside route-level check)"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_team_member_usage_route.py",
+      "reason": "route-level tests for the popup's backend sibling route: TC-10 (self/cio allow + verbatim SHP-02 shape), TC-11 (contract: verbatim, no reshaping), TC-12 (403 deny + member_view_denied log), TC-13 (403 body carries no personal-usage fields), TC-18 (gate is member_in_program_visibility not individual_usage_visibility)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_team_perf.py",
+      "reason": "TC-14/TC-15: query-count spy asserting exactly 2 SELECTs + wall-clock <=2s at seeded volume, mirroring PGD-02/03/04 precedent (research C-1 mandatory)"
+    },
+    "F-12": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill program-team-api's produced_by sketch with the concrete shipped shape (already done at plan-authoring time, step 10 -- this task verifies/finalizes wording against the implemented route)"
+    },
+    "F-13": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/overview/program-detail/{program_id}/team row to the API table (Docs T2): two-SELECT query shape, zero-members empty-list behavior, popup's reuse of personal-usage-api under member_in_program_visibility"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/types/programTeam.ts",
+      "reason": "ProgramTeamRowData/ProgramTeamData/ProgramTeamResult TS types mirroring ProgramTeamRow/ProgramTeamResponse"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "apps/web/src/lib/programTeamApi.ts",
+      "reason": "server-only fetchProgramTeam() targeting FastAPI directly (mirrors programDetailApi.ts pattern)"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/team/route.ts",
+      "reason": "Next.js proxy Route Handler for the team-table endpoint, mirrors the existing program-detail proxies (callWithAuth retry-once + status mapping, ADR-0008)"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/team/route.test.ts",
+      "reason": "proxy route unit tests (status mapping, range passthrough, no-token-leak)"
+    },
+    "F-18": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/personal-usage/[user_id]/route.ts",
+      "reason": "Next.js proxy Route Handler calling the new PGD-05 sibling route (D-03/D-04) -- ADR-0008 pattern, callWithAuth retry-once, maps 403 to a denied result with no data body (AC-12)"
+    },
+    "F-19": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/personal-usage/[user_id]/route.test.ts",
+      "reason": "proxy route unit tests: status mapping incl. 403 denied (no body leak), range passthrough, no-token-leak"
+    },
+    "F-20": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramTeamPanel.tsx",
+      "reason": "team table panel component (DESIGN.md Screen 1: header, range chips, 5-column grid, avatar initials/color map per role) -- rendered rows only, no popup trigger wiring (that's F-21, blocked)"
+    },
+    "F-21": {
+      "action": "create",
+      "path": "apps/web/src/lib/teamAvatarStyle.ts",
+      "reason": "client-owned initials-from-name + role-to-avBg color map (DESIGN.md 'Avatar colour and initials -- not supplied by this story's API'); adds the untokenised QA Engineer #d1495b as a new token per DESIGN.md flag rather than silently approximating it"
+    },
+    "F-22": {
+      "action": "modify",
+      "path": "docs/design/tokens.md",
+      "reason": "add QA Engineer -> #d1495b to Persona colors (DESIGN.md flags this hex as present in the mockup and absent from every token table)"
+    },
+    "F-23": {
+      "action": "modify",
+      "path": "apps/web/src/components/ProgramDetailView.tsx",
+      "reason": "mount <ProgramTeamPanel> on the Program Detail page (entry-registration site for F-20) -- team table only; no popup trigger wired here (design-gated, see T-16)"
+    },
+    "F-24": {
+      "action": "create",
+      "path": "apps/web/src/components/ProgramTeamPanel.test.tsx",
+      "reason": "component tests: populated/loading/empty/error states (DESIGN.md-permitted states), formatting delegation (M/K raw-int -> renderer-owned per DESIGN.md pre-formatted-values note)"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add usage_events composite index migration + model declaration",
+      "complexity": "M",
+      "predecessors": [],
+      "files": ["F-01", "F-02", "F-03"],
+      "ac_refs": ["PGD-05-FR-1"],
+      "risk_refs": ["R-1"],
+      "notes": "New Alembic revision 008, down_revision=007. Index(\"ix_usage_events_program_id_user_ts\", \"program_id\", \"user\", \"ts\") added in both the migration's upgrade()/downgrade() and UsageEvent.__table_args__ (app/models/ingestion.py) so TestSchemaDiffGate passes; update the fixture JSON TestFixtureDrivenTableConstraints reads. Anchor any revision-isolation test to the explicit revision id, not \"head\" (pattern-consistency / alembic-patterns anti-pattern note).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add fetch_program_team() two-SELECT aggregation service",
+      "complexity": "M",
+      "predecessors": ["T-01"],
+      "files": ["F-04", "F-05"],
+      "ac_refs": ["PGD-05-AC-1", "PGD-05-AC-3", "PGD-05-AC-5", "PGD-05-AC-7", "PGD-05-FR-1", "PGD-05-FR-2"],
+      "risk_refs": ["R-1", "R-6", "R-7"],
+      "notes": "ProgramTeamRow/ProgramTeamResponse added to app/schemas/program_detail.py, field order locked per FR-2. fetch_program_team(db, program_id, range_value): SELECT 1 = program_members roster (user_id, name, role) WHERE program_id=:pid; SELECT 2 = usage_events aggregate (user, COUNT(DISTINCT session_id) AS sessions, SUM(tokens) AS tokens) WHERE program_id=:pid AND ts>=:range_start GROUP BY user, using ix_usage_events_program_id_user_ts. Merge in Python by user_id/user (D-01) -- members with zero in-range rows excluded. avg_tokens_per_session = round(tokens/sessions) server-side, int not float; sessions=0 guarded (no ZeroDivisionError -- excluded per active-in-range contract, sessions=0 cannot occur for an included row). Order by tokens DESC. Docstring notes the two-SELECT strategy and the new index dependency (Documentation requirements).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Register GET /api/overview/program-detail/{program_id}/team on the overview router",
+      "complexity": "M",
+      "predecessors": ["T-02"],
+      "files": ["F-06"],
+      "ac_refs": ["PGD-05-AC-1", "PGD-05-AC-2", "PGD-05-AC-4", "PGD-05-AC-6", "PGD-05-AC-8"],
+      "risk_refs": ["R-2", "R-5"],
+      "notes": "Fifth sibling route. range: str = Depends(_range_with_default) (reused verbatim from the module). Calls await program_visibility(current_user, program_id) once; no ProgramSummary existence lookup, no 404 (matches PGD-02/04, not PGD-03's 404 precedent -- team is an activity aggregate, not a program-identity lookup). Emits one program_team_fetched structured log (method, path, program_id, range, status, latency_ms) via time.perf_counter(), mirroring program_commands_fetched. No persona branching anywhere in the handler (AC-6/AC-8 byte-identical invariant).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Register GET /api/overview/program-detail/{program_id}/team/{member_id}/usage sibling route (popup backend)",
+      "complexity": "M",
+      "predecessors": ["T-03"],
+      "files": ["F-07"],
+      "ac_refs": ["PGD-05-AC-9", "PGD-05-AC-10", "PGD-05-AC-11", "PGD-05-AC-12", "PGD-05-FR-3"],
+      "risk_refs": ["R-3"],
+      "notes": "D-04: calls await member_in_program_visibility(current_user, program_id, member_id) FIRST -- a 403 here raises before fetch_card_totals/fetch_daily_token_series/fetch_commands_breakdown are ever invoked (AC-12: denial and data mutually exclusive by construction, not a post-hoc filter). On pass, imports and calls SHP-02's own three service functions directly (app.services.personal_usage) with member_id as user_id, returns PersonalUsageResponse verbatim -- no reshaping (AC-10). range: str = Depends(_range_with_default), same shared wrapper. Zero edits to app/api/personal_usage.py or app/schemas/personal_usage.py.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Route-level integration tests for the team-table endpoint",
+      "complexity": "M",
+      "predecessors": ["T-03"],
+      "files": ["F-08"],
+      "ac_refs": ["PGD-05-AC-1", "PGD-05-AC-2", "PGD-05-AC-3", "PGD-05-AC-4", "PGD-05-AC-6", "PGD-05-AC-7", "PGD-05-AC-8"],
+      "risk_refs": ["R-2", "R-4", "R-5"],
+      "notes": "TC-01 (fields present), TC-02 (default range), TC-03/TC-04 (7d vs 90d differential -- mandatory guard, same shape as PGD-04's #427), TC-05 (400 invalid_range, not 422), TC-07 (zero members -> empty list), TC-08 (persona byte-identical), TC-17 (ordering descending by tokens; folded here per PGD-04 F-04/F-07 precedent of colocating an ordering assertion with the route test file).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Service-level unit tests: avg_tokens_per_session rounding + ordering",
+      "complexity": "S",
+      "predecessors": ["T-02"],
+      "files": ["F-09"],
+      "ac_refs": ["PGD-05-AC-5", "PGD-05-FR-2"],
+      "risk_refs": ["R-6", "R-7"],
+      "notes": "TC-06 (contract: avg_tokens_per_session is int, rounds to nearest integer, e.g. tokens=100 sessions=3 -> 33); independent direct-service assertions for descending-by-tokens ordering on a 3+ member fixture.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Route-level tests for the popup's backend sibling route (member_in_program_visibility gate)",
+      "complexity": "M",
+      "predecessors": ["T-04"],
+      "files": ["F-10"],
+      "ac_refs": ["PGD-05-AC-9", "PGD-05-AC-10", "PGD-05-AC-11", "PGD-05-AC-12", "PGD-05-FR-3"],
+      "risk_refs": ["R-3"],
+      "notes": "TC-10 (self and cio both allowed, response is byte-identical to calling GET /api/personal-usage/{user_id} directly for the same user/range -- verbatim contract), TC-11 (contract: no PGD-05-specific fields added or removed), TC-12 (non-self non-cio -> 403, member_view_denied logged with {user_id, program_id, target_member_id}, NOT individual_view_denied), TC-13 (403 response body has no cards/daily_tokens/commands keys at all), TC-18 (spy asserts member_in_program_visibility is called, individual_usage_visibility is never imported/called by this route).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Performance test: exactly 2 SELECTs + <=2s at seeded volume",
+      "complexity": "M",
+      "predecessors": ["T-03"],
+      "files": ["F-11"],
+      "ac_refs": ["PGD-05-FR-1"],
+      "risk_refs": ["R-1"],
+      "notes": "TC-14/TC-15 (research Condition C-1, mandatory). Seed >=5000 usage_events across >=20 members over 90 days plus a matching program_members roster; assert wall-clock latency <2000ms for each of range=7d/30d/90d; assert via a query-count spy (SQLAlchemy event listener, mirroring test_program_releases_perf.py/test_program_commands_perf.py's approach) that exactly 2 SELECTs are issued per request -- never a join-producing Cartesian product.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Finalize program-team-api contract shape in docs/requirements/api.md",
+      "complexity": "S",
+      "predecessors": ["T-04"],
+      "files": ["F-12"],
+      "ac_refs": ["PGD-05-AC-1"],
+      "risk_refs": [],
+      "notes": "Verify the sketch already filled at plan-authoring time (this PLAN's own edit) matches the implemented route exactly -- endpoint, response_model, field types/order, data_source (two-SELECT + new index), empty_behavior, rbac, errors, and the popup_sibling_route note. Correct any drift discovered during implementation. Per plan-authoring step 10 -- authoritative spec ARC-01/DEV-01/PMD-01/EMD-01/SHP-07 build against.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "docs(readme): add team endpoint row to README API table",
+      "complexity": "S",
+      "predecessors": ["T-04"],
+      "files": ["F-13"],
+      "ac_refs": ["PGD-05-AC-1"],
+      "risk_refs": [],
+      "notes": "T2 doc trigger (two new HTTP routes: /team and /team/{member_id}/usage). Row documents: bearer auth + optional ?range=, 200 ProgramTeamResponse shape (raw-int fields), two-SELECT query shape + new index, zero-members empty-list behavior, and a note that the popup reuses personal-usage-api under member_in_program_visibility via the sibling /team/{member_id}/usage route (403, member_view_denied, no data body on denial). Matches the existing table's prose density.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Add TS wire types for the team table",
+      "complexity": "S",
+      "predecessors": ["T-04"],
+      "files": ["F-14"],
+      "ac_refs": ["PGD-05-AC-1"],
+      "risk_refs": [],
+      "notes": "ProgramTeamRowData {member_name: string, role: string, sessions: number, tokens: number, avg_tokens_per_session: number}, ProgramTeamData {items: ProgramTeamRowData[]}, ProgramTeamResult status union ({status:'ok',data}|{status:'unauthorized'}|{status:'error'}) mirroring programCommands.ts (no not_found variant -- this route never 404s).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Add server-only fetchProgramTeam() fetcher",
+      "complexity": "S",
+      "predecessors": ["T-11"],
+      "files": ["F-15"],
+      "ac_refs": ["PGD-05-AC-1"],
+      "risk_refs": [],
+      "notes": "Mirrors programDetailApi.ts's fetchProgramDetail: getApiBaseUrl() + optional Authorization header, 5000ms AbortSignal timeout, status mapping (401->unauthorized, non-ok->error).",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Add Next.js proxy route for the team-table endpoint",
+      "complexity": "M",
+      "predecessors": ["T-12"],
+      "files": ["F-16", "F-17"],
+      "ac_refs": ["PGD-05-AC-1"],
+      "risk_refs": [],
+      "notes": "Mirrors the commands/releases proxy route.ts exactly: callWithAuth retry-once, range passthrough (absent -> undefined not literal string), status mapping incl. 401 session_expired and 502 upstream_error. Includes unit tests (F-17): status mapping, range passthrough, no-token-leak.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Add Next.js proxy route for the popup's personal-usage sibling call",
+      "complexity": "M",
+      "predecessors": ["T-07"],
+      "files": ["F-18", "F-19"],
+      "ac_refs": ["PGD-05-AC-9", "PGD-05-AC-11", "PGD-05-AC-12"],
+      "risk_refs": ["R-3"],
+      "notes": "D-03: proxies to the new PGD-05 sibling route (T-04's GET /program-detail/{program_id}/team/{member_id}/usage, NOT SHP-02's own /api/personal-usage/{user_id}) -- program_id must travel in this proxy's own route params (nested under program-detail) even though the URL segment reads /api/proxy/personal-usage/[user_id] for frontend-call-site symmetry with a future direct personal-usage proxy; body carries program_id as a query/body param the proxy forwards. 403 maps to a denied result with NO data body forwarded (AC-12) -- the proxy must not pass through any partial JSON on a 403. Includes unit tests (F-19): status mapping incl. 403 denied + no-body-leak, range passthrough, no-token-leak.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "Build ProgramTeamPanel (team table UI) and wire the avatar/initials map",
+      "complexity": "L",
+      "predecessors": ["T-13"],
+      "files": ["F-20", "F-21", "F-22", "F-23", "F-24"],
+      "ac_refs": ["PGD-05-AC-1", "PGD-05-AC-6"],
+      "risk_refs": [],
+      "notes": "DESIGN.md Screen 1: container (16px radius, #fff, 1px #e9ebef border), header (title 'Project team', subtitle 'Members & contribution · {{ teamRangeLabel }}', 7D/30D/90D range chips, client-owned active-chip state), 5-column grid column head (Member/Role/Sessions/Tokens/Avg per session, 1.8fr 1fr 1fr 1fr 1fr), row list (avatar circle 30x30 with initials+avBg, name, role, sessions in body font, tokens+avg in JetBrains Mono, avg one weight/size heavier). Renderer formats sessions/tokens/avg with M/K/B suffixes client-side (raw ints from the API, DESIGN.md pre-formatted-values note -- mirrors PGD-02, do NOT expect pre-formatted strings). teamAvatarStyle.ts (F-21) derives initials from member_name (first+last initial) and avBg from role via docs/design/tokens.md Persona colors, including the newly-added QA Engineer #d1495b (F-22). Empty state: header + column head render with a literal 'No active members in this range.' row-list placeholder (concrete copy, not invented chrome -- this is data-shape handling, not the undesigned popup surface). Loading state: existing skeleton/loading convention from ReleasesList.tsx, reused verbatim. Error state: reuses ProgramDetailErrorPanel's existing pattern. Mounted into ProgramDetailView.tsx (F-23) alongside the Commands panel (PGD-04) in the two-up COMMANDS+TEAM section, per DESIGN.md layout. Row is NOT clickable in this task -- no popup trigger wired (design-gated, see T-16). Tests (F-24) cover populated/loading/empty/error rendering and the client-side formatting delegation.",
+      "status": "pending",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "[BLOCKED — design gate] Popup UI: row trigger, modal chrome, denied/loading/error states",
+      "complexity": "L",
+      "predecessors": ["T-14", "T-15"],
+      "files": [],
+      "ac_refs": ["PGD-05-AC-9", "PGD-05-AC-10", "PGD-05-AC-11", "PGD-05-AC-12"],
+      "risk_refs": [],
+      "notes": "PRECONDITION: /arh-iterate-design PGD-05 MUST run and produce DESIGN.md § Screen 2 content (row trigger visual/interaction spec, modal chrome -- overlay/panel width/close affordance, and denied(403)/loading/error state copy+layout) BEFORE this task may be started or its files_plan entries authored. No file_plan entries exist for this task today (REQUIREMENTS.md § Constraints, DESIGN.md § 'The popup is not in this mockup': CLAUDE.md's design system rule forbids inventing a screen the mockups do not show). Backend (T-04/T-07) and the proxy (T-14) are already implementable and unblocked -- only the frontend popup COMPONENT is gated. Once /arh-iterate-design PGD-05 completes: re-run /arh-plan-implementation PGD-05 (or a plan amendment) to add the concrete file_plan entries (likely a MemberUsagePopup.tsx + row-trigger wiring in ProgramTeamPanel.tsx) and expand this task into real, estimable subtasks against the newly-designed chrome. Accessibility obligation (NFR-008: accessible name, keyboard-operable trigger) belongs to this task, not a follow-on story, once the design gate clears.",
+      "status": "blocked",
+      "completed_at": null,
+      "files_touched": [],
+      "reason": "design-gated: /arh-iterate-design PGD-05 has not run; DESIGN.md § Screen 2 has no chrome/states to build against (REQUIREMENTS.md § Constraints, DECISIONS.md D-05)"
+    }
+  ]
+}

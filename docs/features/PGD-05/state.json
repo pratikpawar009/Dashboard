@@ -1,0 +1,39 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "rtm_source_sha": "b3cd0523ae59",
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 82,
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/PGD-05/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "gate": "APPROVE",
+  "plan": "complete",
+  "plan_artifact": "docs/features/PGD-05/PLAN.md",
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "tasks": {
+    "file": "docs/features/PGD-05/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-05/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-05/DATA-DESIGN.md"
+  },
+  "impl": null,
+  "validation": null,
+  "review": null,
+  "security": null,
+  "tracker_story": "pratikpawar009/Dashboard#27",
+  "tracker_research": "pratikpawar009/Dashboard#443",
+  "tracker_prd": "pratikpawar009/Dashboard#444",
+  "tracker_plan": "pratikpawar009/Dashboard#445",
+  "phase": "plan-implementation",
+  "last_updated": "2026-09-17T16:10:00Z"
+}

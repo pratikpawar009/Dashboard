@@ -208,7 +208,14 @@ shape:
 produced_by: PGD-05
 consumed_by: [ARC-01, DEV-01, PMD-01, EMD-01, SHP-07]
 shape:
-  fields: "member name, role, sessions, tokens, avg/session, for the selected range"
+  endpoint: "GET /api/overview/program-detail/{program_id}/team?range=7d|30d|90d (default 30d, via the shared _range_with_default wrapper around validate_range()) -- a fifth sibling on the existing overview router (prefix=/api/overview)"
+  response_model: "ProgramTeamResponse @ app/schemas/program_detail.py -- items: list[ProgramTeamRow]"
+  items: "list[ProgramTeamRow { member_name: str, role: str, sessions: int, tokens: int, avg_tokens_per_session: int }], field order locked (PGD-05-FR-2), no additional fields, ordered by tokens DESC. All three numeric fields are RAW ints -- the renderer owns M/K/B magnitude formatting (mirrors PGD-02, NOT PGD-03's pre-formatted-string precedent). avg_tokens_per_session is tokens/sessions rounded to nearest integer, computed server-side, never float."
+  data_source: "Two SELECTs, merged in Python by user_id/user (D-01, ADR-0016): (1) program_members filtered by program_id (identity: user_id, name, role); (2) usage_events filtered by program_id + ts>=range_start, grouped by user (sessions via COUNT(DISTINCT session_id), tokens via SUM(tokens)) -- backed by NEW index ix_usage_events_program_id_user_ts. A member with zero in-range usage_events is excluded from items (active-in-range contract, decision log (a))."
+  empty_behavior: "Zero active members in the selected range returns 200 {items: []} -- not an error (decision log (b))."
+  rbac: "program_visibility() open-aggregate veto gate (AUTH-03), called once with the real program_id; never filters by current_user.programs; byte-identical response across every persona (AC-6/AC-8)."
+  errors: "range outside {7d,30d,90d} -> HTTPException(400, 'invalid_range'); 401 if unauthenticated. No 404 -- program_visibility never checks existence, matching PGD-02/04."
+  popup_sibling_route: "GET /api/overview/program-detail/{program_id}/team/{member_id}/usage?range= -- NOT part of this contract's response shape; reuses personal-usage-api (docs/requirements/api.md#personal-usage-api) verbatim, gated by member_in_program_visibility (see that contract's authz_note). See PGD-05 DATA-DESIGN.md §9 for the popup route detail."
 ```
 
 ### program-session-series-api
