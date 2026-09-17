@@ -59,6 +59,9 @@ export async function fetchProgramTeam(
       { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
     );
 
+    if (response.status === 400) {
+      return { status: "invalid_range" };
+    }
     if (response.status === 401) {
       return { status: "unauthorized" };
     }

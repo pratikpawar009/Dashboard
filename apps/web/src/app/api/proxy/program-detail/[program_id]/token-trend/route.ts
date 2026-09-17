@@ -49,6 +49,8 @@ export async function GET(
         return NextResponse.json(result.data);
       case "not_found":
         return NextResponse.json({ error: "not_found" }, { status: 404 });
+      case "invalid_range":
+        return NextResponse.json({ error: "invalid_range" }, { status: 400 });
       case "unauthorized":
         return NextResponse.json({ error: "session_expired" }, { status: 401 });
       case "error":

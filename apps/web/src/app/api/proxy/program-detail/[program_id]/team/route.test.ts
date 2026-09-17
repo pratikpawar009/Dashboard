@@ -164,6 +164,19 @@ describe("GET /api/proxy/program-detail/[program_id]/team", () => {
     expect(await response.json()).toEqual(SAMPLE_DATA);
   });
 
+  it("maps status 'invalid_range' to 400 {error: 'invalid_range'} -- a caller mistake, never a 502", async () => {
+    installFaithfulCallWithAuth();
+    (fetchProgramTeam as Mock).mockResolvedValue({ status: "invalid_range" });
+
+    const response = await GET(buildRequest("bogus"), buildParams());
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_range" });
+    // AF-05: the API's explicit 400 invalid_range must not be collapsed into the
+    // generic 502 upstream_error, which would report a caller mistake as an outage.
+    expect(response.status).not.toBe(502);
+  });
+
   it("maps status 'unauthorized' to 401 {error: 'session_expired'} via the isUnauthorized predicate", async () => {
     installFaithfulCallWithAuth();
     (fetchProgramTeam as Mock).mockResolvedValue({

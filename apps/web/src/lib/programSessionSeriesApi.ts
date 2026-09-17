@@ -65,6 +65,9 @@ export async function fetchProgramSessionSeries(
     if (response.status === 403) {
       return { status: "denied" };
     }
+    if (response.status === 400) {
+      return { status: "invalid_range" };
+    }
     if (response.status === 401) {
       return { status: "unauthorized" };
     }

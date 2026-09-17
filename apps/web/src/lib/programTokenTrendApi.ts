@@ -53,6 +53,9 @@ export async function fetchProgramTokenTrend(
     if (response.status === 404) {
       return { status: "not_found" };
     }
+    if (response.status === 400) {
+      return { status: "invalid_range" };
+    }
     if (response.status === 401) {
       return { status: "unauthorized" };
     }

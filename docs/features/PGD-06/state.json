@@ -175,6 +175,20 @@
       "decided_by": "pawar.pratik0903@gmail.com",
       "decided_at": "2026-09-17T15:36:38Z",
       "rationale": "N/A confirmed - PGD-06 ships no component or page (D-05, proxy-only) so there is no new rendered surface to mount; the backend route was live-verified (200 + correct zero-padded series + program_drilldown log). E2E is covered at /arh-validate-feature by design."
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "inconsistency",
+      "summary": "Proxy collapsed the API's explicit 400 invalid_range into 502 upstream_error; affected all five range-taking proxies, four already merged",
+      "source": "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.ts:65",
+      "task_id": null,
+      "raised_at": "2026-09-17T17:31:29Z",
+      "raised_by": "orchestrator (live pre-merge verification)",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T17:31:29Z",
+      "rationale": "FIXED. User instructed fixing real issues regardless of originating story. Added an invalid_range member to all 5 result unions, mapped 400->invalid_range in each fetcher and invalid_range->400 in each proxy, with one mutation-verified regression test per proxy. Verified live on all five. Deliberately touches 4 already-merged sibling proxies so PGD-06 is not left the inconsistent one."
     }
   ],
   "validation": "2026-09-17 P=17/17",
@@ -190,9 +204,11 @@
     "high": 0,
     "medium": 0,
     "low": 2,
-    "tool_missing": ["pip-audit"]
+    "tool_missing": [
+      "pip-audit"
+    ]
   },
   "security_report": "docs/features/PGD-06/SECURITY-20260917-1730.md",
   "phase": "security-reviewed",
-  "last_updated": "2026-09-17T17:30:00Z"
+  "last_updated": "2026-09-17T17:31:29Z"
 }
