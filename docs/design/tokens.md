@@ -49,6 +49,16 @@ all four mockups.
 | Product Manager | `product-manager` | `#d97757` | `#fdefe9` |
 | Eng Manager | `engineering-manager` | `#1f8a5b` | `#eaf6ef` |
 
+Added 2026-09-17 (PGD-05, `DESIGN.md` § "Avatar colour and initials") from the Program Detail
+mockup's project-team-panel avatar circles — the one persona color absent from the ARC/DEV/PMD/EMD
+set above. No tag-pill background is recorded because this role does not appear in the
+persona-tag-pill mockups the table above was extracted from; only the avatar/circle color is
+sourced.
+
+| Persona | Persona key | Tag / avatar color | Tag pill background |
+|---|---|---|---|
+| QA Engineer | `qa-engineer` | `#d1495b` | N/A — not present in the persona-tag mockups |
+
 ### Program type colors
 
 Extracted 2026-09-03 (SHP-01, `DECISIONS.md` D-04) from the Engineering Manager mockup's `tMap` —
@@ -94,12 +104,23 @@ its two roles — legend swatch vs. bar-segment background — matching the mock
 
 ## Radius
 
-`16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px` brand mark · `8px`
-controls · `6px` chips · `4px` · `2px` dots · `50%` avatars.
+`18px` modal panel · `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px`
+brand mark · `8px` controls · `6px` chips · `4px` · `2px` dots · `50%` avatars.
+
+`18px` added 2026-09-17 (PGD-05 T-16, `DESIGN.md` § Token gaps) from the EMD popup panel — the
+system's only modal, one radius step above the `16px` card token.
 
 ## Elevation
 
-One shadow only: `0 1px 2px rgba(15,26,46,.04)` on cards. The design is border-led, not shadow-led.
+Two shadows: `0 1px 2px rgba(15,26,46,.04)` on cards, and `0 24px 60px rgba(15,26,46,.28)` on a
+modal panel. The design is border-led, not shadow-led — the modal shadow is the one legitimate
+exception, added 2026-09-17 (PGD-05 T-16, `DESIGN.md` § Token gaps) from the EMD popup panel.
+
+## Overlay
+
+Modal overlay scrim: `rgba(15,26,46,.42)` — the Ink token (`#0f1a2e`) at 42% opacity. Added
+2026-09-17 (PGD-05 T-16, `DESIGN.md` § Token gaps) from the EMD popup overlay; no other surface in
+the system uses a scrim.
 
 ## Layout
 

@@ -1,0 +1,230 @@
+.section {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: #7a828f;
+  font-weight: 500;
+  margin-top: 3px;
+}
+
+.toggleTrack {
+  display: flex;
+  flex: none;
+  background: #eef0f3;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  color: #7a828f;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.toggleButtonActive {
+  background: #fff;
+  color: #151a22;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.columnHeaders {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
+  padding: 11px 22px;
+  background: #fafbfc;
+  font-size: 10.8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #a2abb8;
+  letter-spacing: 0.5px;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
+  align-items: center;
+  width: 100%;
+  padding: 13px 22px;
+  border-bottom: 1px solid #f4f5f7;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* DESIGN.md § 2.1 row trigger states -- EMD precedent for hover, [NEW] for
+   focus-visible/pressed. */
+.row:hover {
+  background: #f7f9fb;
+}
+
+.row:focus-visible {
+  outline: 2px solid #2a6fdb;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.row:active {
+  background: #f2f4f7;
+}
+
+.memberCell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.memberName {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #5b6472;
+}
+
+.row > .alignRight {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tokens {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.avg {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.skeletonCell {
+  height: 14px;
+  border-radius: 4px;
+  background: #f5f6f8;
+}
+
+.skeletonAvatarCell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.skeletonAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
+  background: #f5f6f8;
+}
+
+.errorPanel {
+  padding: 32px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #7a828f;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.emptyPanel {
+  padding: 32px 22px;
+  text-align: center;
+  color: #7a828f;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.retryButton {
+  border: 1px solid #e4e7ec;
+  background: #fff;
+  color: #151a22;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* NFR-008: coarse-pointer touch target, matching ReleasesList.module.css /
+   DailyTokenTrendChart.module.css. */
+@media (pointer: coarse) {
+  .toggleButton {
+    padding: 11px 14px;
+  }
+}

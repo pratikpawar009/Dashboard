@@ -37,10 +37,19 @@ class PersonalUsageCard(BaseModel):
 
 
 class DailyTokenPoint(BaseModel):
-    """One day's point in the daily token series (ADR-0009, SHP-02-FR-2)."""
+    """One day's point in the daily token series (ADR-0009, SHP-02-FR-2; amended 2026-09-17).
+
+    `tokens` is a raw int alongside the pre-formatted `value` -- the same "computation input"
+    exception `CommandEntry.count` already documents above: a consumer that needs to compute with
+    the number (here, plot it) gets a real int; `value` stays the display string. Additive only,
+    per the ADR-0009 amendment (docs/adr/0009-personal-usage-api-response-shape.md).
+    """
 
     date: str = Field(..., description="ISO calendar date for this point")
     value: str = Field(..., description="Pre-formatted token total for this day")
+    tokens: int = Field(
+        ..., description="Raw token total for this day, not pre-formatted (ADR-0009 amendment)"
+    )
 
 
 class DailyTokenSeries(BaseModel):

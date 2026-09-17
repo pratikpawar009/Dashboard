@@ -38,6 +38,13 @@ class UsageEvent(Base):
         Index("ix_usage_events_program_id_command", "program_id", "command"),
         Index("ix_usage_events_program_id_session_id", "program_id", "session_id"),
         Index("ix_usage_events_user_ts", "user", "ts"),
+        # PGD-05 (migration 008, DECISIONS.md D-02, ADR-0016): composite index
+        # supporting fetch_program_team()'s range-scoped aggregate
+        # (`WHERE program_id = :pid AND ts >= :range_start GROUP BY "user"`),
+        # which the existing program_id+user and program_id+ts indexes each
+        # only partially cover. Declared here as well as in the migration for
+        # the same schema-diff-gate reason as the covering index below.
+        Index("ix_usage_events_program_id_user_ts", "program_id", "user", "ts"),
         # BED-05 (migration 004, DECISIONS.md D-06): covering index that turns
         # `_build_org_summary`'s aggregate into an Index Only Scan. Declared here as
         # well as in the migration because this project's schema-diff gate

@@ -1063,7 +1063,8 @@
         "index(program_id, command)",
         "index(program_id, session_id)",
         "index(user, ts)",
-        "index(program_id)"
+        "index(program_id)",
+        "index(program_id, user, ts)"
       ]
     },
     "ingest_tokens": {

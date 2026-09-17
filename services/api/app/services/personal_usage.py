@@ -98,17 +98,23 @@ def _zero_padded_points(
     """Pure helper (no DB): one point per day, for the `num_days` trailing calendar days ending
     on `now`'s UTC date (inclusive), oldest-to-newest.
 
-    A day absent from `totals_by_day` (no sessions that day) gets `value=format_number(0)='0'`.
-    Produces exactly `num_days` points (ADR-0009) -- verified against SHP-02-TC-01, where the
-    request's own day (`days_ago=0`) is the newest/last point and `days_ago=num_days-1` is the
-    oldest/first.
+    A day absent from `totals_by_day` (no sessions that day) gets `value=format_number(0)='0'`
+    and `tokens=0`. Produces exactly `num_days` points (ADR-0009) -- verified against
+    SHP-02-TC-01, where the request's own day (`days_ago=0`) is the newest/last point and
+    `days_ago=num_days-1` is the oldest/first.
+
+    `tokens` (ADR-0009 amendment, AF-05) is the same raw total `value` formats -- populated
+    directly from `totals_by_day`, never re-derived from the formatted string.
     """
     today = now.date()
     points: list[DailyTokenPoint] = []
     for offset in range(num_days - 1, -1, -1):
         day = today - timedelta(days=offset)
+        day_total = totals_by_day.get(day, 0)
         points.append(
-            DailyTokenPoint(date=day.isoformat(), value=format_number(totals_by_day.get(day, 0)))
+            DailyTokenPoint(
+                date=day.isoformat(), value=format_number(day_total), tokens=day_total
+            )
         )
     return points
 

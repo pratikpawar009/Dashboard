@@ -65,3 +65,38 @@ class ProgramTokenTrendResponse(BaseModel):
     avg_per_day: int = Field(
         ..., description="Raw average tokens per day across the range (fixed day-count divisor)"
     )
+
+
+class ProgramTeamRow(BaseModel):
+    """One active-in-range team member row (PGD-05-FR-2/D-06, field order locked).
+
+    All three numeric fields are RAW ints -- mirrors `ProgramTokenTrendResponse` above, NOT
+    `program_releases.py`'s pre-formatted strings; the renderer owns M/K/B formatting
+    (DECISIONS.md D-01 context). `avg_tokens_per_session` is computed server-side
+    (`round(tokens / sessions)`), never a float on the wire.
+
+    `member_id` (D-06, amending FR-2/C-4) is placed FIRST -- identity precedes display
+    attributes, matching `fetch_program_team()`'s own merge order (roster identity fields read
+    before the metrics are attached) and the `.../team/{member_id}/usage` sibling route's own
+    path-parameter naming. See `docs/features/PGD-05/DECISIONS.md` D-06 / Q-01.
+    """
+
+    member_id: str = Field(..., description="Roster identity id (program_members.user_id)")
+    member_name: str = Field(..., description="Roster identity name (program_members.name)")
+    role: str = Field(..., description="Roster role (program_members.role)")
+    sessions: int = Field(..., description="Distinct session count in the selected range")
+    tokens: int = Field(..., description="Raw token total in the selected range")
+    avg_tokens_per_session: int = Field(
+        ..., description="round(tokens / sessions), computed server-side, never a float"
+    )
+
+
+class ProgramTeamResponse(BaseModel):
+    """Response envelope for GET /api/overview/program-detail/{program_id}/team (PGD-05-FR-2).
+
+    `items` excludes any roster member with zero in-range `usage_events` (active-in-range
+    contract, DECISIONS.md D-01) -- zero active members yields `{items: []}`, never an error.
+    Ordered descending by `tokens`.
+    """
+
+    items: list[ProgramTeamRow]
