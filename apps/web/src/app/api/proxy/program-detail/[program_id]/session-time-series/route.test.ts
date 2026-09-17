@@ -2,38 +2,38 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 
 import type {
-  ProgramTokenTrendData,
-  ProgramTokenTrendResult,
-} from "@/types/programTokenTrend";
+  SessionSeriesData,
+  SessionSeriesResult,
+} from "@/types/programSessionSeries";
 
 /**
  * `route.ts` (T-10) unit tests -- mirrors
- * `apps/web/src/app/api/proxy/program-detail/[program_id]/route.test.ts`
- * (T-13/AUTH-05-AC-10) exactly: mocking strategy, faithful `callWithAuth`
- * fake, direct `GET()` invocation against a constructed `Request`/`params`
- * Promise.
+ * `apps/web/src/app/api/proxy/program-detail/[program_id]/token-trend/route.test.ts`
+ * exactly: mocking strategy, faithful `callWithAuth` fake, direct `GET()`
+ * invocation against a constructed `Request`/`params` Promise.
  *
- * `@/lib/tokenStore` and `@/lib/programTokenTrendApi` are both mocked at
+ * `@/lib/tokenStore` and `@/lib/programSessionSeriesApi` are both mocked at
  * their `@/*` alias paths (native `vitest` mocks only, no MSW).
  *
  * `callWithAuth` is mocked with a faithful fake -- it actually invokes the
- * supplied `makeRequest` (so `fetchProgramTokenTrend`'s call args are real)
- * and actually evaluates the supplied `isUnauthorized` predicate (so the
- * `(r) => r.status === "unauthorized"` wiring is exercised, not vacuous).
+ * supplied `makeRequest` (so `fetchProgramSessionSeries`'s call args are
+ * real) and actually evaluates the supplied `isUnauthorized` predicate (so
+ * the `(r) => r.status === "unauthorized"` wiring is exercised, not
+ * vacuous).
  *
  * `SessionExpiredError` is re-exported from the real `@/lib/tokenStore`
  * module via `vi.importActual` so the route's `error instanceof
  * SessionExpiredError` check matches the same class the test throws.
  *
- * F-01 (FLAGS.md): the 400->502 collapse (`fetchProgramTokenTrend`'s
- * `{status:"error"}` on any non-404/401 non-2xx response, rendered here as
- * 502 `upstream_error`) is a KNOWN, ACCEPTED behaviour for this endpoint --
- * tests below assert `error` -> 502 as shipped, not a wished-for 400
- * passthrough.
+ * The upstream route 403s when `member_in_program_visibility` denies a non-self
+ * `member_id`. That maps to `SessionSeriesResult`'s `denied` and is passed
+ * through as `403 {error:"denied"}` (AF-01, story AC-5) -- deliberately NOT
+ * collapsed into the generic `502 upstream_error`, so a consumer can tell a
+ * permission decision from an upstream outage. Covered below by its own case.
  */
 
-vi.mock("@/lib/programTokenTrendApi", () => ({
-  fetchProgramTokenTrend: vi.fn(),
+vi.mock("@/lib/programSessionSeriesApi", () => ({
+  fetchProgramSessionSeries: vi.fn(),
 }));
 
 vi.mock("@/lib/tokenStore", async () => {
@@ -47,7 +47,7 @@ vi.mock("@/lib/tokenStore", async () => {
   };
 });
 
-import { fetchProgramTokenTrend } from "@/lib/programTokenTrendApi";
+import { fetchProgramSessionSeries } from "@/lib/programSessionSeriesApi";
 import { callWithAuth, SessionExpiredError } from "@/lib/tokenStore";
 
 import { GET } from "./route";
@@ -55,18 +55,21 @@ import { GET } from "./route";
 const TEST_ACCESS_TOKEN = "test-access-token";
 const PROGRAM_ID = "prog-042";
 
-const SAMPLE_DATA: ProgramTokenTrendData = {
-  points: [{ date: "2026-09-01", tokens: 842 }],
-  period_total: 842,
-  avg_per_day: 121,
+const SAMPLE_DATA: SessionSeriesData = {
+  points: [{ date: "2026-09-01", session_time_seconds: 3600 }],
+  period_total_seconds: 3600,
+  avg_seconds_per_day: 120,
 };
 
-function buildRequest(range?: string): Request {
+function buildRequest(range?: string, memberId?: string): Request {
   const url = new URL(
-    `http://localhost:3000/api/proxy/program-detail/${PROGRAM_ID}/token-trend`,
+    `http://localhost:3000/api/proxy/program-detail/${PROGRAM_ID}/session-time-series`,
   );
   if (range !== undefined) {
     url.searchParams.set("range", range);
+  }
+  if (memberId !== undefined) {
+    url.searchParams.set("member_id", memberId);
   }
   return new Request(url);
 }
@@ -86,8 +89,8 @@ function buildParams(programId: string = PROGRAM_ID): {
 function installFaithfulCallWithAuth(): void {
   (callWithAuth as unknown as Mock).mockImplementation(
     async (
-      makeRequest: (accessToken: string) => Promise<ProgramTokenTrendResult>,
-      isUnauthorized: (result: ProgramTokenTrendResult) => boolean,
+      makeRequest: (accessToken: string) => Promise<SessionSeriesResult>,
+      isUnauthorized: (result: SessionSeriesResult) => boolean,
     ) => {
       const result = await makeRequest(TEST_ACCESS_TOKEN);
       if (isUnauthorized(result)) {
@@ -98,24 +101,27 @@ function installFaithfulCallWithAuth(): void {
   );
 }
 
-describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
+describe("GET /api/proxy/program-detail/[program_id]/session-time-series", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
   it("forwards an absent range as undefined, not the literal string 'undefined' (AC-1)", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "ok",
       data: SAMPLE_DATA,
     });
 
     await GET(buildRequest(), buildParams());
 
-    expect(fetchProgramTokenTrend).toHaveBeenCalledWith(PROGRAM_ID, undefined, {
-      accessToken: TEST_ACCESS_TOKEN,
-    });
-    const [, range] = (fetchProgramTokenTrend as Mock).mock.calls[0] as [
+    expect(fetchProgramSessionSeries).toHaveBeenCalledWith(
+      PROGRAM_ID,
+      undefined,
+      undefined,
+      { accessToken: TEST_ACCESS_TOKEN },
+    );
+    const [, range] = (fetchProgramSessionSeries as Mock).mock.calls[0] as [
       string,
       string | undefined,
     ];
@@ -124,35 +130,73 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
 
   it("forwards a present range unchanged", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "ok",
       data: SAMPLE_DATA,
     });
 
     await GET(buildRequest("90d"), buildParams());
 
-    expect(fetchProgramTokenTrend).toHaveBeenCalledWith(PROGRAM_ID, "90d", {
-      accessToken: TEST_ACCESS_TOKEN,
+    expect(fetchProgramSessionSeries).toHaveBeenCalledWith(
+      PROGRAM_ID,
+      "90d",
+      undefined,
+      { accessToken: TEST_ACCESS_TOKEN },
+    );
+  });
+
+  it("omits member_id upstream when absent, not as an empty/undefined string", async () => {
+    installFaithfulCallWithAuth();
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
+      status: "ok",
+      data: SAMPLE_DATA,
     });
+
+    await GET(buildRequest("30d"), buildParams());
+
+    const [, , memberId] = (fetchProgramSessionSeries as Mock).mock
+      .calls[0] as [string, string | undefined, string | undefined];
+    expect(memberId).toBeUndefined();
+    expect(memberId).not.toBe("undefined");
+  });
+
+  it("forwards a present member_id unchanged", async () => {
+    installFaithfulCallWithAuth();
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
+      status: "ok",
+      data: SAMPLE_DATA,
+    });
+
+    await GET(buildRequest("30d", "user-9"), buildParams());
+
+    expect(fetchProgramSessionSeries).toHaveBeenCalledWith(
+      PROGRAM_ID,
+      "30d",
+      "user-9",
+      { accessToken: TEST_ACCESS_TOKEN },
+    );
   });
 
   it("awaits params and forwards the resolved program_id plus the resolved access token", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "ok",
       data: SAMPLE_DATA,
     });
 
     await GET(buildRequest(), buildParams("prog-777"));
 
-    expect(fetchProgramTokenTrend).toHaveBeenCalledWith("prog-777", undefined, {
-      accessToken: TEST_ACCESS_TOKEN,
-    });
+    expect(fetchProgramSessionSeries).toHaveBeenCalledWith(
+      "prog-777",
+      undefined,
+      undefined,
+      { accessToken: TEST_ACCESS_TOKEN },
+    );
   });
 
-  it("maps status 'ok' to 200 with the bare ProgramTokenTrendData body (no envelope)", async () => {
+  it("maps status 'ok' to 200 with the bare SessionSeriesData body (no envelope)", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "ok",
       data: SAMPLE_DATA,
     });
@@ -163,21 +207,29 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
     expect(await response.json()).toEqual(SAMPLE_DATA);
   });
 
-  it("maps status 'not_found' to 404 {error: 'not_found'}", async () => {
+  it("maps status 'denied' to 403 {error: 'denied'} -- a denied non-self member_id stays a denial, never a 502", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
-      status: "not_found",
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
+      status: "denied",
     });
 
-    const response = await GET(buildRequest(), buildParams());
+    const response = await GET(buildRequest("30d", "user-9"), buildParams());
 
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "not_found" });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "denied" });
+    // AF-01/AC-5: the denial must be distinguishable from an upstream outage,
+    // so it must NOT surface as the 502 the generic "error" branch returns.
+    expect(response.status).not.toBe(502);
+    // A denial is terminal, not a refresh-and-retry case: the isUnauthorized
+    // predicate is false for "denied", so callWithAuth must not retry.
+    expect(fetchProgramSessionSeries).toHaveBeenCalledTimes(1);
   });
 
   it("maps status 'invalid_range' to 400 {error: 'invalid_range'} -- a caller mistake, never a 502", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({ status: "invalid_range" });
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
+      status: "invalid_range",
+    });
 
     const response = await GET(buildRequest("bogus"), buildParams());
 
@@ -186,11 +238,13 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
     // AF-05: the API's explicit 400 invalid_range must not be collapsed into the
     // generic 502 upstream_error, which would report a caller mistake as an outage.
     expect(response.status).not.toBe(502);
+    // A bad range is terminal -- refreshing the token cannot fix it, so no retry.
+    expect(fetchProgramSessionSeries).toHaveBeenCalledTimes(1);
   });
 
   it("maps status 'unauthorized' to 401 {error: 'session_expired'} via the isUnauthorized predicate", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "unauthorized",
     });
 
@@ -200,14 +254,14 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
     expect(await response.json()).toEqual({ error: "session_expired" });
     // Faithful fake retries once on isUnauthorized -- proves the predicate
     // the route passed in was actually evaluated, not ignored.
-    expect(fetchProgramTokenTrend).toHaveBeenCalledTimes(2);
+    expect(fetchProgramSessionSeries).toHaveBeenCalledTimes(2);
   });
 
-  it("maps status 'error' to 502 {error: 'upstream_error'} -- includes the F-01 400-collapse case as shipped", async () => {
+  it("maps status 'error' to 502 {error: 'upstream_error'} -- a genuine upstream failure, distinct from the 403 denial case above", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({ status: "error" });
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({ status: "error" });
 
-    const response = await GET(buildRequest(), buildParams());
+    const response = await GET(buildRequest("30d", "user-9"), buildParams());
 
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "upstream_error" });
@@ -237,7 +291,7 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
 
   it("never lets the access token reach the browser -- no Authorization response header, no token in the body", async () => {
     installFaithfulCallWithAuth();
-    (fetchProgramTokenTrend as Mock).mockResolvedValue({
+    (fetchProgramSessionSeries as Mock).mockResolvedValue({
       status: "ok",
       data: SAMPLE_DATA,
     });
@@ -245,9 +299,12 @@ describe("GET /api/proxy/program-detail/[program_id]/token-trend", () => {
     const response = await GET(buildRequest(), buildParams());
 
     // Sentinel token flows into the mocked upstream call...
-    expect(fetchProgramTokenTrend).toHaveBeenCalledWith(PROGRAM_ID, undefined, {
-      accessToken: TEST_ACCESS_TOKEN,
-    });
+    expect(fetchProgramSessionSeries).toHaveBeenCalledWith(
+      PROGRAM_ID,
+      undefined,
+      undefined,
+      { accessToken: TEST_ACCESS_TOKEN },
+    );
     // ...but never into any response header or body. If route.ts ever
     // echoed the token (e.g. into a header or the JSON body), this
     // assertion would fail.

@@ -35,4 +35,8 @@ export type ProgramCommandsResult =
   | { status: "ok"; data: ProgramCommandsData }
   | { status: "not_found" }
   | { status: "unauthorized" }
+  // `invalid_range` (AF-05) is kept distinct from `error`: the API returns an explicit
+  // `400 invalid_range` for a range outside {7d,30d,90d}, and collapsing that into a
+  // generic failure reports a caller mistake as an upstream outage.
+  | { status: "invalid_range" }
   | { status: "error" };

@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-06",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-17T21:00:00+00:00",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/services/program_session_series.py",
+      "reason": "fetch_program_session_series() -- org-wide cross-member SUM (no member_id filter) or member-scoped SELECT over session_series, zero-padded, raw-int period_total_seconds/avg_seconds_per_day (DECISIONS.md D-01/D-02/D-03)"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/schemas/program_session_series.py",
+      "reason": "SessionPoint { date, session_time_seconds } + SessionSeriesResponse { points, period_total_seconds, avg_seconds_per_day } (PGD-06-FR-2)"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "register GET /api/overview/program-detail/{program_id}/session-time-series as an eighth sibling route (entry-registration site for F-01/F-02); program_visibility + member_in_program_visibility gates, _range_with_default, structured logging (DECISIONS.md D-04)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_session_series_service.py",
+      "reason": "service-level unit tests: TC-01 (cross-member SUM), TC-02 (raw-int types), TC-04/TC-05 (zero-padding), TC-06/TC-07 (avg divisor, differential-range), TC-13 (soft-deleted member regression)"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_session_series_route.py",
+      "reason": "route-level integration tests: TC-03 (unknown program 200 not 404), TC-08 (gate-before-query structural spy + member_view_denied log), TC-09/TC-10 (RBAC pass paths), TC-11 (invalid range 400), TC-12 (401), TC-14/TC-15 (range default/differential at API layer), TC-16 (program_drilldown log fields)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_session_series_perf.py",
+      "reason": "TC-17: seeded >=50 members / >=5000 rows over 90 days, wall-clock <2000ms per range, query-count spy asserting exactly one aggregate query per request -- mirrors test_program_team_perf.py"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill program-session-series-api's produced_by sketch with the concrete shipped shape (already done at plan-authoring time -- this task verifies/finalizes wording against the implemented route)"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/overview/program-detail/{program_id}/session-time-series row to the API table (Docs T2): raw-int shape, no-404 empty behaviour, corrected no-null-member_id data-source note"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/types/programSessionSeries.ts",
+      "reason": "SessionPointData/SessionSeriesData/SessionSeriesResult TS types mirroring programTokenTrend.ts"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/lib/programSessionSeriesApi.ts",
+      "reason": "server-only fetchProgramSessionSeries() targeting FastAPI directly (mirrors programTokenTrendApi.ts pattern), forwards range + optional member_id"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.ts",
+      "reason": "Next.js proxy Route Handler (ADR-0008), mirrors token-trend/route.ts exactly -- callWithAuth retry-once, range + member_id passthrough, status mapping"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.test.ts",
+      "reason": "proxy route unit tests: status mapping, range/member_id passthrough (absent -> undefined not literal string), no-token-leak -- mirrors token-trend/route.test.ts"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add fetch_program_session_series() service + SessionSeriesResponse schema",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01",
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-06-FR-1",
+        "PGD-06-FR-2",
+        "PGD-06-FR-3",
+        "PGD-06-FR-4",
+        "PGD-06-FR-5"
+      ],
+      "risk_refs": [
+        "R-1",
+        "R-2",
+        "R-4",
+        "R-5"
+      ],
+      "notes": "fetch_program_session_series(db, program_id, member_id, range_value): when member_id is None, SELECT date, SUM(session_time_seconds) FROM session_series WHERE program_id=:pid AND date>=:range_start GROUP BY date (cross-member SUM, D-01) -- never member_id IS NULL. When member_id is provided, add AND member_id=:member_id to the same shape. Zero-pad to num_days entries oldest-to-newest (mirror _zero_padded_points from program_detail_token_trend.py, adapted field names). period_total_seconds = sum of query totals; avg_seconds_per_day = round(period_total_seconds / num_days), fixed range day-count divisor (D-04). No filter on org_id (D-03) or program_roster/removed_at (C-4) anywhere in the query. Docstring notes the org-wide view is a cross-member aggregate, not a null-member_id read (Documentation requirements) and the session_series freshness dependency on BED-03's rebuild_program_rollups() (R-1).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:04:49Z",
+      "files_touched": [
+        "services/api/app/services/program_session_series.py",
+        "services/api/app/schemas/program_session_series.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Register GET /api/overview/program-detail/{program_id}/session-time-series on the overview router",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1",
+        "PGD-06-AC-2",
+        "PGD-06-AC-3",
+        "PGD-06-AC-5",
+        "PGD-06-AC-6",
+        "PGD-06-AC-7"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "Eighth sibling route. range: str = Depends(_range_with_default); member_id: str | None = Query(None). Calls await program_visibility(current_user, program_id) once (open-aggregate veto). When member_id is not None, calls await member_in_program_visibility(current_user, program_id, member_id) BEFORE fetch_program_session_series is invoked (FR-6, mirrors PGD-05's /team/{member_id}/usage call order exactly) -- a 403 here means zero session_series queries run. No program_summary existence lookup, no 404 (matches token-trend/commands/team, not releases). Emits one program_drilldown structured log (method, path, program_id, range, status, latency_ms) via time.perf_counter() on the 200 path only, mirroring program_team_fetched/program_commands_fetched.",
+      "status": "done",
+      "completed_at": "2026-09-17T14:08:38Z",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Service-level unit tests: aggregation, raw-int types, zero-padding, avg divisor, soft-deleted member",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-06-FR-1",
+        "PGD-06-FR-2",
+        "PGD-06-FR-4",
+        "PGD-06-FR-5"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-4",
+        "R-5"
+      ],
+      "notes": "TC-01 (two members' same-day rows SUM to the combined total, proving cross-member aggregate not member_id IS NULL), TC-02 (points[].session_time_seconds/period_total_seconds/avg_seconds_per_day are Python int, never str), TC-04 (7/30/90 exact point counts, sparse-data zero-padding), TC-05 (all-quiet program returns full all-zero series), TC-06 (avg = total/30, not total/count-of-days-with-data), TC-07 (7d vs 30d differential avg with identical period_total), TC-13 (member with program_roster.removed_at populated still contributes historical session_time_seconds to the org-wide sum -- assert the query issues no join/filter against program_roster).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:08:38Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_session_series_service.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Route-level integration + security tests: RBAC gates, range validation, no-404, observability",
+      "complexity": "L",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-06-FR-3",
+        "PGD-06-FR-6",
+        "PGD-06-AC-1",
+        "PGD-06-AC-2",
+        "PGD-06-AC-3",
+        "PGD-06-AC-5",
+        "PGD-06-AC-6",
+        "PGD-06-AC-7"
+      ],
+      "risk_refs": [
+        "R-2",
+        "R-6"
+      ],
+      "notes": "TC-03 (unknown program_id -> 200 all-zero series, explicitly asserted NOT 404), TC-08 (query-execution spy/mock on the session_series query path -- as a non-self non-cio requester with ?member_id=<other>, assert zero query invocations and a member_view_denied log entry, mirroring AUTH-03's own member_in_program_visibility TC-10 pattern), TC-09 (self-filtered member_id succeeds via program_visibility alone), TC-10 (unfiltered request byte-identical across personas regardless of membership), TC-11 (invalid range -> exactly 400 invalid_range, never 422), TC-12 (missing/invalid bearer -> 401), TC-14 (omitted range defaults to 30d, byte-identical to explicit ?range=30d), TC-15 (7d/30d/90d each return their own window/length), TC-16 (program_drilldown log entry with method/path/program_id/range/status/latency_ms on the 200 path).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:13:02Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_session_series_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Performance test: single aggregate query + <=2s at seeded volume",
+      "complexity": "M",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-06-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-4"
+      ],
+      "notes": "TC-17: seed >=50 members and >=5000 session_series rows across 90 days for one program; assert wall-clock latency <2000ms for each of range=7d/30d/90d (unfiltered) and range=30d&member_id=<self> (self-filtered); assert via a query-count spy (SQLAlchemy event listener, mirroring test_program_team_perf.py/test_program_releases_perf.py) that exactly one session_series aggregate query is issued per request, no N+1.",
+      "status": "done",
+      "completed_at": "2026-09-17T14:16:01Z",
+      "files_touched": [
+        "services/api/tests/perf/test_program_session_series_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Finalize program-session-series-api contract shape in docs/requirements/api.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Verify the sketch already filled at plan-authoring time (this PLAN's own edit) matches the implemented route exactly -- endpoint, response_model, field types/order, data_source (cross-member SUM, no org_id filter, no new index), empty_behavior, rbac (gate-before-query ordering), errors. Correct any drift discovered during implementation. Per plan-authoring step 10 -- the authoritative spec EMD-01 builds against.",
+      "status": "done",
+      "completed_at": "2026-09-17T14:13:02Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "docs(readme): add session-time-series endpoint row to README API table",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Docs T2 trigger (new HTTP route). Row documents: bearer auth + optional ?range=&member_id=, 200 SessionSeriesResponse shape (raw-int seconds), no-404 empty behaviour matching token-trend/commands/team, the corrected 'no null-member_id row -- cross-member SUM' data-source note, and the gate-before-query member_in_program_visibility ordering for a non-self member_id. Matches the existing table's prose density (mirrors the /team row's style).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:13:02Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Add TS wire types for the session-time series",
+      "complexity": "S",
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "SessionPointData { date: string, session_time_seconds: number }, SessionSeriesData { points: SessionPointData[], period_total_seconds: number, avg_seconds_per_day: number }, SessionSeriesResult status union ({status:'ok',data}|{status:'not_found'}|{status:'unauthorized'}|{status:'error'}) mirroring programTokenTrend.ts (not_found kept for exhaustiveness with the shared result-union pattern even though the backend never returns it, same as the token-trend proxy's own precedent).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:13:02Z",
+      "files_touched": [
+        "apps/web/src/types/programSessionSeries.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "Add server-only fetchProgramSessionSeries() fetcher",
+      "complexity": "S",
+      "predecessors": [
+        "T-08"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors programTokenTrendApi.ts's fetchProgramTokenTrend: getApiBaseUrl() + optional Authorization header, 5000ms AbortSignal timeout, forwards range (default '30d') and an optional member_id query param, status mapping (404->not_found, 401->unauthorized, non-ok->error).",
+      "status": "done",
+      "completed_at": "2026-09-17T14:16:01Z",
+      "files_touched": [
+        "apps/web/src/lib/programSessionSeriesApi.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Add Next.js proxy route for the session-time-series endpoint",
+      "complexity": "M",
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-11",
+        "F-12"
+      ],
+      "ac_refs": [
+        "PGD-06-AC-1",
+        "PGD-06-AC-2",
+        "PGD-06-AC-3"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors token-trend/route.ts exactly: callWithAuth retry-once, range + member_id passthrough (both absent -> undefined, not the literal string 'undefined'), status mapping incl. 401 session_expired and 502 upstream_error. Includes unit tests (F-12): status mapping, range/member_id passthrough, no-token-leak -- mirrors token-trend/route.test.ts.",
+      "status": "done",
+      "completed_at": "2026-09-17T14:19:49Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.ts",
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.test.ts"
+      ],
+      "reason": null
+    }
+  ]
+}

@@ -1,0 +1,214 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "needs_clarification_count": 0,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "research_score": 87,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#28",
+  "tracker_research": "pratikpawar009/Dashboard#448",
+  "prd": "complete",
+  "design": "n/a",
+  "design_artifact": null,
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "tracker_prd": "pratikpawar009/Dashboard#449",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/PGD-06/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/PGD-06/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/PGD-06/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "plan": "complete",
+  "plan_artifact": "docs/features/PGD-06/PLAN.md",
+  "tracker_plan": "pratikpawar009/Dashboard#465",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-17T15:45:31Z",
+    "rounds": 2,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-06/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T15:45:31Z",
+        "round": 2
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-06/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T15:45:31Z",
+        "detail": "round 2: frontend 298/298 across 41 files (the AF-01 fix replaced the not_found proxy test with a denied->403 test, so the count is unchanged); the new test was mutation-verified (reverting the mapping to 502 fails it). Backend unchanged from round 1: full suite 815 passed / 17 deselected (perf opt-in), PGD-06 perf 4/4.",
+        "round": 2
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-06/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T15:45:31Z",
+        "detail": "ruff: All checks passed. eslint: 0 errors, 3 pre-existing warnings (ProgramDetailView.test.tsx:59, ProgramDetailView.authFlow.test.tsx:129,157 \u2014 unrelated to PGD-06, carried forward, exit 0)",
+        "round": 2
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-04",
+        "ran_at": "2026-09-17T14:31:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2 (api)",
+            "status": "PASS",
+            "command": "uv run alembic upgrade head; uv run uvicorn app.main:app --port 8000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-06/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "detail": "8 migrations applied cleanly against ephemeral dashboard_test_pgd06evidence DB (docker dashboard-dev5442:5442, dropped after check); /health 200; new route GET /api/overview/program-detail/{id}/session-time-series exercised live via dev-bypass token, returned 200 with correctly zero-padded 7-day series for an unknown program_id, matching contract"
+          },
+          {
+            "stack": "nextjs (web)",
+            "status": "PASS",
+            "command": "pnpm -C apps/web dev --port 3000",
+            "exit_code": 0,
+            "evidence_path": "docs/features/PGD-06/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "detail": "GET / 307 (unauthenticated redirect, expected), GET /login 200 after redirect; Playwright installed as a devDependency but no browser binaries downloaded locally (deferred to /arh-validate-feature per project-commands.yaml preflight comment) \u2014 render-mount check could not run, boot-only evidence recorded, AF-04 raised for human eyeball of the running app"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/PGD-06/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-17T15:45:31Z",
+        "detail": "round 2: clean build, exit 0, Compiled successfully in 1790ms; the session-time-series proxy route appears in the build output. Round 1's stale-.next-cache FAIL did not recur.",
+        "round": 2
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-03",
+        "ran_at": null
+      }
+    },
+    "round_2_note": "Round 2 re-ran the frontend-affecting dimensions after the AF-01/AF-02 triage fixes (accept verdicts, applied pre-commit). AF-01 changed 4 frontend files: SessionSeriesResult gained `denied` and dropped the unused `not_found`; fetcher maps 403->denied; proxy maps denied->403 {error:'denied'}, matching PGD-05's shipped personal-usage proxy. AF-02 corrected PLAN.md's F-06 -> F-03. Backend was untouched, so its round-1 evidence stands."
+  },
+  "agent_flags": [
+    {
+      "flag_id": "AF-01",
+      "kind": "risky-pattern",
+      "summary": "Proxy collapses an upstream 403 (denied non-self member_id) into 502 upstream_error; SessionSeriesResult has no `denied` variant, diverging from PGD-05's deliberate 403->denied mapping",
+      "source": "apps/web/src/types/programSessionSeries.ts:31",
+      "task_id": "T-10",
+      "raised_at": "2026-09-17T15:36:38Z",
+      "raised_by": "orchestrator (from T-10 implementation note)",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T15:36:38Z",
+      "rationale": "Fix this session before commit-PR: add `denied` to SessionSeriesResult, map 403->denied in fetchProgramSessionSeries, denied->403 in the proxy route, drop the unused `not_found` variant, and add denied-path tests. Plan amendment reopening T-08/T-09."
+    },
+    {
+      "flag_id": "AF-02",
+      "kind": "inconsistency",
+      "summary": "PLAN.md plan-validation prose cites `app/api/overview.py` as F-06; tasks.json (source of truth) maps it to F-03, while F-06 is the perf test",
+      "source": "docs/features/PGD-06/PLAN.md:131",
+      "task_id": null,
+      "raised_at": "2026-09-17T15:36:38Z",
+      "raised_by": "orchestrator (Step 1 scheduling)",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T15:36:38Z",
+      "rationale": "Fix this session: correct F-06 -> F-03 in PLAN.md line 131. Docs-only, no code impact; removes a contradiction against tasks.json."
+    },
+    {
+      "flag_id": "AF-03",
+      "kind": "evidence-na",
+      "summary": "design_check evidence dimension marked N/A - project-commands.yaml design_check key is deliberately empty, no a11y/console-scan tool wired for apps/web",
+      "source": "docs/config/project-commands.yaml:19",
+      "task_id": null,
+      "raised_at": "2026-09-17T15:36:38Z",
+      "raised_by": "implementation-agent (--evidence)",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T15:36:38Z",
+      "rationale": "N/A confirmed - design_check is unwired project-wide (pre-existing chore, not a PGD-06 regression) and PGD-06 ships no UI (D-05) for it to inspect. Tool wiring is a separate project task."
+    },
+    {
+      "flag_id": "AF-04",
+      "kind": "evidence-na",
+      "summary": "Frontend runtime evidence is boot-only (no render-mount check) - Playwright browser binaries not installed; download deferred to /arh-validate-feature by project-commands.yaml",
+      "source": "docs/features/PGD-06/evidence/runtime-web.log:1",
+      "task_id": null,
+      "raised_at": "2026-09-17T15:36:38Z",
+      "raised_by": "implementation-agent (--evidence)",
+      "status": "reject",
+      "decision": "reject",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T15:36:38Z",
+      "rationale": "N/A confirmed - PGD-06 ships no component or page (D-05, proxy-only) so there is no new rendered surface to mount; the backend route was live-verified (200 + correct zero-padded series + program_drilldown log). E2E is covered at /arh-validate-feature by design."
+    },
+    {
+      "flag_id": "AF-05",
+      "kind": "inconsistency",
+      "summary": "Proxy collapsed the API's explicit 400 invalid_range into 502 upstream_error; affected all five range-taking proxies, four already merged",
+      "source": "apps/web/src/app/api/proxy/program-detail/[program_id]/session-time-series/route.ts:65",
+      "task_id": null,
+      "raised_at": "2026-09-17T17:31:29Z",
+      "raised_by": "orchestrator (live pre-merge verification)",
+      "status": "accept",
+      "decision": "accept",
+      "decided_by": "pawar.pratik0903@gmail.com",
+      "decided_at": "2026-09-17T17:31:29Z",
+      "rationale": "FIXED. User instructed fixing real issues regardless of originating story. Added an invalid_range member to all 5 result unions, mapped 400->invalid_range in each fetcher and invalid_range->400 in each proxy, with one mutation-verified regression test per proxy. Verified live on all five. Deliberately touches 4 already-merged sibling proxies so PGD-06 is not left the inconsistent one."
+    }
+  ],
+  "validation": "2026-09-17 P=17/17",
+  "validation_artifact": "docs/features/PGD-06/VALIDATION-20260917-1600.md",
+  "review": "PASS",
+  "review_artifact": "docs/features/PGD-06/REVIEW.md",
+  "gate_rounds": 1,
+  "impl": "branch:feature/PGD-06",
+  "pr": "pratikpawar009/Dashboard#466",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 2,
+    "tool_missing": [
+      "pip-audit"
+    ]
+  },
+  "security_report": "docs/features/PGD-06/SECURITY-20260917-1730.md",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-17T17:31:29Z"
+}
