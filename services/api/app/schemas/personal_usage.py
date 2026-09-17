@@ -4,6 +4,11 @@
 not-yet-built consumers (ARC-01, DEV-01, PMD-01, PGD-05). See that ADR for the full field
 inventory, the cards-are-to-date-vs-daily_tokens/commands-are-ranged split, and the
 `count / max(counts) * 100` bar formula this module's field descriptions summarize.
+
+`CommandsPanel`/`CommandEntry` also have a second consumer: PGD-04's
+`GET /api/overview/program-detail/{program_id}/commands` imports both classes verbatim
+(PGD-04 D-03) and computes its own totals from `usage_events` scoped by `program_id`,
+independently of this endpoint's per-user aggregation (PGD-04-AC-6).
 """
 
 from pydantic import BaseModel, ConfigDict, Field

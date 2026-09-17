@@ -1,0 +1,1018 @@
+{
+  "story_id": "PGD-04",
+  "test_cases": [
+    {
+      "id": "PGD-04-TC-01",
+      "title": "Valid range=7d returns commands with counts and total",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-1",
+      "given": "a valid program_id with in-range usage_events activity and range=7d",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=7d is called by an authenticated session",
+      "then": "the response returns 200 with each distinct command and its count for the 7d window, plus total_runs",
+      "objective": "Verify the endpoint returns per-command counts and a total for an explicit 7d range.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events rows across multiple commands within the last 7 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=7d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Response body matches CommandsPanel shape: {total_runs, items: [{command, count, barStyle}]}",
+        "items contains only commands with usage_events in the last 7 days",
+        "total_runs is a pre-formatted string"
+      ],
+      "tags": [
+        "happy-path",
+        "range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#423",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-02",
+      "title": "Valid range=30d returns commands with counts and total",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-1",
+      "given": "a valid program_id with in-range usage_events activity and range=30d",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called by an authenticated session",
+      "then": "the response returns 200 with each distinct command and its count for the 30d window, plus total_runs",
+      "objective": "Verify the endpoint returns per-command counts and a total for an explicit 30d range.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events rows across multiple commands within the last 30 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Response body matches CommandsPanel shape",
+        "items reflects only usage_events within the last 30 days",
+        "total_runs is a pre-formatted string"
+      ],
+      "tags": [
+        "happy-path",
+        "range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#424",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-03",
+      "title": "Valid range=90d returns commands with counts and total",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-1",
+      "given": "a valid program_id with in-range usage_events activity and range=90d",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=90d is called by an authenticated session",
+      "then": "the response returns 200 with each distinct command and its count for the 90d window, plus total_runs",
+      "objective": "Verify the endpoint returns per-command counts and a total for an explicit 90d range.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events rows across multiple commands within the last 90 days"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "90d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=90d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Response body matches CommandsPanel shape",
+        "items reflects only usage_events within the last 90 days",
+        "total_runs is a pre-formatted string"
+      ],
+      "tags": [
+        "happy-path",
+        "range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#425",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-04",
+      "title": "Omitted range query param defaults to 30d",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-1",
+      "given": "a valid program_id and no range query param supplied",
+      "when": "GET /api/overview/program-detail/{program_id}/commands is called by an authenticated session",
+      "then": "the response is computed as if range=30d, per FR-PD-11 default",
+      "objective": "Verify the range default of 30d applies when the query param is omitted.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events rows spanning 7d/30d/90d windows"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": null
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands (no range param) with a valid bearer token",
+        "Separately send GET /api/overview/program-detail/prog-001/commands?range=30d with the same token"
+      ],
+      "expected_results": [
+        "Both responses return status 200",
+        "The two responses are byte-identical (total_runs and items match exactly)"
+      ],
+      "tags": [
+        "default-behavior",
+        "range"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#426",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-05",
+      "title": "7d and 90d requests on seeded multi-window data return different totals (differential-range, usage_events source)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-FR-2",
+      "given": "a program_id seeded with usage_events distributed across a 7-day window and a separate window only reachable at 90 days (i.e. some events older than 7 days but within 90 days)",
+      "when": "GET .../commands?range=7d and GET .../commands?range=90d are both called for the same program_id",
+      "then": "the two responses have different total_runs values, proving the aggregation reads usage_events (per-event ts) and not the lifetime-only program_commands table",
+      "objective": "Catch the C-4/R-6 defect class where ?range= becomes a silent no-op because the handler reads program_commands (lifetime, unranged) instead of usage_events. This is the single highest-value test in the story: a suite asserting only 200+non-empty passes even when range filtering is completely broken.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-multi-window with usage_events: N events with ts within the last 7 days, plus M additional events with ts between 8 and 90 days ago, N != 0 and M != 0, across at least one shared command name",
+        "No reliance on the program_commands rollup table for this fixture \u2014 assertion must fail if the implementation reads that table instead"
+      ],
+      "test_data": {
+        "program_id": "prog-multi-window",
+        "range_a": "7d",
+        "range_b": "90d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-multi-window/commands?range=7d with a valid bearer token; capture total_runs_7d and items_7d",
+        "Send GET /api/overview/program-detail/prog-multi-window/commands?range=90d with a valid bearer token; capture total_runs_90d and items_90d",
+        "Assert total_runs_7d != total_runs_90d (explicit comparative assertion, not independent 200 checks)",
+        "Assert at least one command's count differs between items_7d and items_90d, or a command present in items_90d is absent from items_7d"
+      ],
+      "expected_results": [
+        "total_runs_7d is strictly less than total_runs_90d given the seeded fixture (90d window is a superset of the 7d window's activity plus the older events)",
+        "The comparison is explicit (assert-not-equal on the two totals), not merely two independent '200 + non-empty' checks",
+        "Response counts trace to usage_events timestamps, not program_commands lifetime rollup values"
+      ],
+      "tags": [
+        "critical",
+        "differential-range",
+        "data-source",
+        "R-6",
+        "C-4"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#427",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-06",
+      "title": "Invalid range value returns 400, not FastAPI default 422",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-2",
+      "given": "a valid program_id and an invalid range value",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=1y is called",
+      "then": "the response is 400 via the explicit validate_range() check, never FastAPI's default 422",
+      "objective": "Verify invalid range is rejected with an explicit 400, per api-conventions contract, not the framework's default validation-error status.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "1y"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=1y with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is exactly 400",
+        "Response status is NOT 422",
+        "Response body error code is invalid_range (matching sibling token-trend/releases behavior)"
+      ],
+      "tags": [
+        "negative",
+        "boundary",
+        "api-conventions"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#428",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-07",
+      "title": "Unknown/nonexistent program_id returns 200 with empty CommandsPanel, never 404",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-FR-1",
+      "given": "a program_id that does not exist in program_summary or usage_events",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called by an authenticated session",
+      "then": "the response is 200 with {total_runs: \"0\", items: []} \u2014 no existence lookup, no 404",
+      "objective": "Verify the no-404 empty-response contract for an unknown program_id, deliberately differing from the sibling /releases route.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "program_id=does-not-exist-999 has no row anywhere in program_summary or usage_events"
+      ],
+      "test_data": {
+        "program_id": "does-not-exist-999",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/does-not-exist-999/commands?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200 (explicitly asserted NOT 404)",
+        "Response body is exactly {\"total_runs\": \"0\", \"items\": []}"
+      ],
+      "tags": [
+        "negative",
+        "edge-case",
+        "no-404",
+        "C-2"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#429",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-08",
+      "title": "Known program with zero in-range activity returns same empty shape as unknown program",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-FR-1",
+      "given": "a known, valid program_id with no usage_events rows within the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=7d is called by an authenticated session",
+      "then": "the response is 200 with {total_runs: \"0\", items: []}, identical in shape to the unknown-program case",
+      "objective": "Verify a live but quiet program renders the same honest empty panel as an unknown program_id, per research C-1 resolution.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-quiet exists in program_summary with zero usage_events in the last 7 days (may have older events outside the window)"
+      ],
+      "test_data": {
+        "program_id": "prog-quiet",
+        "range": "7d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-quiet/commands?range=7d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Response body is exactly {\"total_runs\": \"0\", \"items\": []}",
+        "No program_summary existence lookup occurred (no additional query performed to check existence)"
+      ],
+      "tags": [
+        "edge-case",
+        "empty-state"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#430",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-09",
+      "title": "Unauthenticated request returns 401",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-5",
+      "given": "no bearer token, or an invalid bearer token",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "the response is 401",
+      "objective": "Verify the endpoint requires authentication and rejects unauthenticated callers with 401.",
+      "preconditions": [
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "authorization_header": null
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=30d with no Authorization header",
+        "Repeat with Authorization: Bearer <PLACEHOLDER_INVALID_TOKEN>"
+      ],
+      "expected_results": [
+        "Both requests return status 401"
+      ],
+      "tags": [
+        "negative",
+        "auth"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#431",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-10",
+      "title": "Any authenticated persona succeeds with byte-identical response (open-aggregate, no persona branching)",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-4",
+      "given": "authenticated sessions for multiple distinct personas (e.g. developer, cio, architect), none of which is a member of the target program",
+      "when": "each persona calls GET /api/overview/program-detail/{program_id}/commands?range=30d for the same program_id",
+      "then": "every persona receives a 200 with an identical response body \u2014 program_visibility is open-aggregate and never gates by persona or membership",
+      "objective": "Verify no persona-based branching or membership gating occurs on this endpoint, per rbac-checks A-004.",
+      "preconditions": [
+        "Authenticated session tokens available for at least 3 distinct personas: developer, cio, architect",
+        "Seeded program_id=prog-001 with usage_events data, with none of the test personas listed in session.programs for prog-001"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d",
+        "personas": [
+          "developer",
+          "cio",
+          "architect"
+        ]
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=30d as developer persona",
+        "Send the identical request as cio persona",
+        "Send the identical request as architect persona"
+      ],
+      "expected_results": [
+        "All three responses return status 200",
+        "All three response bodies are byte-identical",
+        "No 403 is returned for any persona regardless of program membership"
+      ],
+      "tags": [
+        "rbac",
+        "open-aggregate"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#432",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 300,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-11",
+      "title": "Items are ordered by count descending",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-3",
+      "given": "a program_id with usage_events across at least 3 distinct commands with differing counts in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "items[] is ordered by count descending so the highest-run command appears first",
+      "objective": "Verify the response items are sorted descending by count.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-ordered with usage_events yielding command counts: cmd-a=50, cmd-b=120, cmd-c=10 within the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-ordered",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-ordered/commands?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items[0].command == cmd-b (count 120)",
+        "items[1].command == cmd-a (count 50)",
+        "items[2].command == cmd-c (count 10)",
+        "For every i, items[i].count >= items[i+1].count"
+      ],
+      "tags": [
+        "ordering"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#433",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-12",
+      "title": "barStyle is max-of-range (count / MAX(counts) * 100), not share-of-total",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-FR-3",
+      "given": "a program_id with multiple commands of known distinct counts in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "each item's barStyle equals round(count / MAX(counts in this range and program) * 100)%, not count / total_runs * 100",
+      "objective": "Verify barStyle uses the max-of-range formula per ADR-0009 / PGD-04-FR-3, distinguishing it from a share-of-total calculation that would produce different values.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-barstyle with usage_events yielding command counts: cmd-a=80, cmd-b=40, cmd-c=20 within the 30d window (total=140, max=80)"
+      ],
+      "test_data": {
+        "program_id": "prog-barstyle",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-barstyle/commands?range=30d with a valid bearer token",
+        "For each item, compute expected_max_of_range = round(count / 80 * 100) and expected_share_of_total = round(count / 140 * 100)"
+      ],
+      "expected_results": [
+        "cmd-a.barStyle corresponds to 100% (80/80*100), not 57% (80/140*100)",
+        "cmd-b.barStyle corresponds to 50% (40/80*100), not 29% (40/140*100)",
+        "cmd-c.barStyle corresponds to 25% (20/80*100), not 14% (20/140*100)",
+        "Every item's barStyle matches expected_max_of_range and explicitly does NOT match expected_share_of_total"
+      ],
+      "tags": [
+        "barStyle",
+        "formula",
+        "ADR-0009"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#434",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-13",
+      "title": "Single-command result yields barStyle of 100%",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-04-FR-3",
+      "given": "a program_id with exactly one distinct command present in the selected range",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "the single item's barStyle is 100%, since count / MAX(counts) with only one count in the set is always 1.0",
+      "objective": "Verify the max-of-range formula's boundary case: a lone command is always rendered as a full bar, never a fraction of some unrelated total.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-single with usage_events for exactly one command (cmd-solo, count=7) within the 30d window"
+      ],
+      "test_data": {
+        "program_id": "prog-single",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-single/commands?range=30d with a valid bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items has exactly one entry for cmd-solo",
+        "items[0].barStyle corresponds to 100%",
+        "total_runs corresponds to the string representation of 7"
+      ],
+      "tags": [
+        "boundary",
+        "barStyle"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#435",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-14",
+      "title": "count is a raw int while total_runs is a pre-formatted string",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-1",
+      "given": "a program_id with in-range usage_events activity",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "each items[].count is a raw JSON integer while total_runs is a pre-formatted JSON string, per the ADR-0009-inherited asymmetry",
+      "objective": "Verify the wire-type asymmetry between count (raw int) and total_runs (pre-formatted string) matches CommandsPanel's contract.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-001 with usage_events yielding a count large enough to require formatting if formatted (e.g. >= 1000)"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=30d with a valid bearer token",
+        "Inspect the raw JSON response body types"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "Each items[].count is JSON type number (int), not a string",
+        "total_runs is JSON type string, and is comma-formatted (e.g. \"1,234\") when the underlying value is >= 1000",
+        "items[].command and items[].barStyle are present per CommandEntry schema"
+      ],
+      "tags": [
+        "contract",
+        "schema",
+        "wire-types"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#436",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-15",
+      "title": "Program-level command totals are computed independently from personal-usage commands panel",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-AC-6",
+      "given": "a signed-in user whose personal usage differs from the program's aggregate usage (other users also ran commands on the program)",
+      "when": "the program commands endpoint and the personal-usage commands panel are both queried for the same range",
+      "then": "the two totals differ (or independently match by coincidence) but neither is derived from or equal to the other by construction \u2014 the program total includes all users' events, the personal total only the caller's",
+      "objective": "Verify program-level and personal-level command aggregations query independently and are not coupled or derived from each other.",
+      "preconditions": [
+        "Authenticated session bearer token available for user-A",
+        "Seeded program_id=prog-shared with usage_events from user-A and user-B, where user-A's own command counts are a strict subset of the program total"
+      ],
+      "test_data": {
+        "program_id": "prog-shared",
+        "user_id": "user-A",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-shared/commands?range=30d as user-A; capture program_total_runs",
+        "Send GET /api/personal-usage/user-A?range=30d as user-A; capture personal commands total"
+      ],
+      "expected_results": [
+        "Both responses return 200",
+        "program_total_runs reflects all users' events on prog-shared (>= personal total, since user-B also contributed)",
+        "personal commands total reflects only user-A's own events",
+        "The two totals are not equal (given the seeded fixture) and no shared computation path derives one from the other"
+      ],
+      "tags": [
+        "independence",
+        "cross-endpoint"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#437",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 250,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "PGD-04-TC-16",
+      "title": "Range/filter refresh completes within 2s performance budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "PGD-04-NFR-performance",
+      "given": "a program_id with a realistic volume of usage_events (e.g. thousands of rows across a 90-day span)",
+      "when": "GET /api/overview/program-detail/{program_id}/commands is called for each of range=7d, 30d, 90d",
+      "then": "each request completes within the 2-second budget (NFR-002), via a single usage_events aggregate query with no N+1 fan-out",
+      "objective": "Verify the endpoint meets the inherited \u22642s range-refresh performance budget under realistic data volume.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Seeded program_id=prog-perf with >= 5,000 usage_events rows spread across 90 days and >= 10 distinct commands"
+      ],
+      "test_data": {
+        "program_id": "prog-perf",
+        "ranges": [
+          "7d",
+          "30d",
+          "90d"
+        ]
+      },
+      "steps": [
+        "Measure wall-clock latency of GET .../commands?range=7d",
+        "Measure wall-clock latency of GET .../commands?range=30d",
+        "Measure wall-clock latency of GET .../commands?range=90d",
+        "Capture query count/plan to confirm a single aggregate query is issued (no N+1)"
+      ],
+      "expected_results": [
+        "Each request's latency is < 2000ms",
+        "Exactly one usage_events aggregate query is issued per request (no per-command follow-up queries)"
+      ],
+      "tags": [
+        "performance",
+        "budget"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#438",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 900,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 900,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0,
+        "budget": {
+          "target": "p95 < 2000ms @ >=5000 seeded usage_events rows",
+          "measured": "each of 7d/30d/90d < 2000ms (assertion-based, exact ms not printed by test)",
+          "budget_pass": true
+        }
+      }
+    },
+    {
+      "id": "PGD-04-TC-17",
+      "title": "Structured request log emitted with method, path, program_id, range, status, latency",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "PGD-04-NFR-observability",
+      "given": "a valid request to the commands endpoint",
+      "when": "GET /api/overview/program-detail/{program_id}/commands?range=30d is called",
+      "then": "a structured log entry is emitted via structlog carrying method, path, program_id, range, status, and latency, matching PGD-03's program_releases_fetched pattern; no dedicated audit event is emitted for the open-aggregate program_visibility check",
+      "objective": "Verify observability logging captures the required fields and that no extraneous RBAC audit event fires for this open-aggregate route.",
+      "preconditions": [
+        "Authenticated session bearer token available",
+        "Log capture/interception configured for the test run",
+        "Seeded program_id=prog-001 exists"
+      ],
+      "test_data": {
+        "program_id": "prog-001",
+        "range": "30d"
+      },
+      "steps": [
+        "Send GET /api/overview/program-detail/prog-001/commands?range=30d with a valid bearer token",
+        "Inspect captured structured logs for this request"
+      ],
+      "expected_results": [
+        "A structured log entry exists with fields: method=GET, path containing /commands, program_id=prog-001, range=30d, status=200, and a numeric latency field",
+        "No org_access / individual_view_denied / member_view_denied audit event is emitted for this open-aggregate program_visibility check"
+      ],
+      "tags": [
+        "observability",
+        "logging"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#439",
+      "last_run": {
+        "started_at": "2026-09-17T07:22:29Z",
+        "duration_ms": 200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {
+            "n": 1,
+            "status": "PASS",
+            "duration_ms": 200,
+            "reason": null
+          }
+        ],
+        "failure_reason": null,
+        "artefact": null,
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "PGD-04-AC-1",
+        "covered_by": [
+          "PGD-04-TC-01",
+          "PGD-04-TC-02",
+          "PGD-04-TC-03",
+          "PGD-04-TC-04",
+          "PGD-04-TC-14"
+        ]
+      },
+      {
+        "id": "PGD-04-AC-2",
+        "covered_by": [
+          "PGD-04-TC-06"
+        ]
+      },
+      {
+        "id": "PGD-04-AC-3",
+        "covered_by": [
+          "PGD-04-TC-11"
+        ]
+      },
+      {
+        "id": "PGD-04-AC-4",
+        "covered_by": [
+          "PGD-04-TC-10"
+        ]
+      },
+      {
+        "id": "PGD-04-AC-5",
+        "covered_by": [
+          "PGD-04-TC-09"
+        ]
+      },
+      {
+        "id": "PGD-04-AC-6",
+        "covered_by": [
+          "PGD-04-TC-15"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "PGD-04-FR-1",
+        "covered_by": [
+          "PGD-04-TC-07",
+          "PGD-04-TC-08"
+        ]
+      },
+      {
+        "id": "PGD-04-FR-2",
+        "covered_by": [
+          "PGD-04-TC-05"
+        ]
+      },
+      {
+        "id": "PGD-04-FR-3",
+        "covered_by": [
+          "PGD-04-TC-12",
+          "PGD-04-TC-13"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "PGD-04-NFR-performance",
+        "covered_by": [
+          "PGD-04-TC-16"
+        ]
+      },
+      {
+        "id": "PGD-04-NFR-observability",
+        "covered_by": [
+          "PGD-04-TC-17"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "notes": [
+      "E2E: N/A for this story per docs/stories/PGD-04.md Test mapping and REQUIREMENTS.md Scope \u2014 PGD-04 ships backend-only; no frontend component (CommandsActivity.tsx) exists or is scoped to render this panel. All TCs are integration/contract/performance at the API layer.",
+      "Security NFR (RBAC open-aggregate, 401 gate) is covered via AC-4 (PGD-04-TC-10) and AC-5 (PGD-04-TC-09) rather than a separate PGD-04-NFR-security id, since the story's Non-functional requirements section states security as 'never UI-only hiding' with no independent numeric/security budget beyond what those ACs already assert; no PGD-04-NFR-security TC was fabricated to avoid an orphan id not declared in the PRD.",
+      "Accessibility NFR is explicitly N/A per REQUIREMENTS.md ('no new UI ships') and is intentionally omitted from this manifest.",
+      "PGD-04-TC-05 is the highest-priority test per research R-6/C-4: it is the only test in this suite that fails if the implementation reads program_commands (lifetime rollup) instead of usage_events."
+    ]
+  }
+}

@@ -1,0 +1,404 @@
+{
+  "schema_version": 1,
+  "story_id": "PGD-04",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-17T00:00:00+00:00",
+  "file_plan": {
+    "F-01": {
+      "action": "create",
+      "path": "services/api/app/services/program_commands.py",
+      "reason": "fetch_program_commands() aggregation service over usage_events (D-01), mirroring personal_usage.py's fetch_commands_breakdown"
+    },
+    "F-02": {
+      "action": "modify",
+      "path": "services/api/app/schemas/personal_usage.py",
+      "reason": "add a co-consumer note to the module docstring recording PGD-04 as a second consumer of CommandsPanel/CommandEntry (D-03) -- no new schema class"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/api/overview.py",
+      "reason": "register GET /api/overview/program-detail/{program_id}/commands as a fourth sibling route on the existing overview router; wire _range_with_default + program_visibility (no existence lookup, D-02) + structured logging (entry-registration site for F-01)"
+    },
+    "F-04": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_commands_route.py",
+      "reason": "route-level integration tests: TC-01,02,03,04,06,07,08,09,10,11,12,13,14,17"
+    },
+    "F-05": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_program_commands_service.py",
+      "reason": "service-level unit tests incl. PGD-04-TC-05 (#427) differential-range assertion -- the mandatory C-4/R-6 guard -- and TC-15 (independence from personal-usage)"
+    },
+    "F-06": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_program_commands_perf.py",
+      "reason": "TC-16 (#438) performance test -- <2000ms at >=5000 seeded usage_events rows across 90 days, single-query assertion (no N+1)"
+    },
+    "F-07": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill program-commands-api's produced_by sketch with the concrete shipped shape (route, response_model, field types, no-404 note) -- shared contract, authored once here per plan-authoring step 10"
+    },
+    "F-08": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/overview/program-detail/{program_id}/commands row to the API table (Docs T2), documenting the no-404 empty behavior and the usage_events-not-program_commands data source"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "apps/web/src/types/programCommands.ts",
+      "reason": "ProgramCommandEntryData/ProgramCommandsData/ProgramCommandsResult TS types mirroring CommandsPanel/CommandEntry (D-04)"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/lib/programCommandsApi.ts",
+      "reason": "server-only fetchProgramCommands() targeting FastAPI directly (mirrors programTokenTrendApi.ts, D-04)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/commands/route.ts",
+      "reason": "Next.js proxy Route Handler, mirrors the token-trend proxy's callWithAuth retry-once + status mapping (D-04, ADR-0008)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/program-detail/[program_id]/commands/route.test.ts",
+      "reason": "proxy route unit tests (status mapping, range passthrough, no-token-leak)"
+    },
+    "F-13": {
+      "action": "verify",
+      "path": "docs/config/project-commands.yaml",
+      "reason": "VERIFY-ONLY (corrected 2026-09-17 after review F-2 / validation T-14): originally declared action:modify, but T-14 correctly determined no edit was warranted and the file is unchanged (git diff empty). PGD-04 introduces no new dependency, service, port or env var, so docs/config/project-commands.yaml and its preflight list need no change; adding a per-story 'nothing changed' comment would be noise inconsistent with that file's conventions. The deliverable is the auditable verification recorded in T-14, not a diff."
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "Add fetch_program_commands() service aggregating usage_events by command",
+      "complexity": "M",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1",
+        "PGD-04-AC-3",
+        "PGD-04-FR-2",
+        "PGD-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "Mirrors personal_usage.py::fetch_commands_breakdown/_build_commands_panel exactly, WHERE user=:user_id swapped for WHERE program_id=:program_id. Orders by count(*) DESC, command (deterministic tiebreak, matching SHP-02). Uses bar_style_for_share(count, max_count) from app/utils/format.py for max-of-range barStyle (D-01). Docstring notes usage_events source per C-4 (Documentation requirements).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/app/services/program_commands.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Add PGD-04 co-consumer note to personal_usage.py module docstring",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-6"
+      ],
+      "risk_refs": [],
+      "notes": "One-line addition per D-03 -- no schema class change, no behavior change.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/app/schemas/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "Register GET /api/overview/program-detail/{program_id}/commands on the overview router",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1",
+        "PGD-04-AC-2",
+        "PGD-04-AC-4",
+        "PGD-04-AC-5",
+        "PGD-04-FR-1"
+      ],
+      "risk_refs": [
+        "R-1",
+        "R-2"
+      ],
+      "notes": "Fourth sibling route. range: str = Depends(_range_with_default) (reused verbatim). Calls await program_visibility(current_user, program_id) once; performs NO ProgramSummary existence lookup (D-02) -- deliberately unlike get_program_releases in the same file; add a route-docstring note explaining the asymmetry so a future edit doesn't 404-ify it. Emits program_commands_fetched structured log (method, path, program_id, range, status, latency_ms) via time.perf_counter(), mirroring program_releases_fetched. Imports CommandsPanel from app.schemas.personal_usage (D-03).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "Route-level integration tests for the commands endpoint",
+      "complexity": "M",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1",
+        "PGD-04-AC-2",
+        "PGD-04-AC-3",
+        "PGD-04-AC-4",
+        "PGD-04-AC-5",
+        "PGD-04-FR-1"
+      ],
+      "risk_refs": [
+        "R-1",
+        "R-2",
+        "R-4"
+      ],
+      "notes": "TC-01,02,03,04 (range variants + default), TC-06 (400 not 422), TC-07,08 (no-404 empty shape, unknown vs quiet program), TC-09 (401), TC-10 (persona byte-identical), TC-11 (ordering), TC-12,13 (barStyle formula + single-command boundary), TC-14 (wire-type asymmetry). Naming follows test_program_releases_route.py.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_commands_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "Service-level unit tests incl. mandatory differential-range guard (TC-05)",
+      "complexity": "M",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "PGD-04-FR-2",
+        "PGD-04-AC-6"
+      ],
+      "risk_refs": [
+        "R-6"
+      ],
+      "notes": "PGD-04-TC-05 (#427): seed usage_events with N events in the last 7 days and M additional events 8-90 days ago (N!=0, M!=0, shared command); assert total_runs_7d != total_runs_90d via an explicit assert-not-equal, not two independent 200 checks. This is the ONLY test that fails if the implementation reads program_commands instead of usage_events -- give it its own clearly-named test function, not folded into a route smoke test. Also covers TC-15 (program vs personal-usage independence, direct service-level comparison).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_commands_service.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Performance test: <2s at >=5000 seeded usage_events rows, single-query assertion",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "PGD-04-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-5"
+      ],
+      "notes": "TC-16 (#438). Mirrors test_program_releases_perf.py's shape: seed >=5000 usage_events across 90 days / >=10 distinct commands; assert wall-clock latency <2000ms for each of range=7d/30d/90d; assert exactly one usage_events query is issued (no N+1).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/perf/test_program_commands_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Structured logging test for program_commands_fetched",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-04"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "PGD-04-NFR-observability"
+      ],
+      "risk_refs": [],
+      "notes": "TC-17 (#439), folded into the route test file (F-04) as its own test function: asserts the structured log fields (method, path, program_id, range, status, latency) and asserts NO org_access/individual_view_denied/member_view_denied audit event fires for the open-aggregate gate.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_commands_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Fill program-commands-api contract shape in docs/requirements/api.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Replace the decomposition-time sketch (fields: prose only) with the concrete shipped shape: endpoint, response_model (CommandsPanel @ personal_usage.py, reused per D-03), field types (total_runs: str, items[].command: str verbatim incl. leading slash, items[].count: raw int, items[].barStyle: max-of-range per D-01/FR-3), no-404 behavior (D-02), data source note (usage_events, not program_commands, per D-01). Per plan-authoring step 10 -- this is the authoritative spec ARC-01/DEV-01/PMD-01/EMD-01 build against.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "docs(readme): add commands endpoint row to README API table",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "T2 doc trigger (new HTTP route). Row documents: bearer auth + optional ?range=, 200 CommandsPanel shape, no-404 empty behavior contrasted with the /releases row above it, usage_events (not program_commands) data source, 400 invalid_range, 401. Matches the existing table's prose density for the token-trend/releases rows.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Add TS wire types for the commands panel",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "ProgramCommandEntryData {command: string, count: number, barStyle: string}, ProgramCommandsData {total_runs: string, items: ProgramCommandEntryData[]}, ProgramCommandsResult status union ({status:'ok',data}|{status:'not_found'}|{status:'unauthorized'}|{status:'error'}) mirroring programTokenTrend.ts. not_found kept for union-exhaustiveness with the shared proxy pattern even though this endpoint never returns it (D-02).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "apps/web/src/types/programCommands.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "Add server-only fetchProgramCommands() fetcher",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors programTokenTrendApi.ts: getApiBaseUrl() + optional Authorization header, 5000ms AbortSignal timeout, status mapping (401->unauthorized, non-ok->error; 404 case mapped for type-exhaustiveness though never hit per D-02).",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "apps/web/src/lib/programDetailApi.ts"
+      ],
+      "reason": "F-10 path deviation recorded as AF-01 (shipped into shared programDetailApi.ts)"
+    },
+    {
+      "task_id": "T-12",
+      "title": "Add Next.js proxy route for the commands endpoint",
+      "complexity": "M",
+      "predecessors": [
+        "T-11"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors the token-trend proxy route.ts exactly: callWithAuth retry-once, range passthrough (absent -> undefined not literal 'undefined'), status mapping incl. 401 session_expired and 502 upstream_error. D-04: ships with no caller (CommandsActivity.tsx explicitly out of scope) -- this is plumbing-ahead-of-UI, matching this router's established order.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/commands/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Proxy route unit tests",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "PGD-04-AC-1"
+      ],
+      "risk_refs": [],
+      "notes": "Mirrors token-trend route.test.ts: mocked fetchProgramCommands + callWithAuth faithful fake, status-mapping table, SessionExpiredError instanceof check via vi.importActual.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/program-detail/[program_id]/commands/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "Confirm no preflight/config-drift entry required",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-12"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [],
+      "risk_refs": [],
+      "notes": "No new runtime dependency, service, or port is introduced by this story (fourth route on an existing router, existing index, existing schema). This task verifies that claim against the final diff and appends a one-line dated note to project-commands.yaml's trailing comment block confirming preflight is unaffected -- keeps the config-drift check auditable rather than silently assumed.",
+      "status": "done",
+      "completed_at": "2026-09-17T00:00:00Z",
+      "files_touched": [],
+      "reason": "verification-only: no dep/service/port/env drift; no edit warranted. F-13 action corrected modify->verify 2026-09-17 so the file_plan matches reality (review F-2 / validation T-14 finding)."
+    }
+  ]
+}

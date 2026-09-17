@@ -46,6 +46,17 @@ DECISIONS.md D-01) rather than the shared `get_offset_limit` (default `50`), reu
 completed request emits one `program_releases_fetched` log line (method, path, program_id,
 range, offset, limit, status, latency_ms) mirroring `admin.py`'s `time.perf_counter()` timing
 idiom -- no dedicated audit event for the veto gate itself (open-aggregate, R-08/PRD).
+
+PGD-04 -- `GET /program-detail/{program_id}/commands`: a fourth sibling route on this router.
+Same open-aggregate `program_visibility` veto gate, called once with the real `program_id`.
+Unlike `get_program_releases` immediately above, this route performs NO `program_summary`
+existence lookup and never 404s (DECISIONS.md D-02): an unknown or quiet `program_id` both
+resolve to the same `200 {total_runs: "0", items: []}`, because "no command activity in this
+window" is a true empty answer, not an error -- mirroring `get_program_token_trend` above, not
+`get_program_releases`. Do not "fix" this into a 404 by analogy with the releases route; the
+asymmetry is deliberate (see DECISIONS.md D-02). Emits one `program_commands_fetched` log line
+(method, path, program_id, range, status, latency_ms) via `time.perf_counter()`, mirroring
+`program_releases_fetched` -- no dedicated audit event for the veto gate itself.
 """
 
 import logging
@@ -62,6 +73,7 @@ from app.dependencies.pagination import MAX_OFFSET_LIMIT
 from app.dependencies.range import validate_range
 from app.models.rollup import OrgSummaryRollup, ProgramSummary
 from app.schemas.org_summary import OrgSummaryCard, OrgSummaryResponse, ProgramsUsingAi
+from app.schemas.personal_usage import CommandsPanel
 from app.schemas.program_detail import (
     ProgramDetailHeader,
     ProgramDetailResponse,
@@ -70,6 +82,7 @@ from app.schemas.program_detail import (
 )
 from app.schemas.program_releases import ProgramReleasesResponse
 from app.services.freshness import FreshnessAccessor
+from app.services.program_commands import fetch_program_commands
 from app.services.program_detail_token_trend import fetch_program_token_trend
 from app.services.program_releases import fetch_program_releases
 from app.services.rollup_compute import compute_adoption_percent
@@ -256,6 +269,53 @@ async def get_program_releases(
             "range": range,
             "offset": offset,
             "limit": limit,
+            "status": status.HTTP_200_OK,
+            "latency_ms": int((time.perf_counter() - started) * 1000),
+        },
+    )
+
+    return response
+
+
+@router.get(
+    "/program-detail/{program_id}/commands",
+    response_model=CommandsPanel,
+)
+async def get_program_commands(
+    program_id: str,
+    range: str = Depends(_range_with_default),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CommandsPanel:
+    """Return `program_id`'s command activity breakdown for `range` (default `30d`) (PGD-04).
+
+    Same open-aggregate `program_visibility` veto gate as the routes above, called once with
+    the real `program_id`. Unlike `get_program_releases` above, this route performs NO
+    `program_summary` existence lookup and never 404s (DECISIONS.md D-02): an unknown or quiet
+    `program_id` both resolve to the same `200 {total_runs: "0", items: []}` -- "no command
+    activity in this window" is a true empty answer, not an error, mirroring
+    `get_program_token_trend` above rather than `get_program_releases`. Do not "fix" this into
+    a 404 by analogy with the releases route. `range` validation happens in
+    `_range_with_default` via `Depends()`, before this body runs, so an out-of-range value
+    400s, never FastAPI's default 422.
+    """
+    started = time.perf_counter()
+
+    # DECISIONS.md D-02: open-aggregate veto gate, called once, with the REAL program_id -- see
+    # get_program_detail's docstring above for the full contract. Never filters by
+    # current_user.programs. No program_summary existence lookup follows -- see module and
+    # function docstrings.
+    await program_visibility(current_user, program_id)
+
+    response = await fetch_program_commands(db, program_id, range)
+
+    logger.info(
+        "program_commands_fetched",
+        extra={
+            "method": "GET",
+            "path": "/api/overview/program-detail/{program_id}/commands",
+            "program_id": program_id,
+            "range": range,
             "status": status.HTTP_200_OK,
             "latency_ms": int((time.perf_counter() - started) * 1000),
         },
