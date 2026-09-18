@@ -1,0 +1,33 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#22",
+  "research": "complete",
+  "research_verdict": "GO",
+  "tracker_research": "pratikpawar009/Dashboard#467",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/OVW-04/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "plan-implementation",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-18T05:20:29Z",
+  "tracker_prd": "pratikpawar009/Dashboard#468",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/OVW-04/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/OVW-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/OVW-04/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 2,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#481"
+}
