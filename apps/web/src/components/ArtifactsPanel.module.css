@@ -1,0 +1,127 @@
+.section {
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-radius: 16px;
+  /* Load-bearing: clips the last row's border-bottom against the rounded
+     corner (DESIGN.md § Card shell). Do not remove. */
+  overflow: hidden;
+}
+
+.header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #f0f1f4;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: #151a22;
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: #7a828f;
+  font-weight: 500;
+  margin-top: 3px;
+}
+
+.listBody {
+  padding: 6px 20px 14px;
+}
+
+.list {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f4f5f7;
+}
+
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Square-ish rounded tile, not a pill -- distinct from the persona tag /
+   program-type chip's border-radius:20px (DESIGN.md § Row anatomy note 1). */
+.tag {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.name {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #151a22;
+}
+
+/* No flex, no explicit alignment -- sizes to content, not monospace, so
+   counts do not column-align across rows (DESIGN.md § Row anatomy note 2). */
+.count {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: #151a22;
+  margin: 0;
+}
+
+.skeletonTag {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 9px;
+  background: #f5f6f8;
+}
+
+.skeletonName {
+  flex: 1;
+  height: 13px;
+  border-radius: 4px;
+  background: #f5f6f8;
+}
+
+.skeletonCount {
+  width: 28px;
+  height: 16px;
+  border-radius: 4px;
+  background: #f5f6f8;
+  margin: 0;
+}
+
+.errorPanel {
+  padding: 32px 0;
+  text-align: center;
+  color: #7a828f;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

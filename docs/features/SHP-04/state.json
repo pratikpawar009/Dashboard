@@ -1,0 +1,131 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "research": "complete",
+  "research_verdict": "GO-WITH-CONDITIONS",
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#32",
+  "tracker_research": "pratikpawar009/Dashboard#486",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/SHP-04/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "security-reviewed",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-18T16:00:00Z",
+  "tracker_prd": "pratikpawar009/Dashboard#487",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/SHP-04/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/SHP-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/SHP-04/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 1,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#488",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-18T10:20:00Z",
+    "rounds": 1,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-04/evidence/typecheck.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T15:36:00Z"
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-04/evidence/unit-tests.log, docs/features/SHP-04/evidence/unit-tests-api.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T15:40:00Z",
+        "result_summary": "apps/web: 341 passed (341) across 45 files; services/api: 837 passed, 17 deselected \u2014 includes test_artifacts_route.py (8/8) and test_artifacts_performance.py (2/2)"
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-04/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T15:41:00Z",
+        "notes": "eslint: 0 errors, 3 pre-existing warnings in ProgramDetailView.test.tsx / ProgramDetailView.authFlow.test.tsx (out of SHP-04 scope); ruff: All checks passed!"
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-25",
+        "ran_at": "2026-09-18T15:44:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "cd services/api && uv run uvicorn app.main:app --reload --port 8000",
+            "exit_code": null,
+            "evidence_path": "docs/features/SHP-04/evidence/runtime-api.log",
+            "boot_log_scan": "n/a \u2014 pre-existing long-lived process from earlier this session; GET /health returned 200 {\"status\":\"ok\"}"
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "cd apps/web && pnpm dev --port 3009",
+            "exit_code": 0,
+            "evidence_path": "docs/features/SHP-04/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "notes": "port 3000's pre-existing dev server was transiently broken (500) by this session's own `pnpm build` compile-dimension run clobbering its shared .next dir; verified via a fresh process on port 3009 (GET / -> 307 -> /overview -> 307 -> /login -> 200), then torn down; port 3000 self-recovered to 307 afterward"
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/SHP-04/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T15:41:00Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-24",
+        "ran_at": null
+      }
+    }
+  },
+  "validation": "2026-09-18 P=11/11",
+  "review": "PASS WITH WARNINGS",
+  "impl": "branch:feature/SHP-04",
+  "validation_report": "docs/features/SHP-04/VALIDATION-20260918-1030.md",
+  "review_report": "docs/features/SHP-04/REVIEW.md",
+  "gate_rounds": 1,
+  "pr": "pratikpawar009/Dashboard#489",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "tool_missing": ["pip-audit"]
+  },
+  "security_report": "docs/features/SHP-04/SECURITY-20260918-1600.md"
+}
