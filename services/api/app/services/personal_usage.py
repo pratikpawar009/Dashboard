@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies.range import range_to_start
 from app.models.ingestion import UsageEvent
 from app.models.rollup import UserSessions
+from app.schemas.personal_sessions import PersonalSessionEntry, PersonalSessionsResponse
 from app.schemas.personal_usage import (
     CommandEntry,
     CommandsPanel,
@@ -31,7 +32,13 @@ from app.schemas.personal_usage import (
     PersonalUsageCard,
 )
 from app.services.rollup_compute import compute_average
-from app.utils.format import bar_style_for_share, format_duration, format_number
+from app.utils.format import (
+    bar_style_for_share,
+    format_duration,
+    format_number,
+    format_session_duration,
+    format_session_tokens,
+)
 
 # ADR-0009 / DECISIONS.md D-04: fixed (glyph, label, iconBg, iconColor) presentation constants,
 # mockup order -- order is part of the contract. Literal values decoded from the ARC/DEV/PMD
@@ -196,3 +203,66 @@ async def fetch_commands_breakdown(
     result = await db.execute(stmt)
     rows = [(command, count) for command, count in result.all()]
     return _build_commands_panel(rows)
+
+
+def _build_session_entry(row: UserSessions) -> PersonalSessionEntry:
+    """One `user_sessions` row -> the 4-field pre-formatted `PersonalSessionEntry` (SHP-03-FR-1).
+
+    `meta` is composed server-side from `session_identifier` + `started_at` (DECISIONS.md D-03) --
+    `"S-" + session_identifier + " · " + started_at` formatted `"Mon D, YYYY"` (day not
+    zero-padded, matching the mockup generator's bare `day` number; U+00B7 MIDDLE DOT, space on
+    each side). `session_identifier` does not itself carry an `"S-"` prefix in this codebase's
+    ingest path (`rollup_rebuild.py`'s `_build_user_sessions` sets it to the raw `usage_events
+    .session_id`, e.g. `sess-<user>-<n>-<uuid>` in test fixtures) -- no double-prefix risk.
+    `session_identifier`/`started_at` are never returned as separate fields.
+    """
+    meta = f"S-{row.session_identifier} · {row.started_at:%b %-d, %Y}"
+    return PersonalSessionEntry(
+        title=row.name,
+        meta=meta,
+        duration=format_session_duration(row.duration_seconds),
+        tokens=format_session_tokens(row.tokens),
+    )
+
+
+async def fetch_sessions_paginated(
+    db: AsyncSession, user_id: str, page: int, page_size: int
+) -> PersonalSessionsResponse:
+    """Paginated `user_sessions` rows for `GET /api/personal-usage/{user_id}/sessions`
+    (SHP-03-FR-1/2).
+
+    Exactly 2 SELECTs, mirroring `fetch_card_totals`'s single-SELECT-per-concern shape
+    (DATA-DESIGN.md § 8): (1) the page of rows, `ORDER BY started_at DESC, id ASC` -- the `id`
+    tiebreak is required (research risk R-02) because `started_at` is not guaranteed unique, and
+    `LIMIT/OFFSET` without a fully deterministic order can return duplicate or skipped rows across
+    page boundaries; (2) `count(*)` for `total`, the total matching rows for this user across ALL
+    pages, not the page length. Both queries filter on `UserSessions.user_id`, the leading column
+    of `ix_user_sessions_user_id_started_at`, and the first query's ORDER BY is satisfied by that
+    same index's trailing `started_at` column -- no extra index needed.
+
+    `page` is 1-indexed; offset is `(page - 1) * page_size`. Zero sessions returns
+    `PersonalSessionsResponse(items=[], page=page, page_size=page_size, total=0)`, never an error
+    (AC-5) -- `result.scalars().all()` on an empty result set is `[]`, and `count(*)` over zero
+    rows is `0` (not `NULL`, unlike `SUM`), so no extra coercion is needed here.
+    """
+    offset = (page - 1) * page_size
+    items_stmt = (
+        select(UserSessions)
+        .where(UserSessions.user_id == user_id)
+        .order_by(UserSessions.started_at.desc(), UserSessions.id.asc())
+        .limit(page_size)
+        .offset(offset)
+    )
+    items_result = await db.execute(items_stmt)
+    rows = items_result.scalars().all()
+
+    count_stmt = select(func.count(UserSessions.id)).where(UserSessions.user_id == user_id)
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar_one()
+
+    return PersonalSessionsResponse(
+        items=[_build_session_entry(row) for row in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )

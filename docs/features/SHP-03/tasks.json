@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "story_id": "SHP-03",
+  "generated_by": "arh-plan-implementation",
+  "generated_at": "2026-09-18T12:00:00Z",
+  "file_plan": {
+    "F-01": {
+      "action": "modify",
+      "path": "services/api/app/utils/format.py",
+      "reason": "add format_session_duration()/format_session_tokens() beside format_duration()/format_number() (D-01/D-02) \u2014 additive, existing functions unedited"
+    },
+    "F-02": {
+      "action": "create",
+      "path": "services/api/app/schemas/personal_sessions.py",
+      "reason": "PersonalSessionEntry (title/meta/duration/tokens, extra=forbid) + PersonalSessionsResponse (items/page/page_size/total) \u2014 D-03"
+    },
+    "F-03": {
+      "action": "modify",
+      "path": "services/api/app/services/personal_usage.py",
+      "reason": "add fetch_sessions_paginated() beside the existing fetch_card_totals/fetch_daily_token_series/fetch_commands_breakdown \u2014 same module, same table (D-03)"
+    },
+    "F-04": {
+      "action": "modify",
+      "path": "services/api/app/api/personal_usage.py",
+      "reason": "add GET /{user_id}/sessions route below get_personal_usage(), reusing individual_usage_visibility bare (D-04) \u2014 entry-registration site: router already included in app/main.py, no further wiring needed"
+    },
+    "F-05": {
+      "action": "modify",
+      "path": "docs/requirements/api.md",
+      "reason": "fill personal-sessions-api contract shape (D-05) \u2014 currently a decomposition-time sketch"
+    },
+    "F-06": {
+      "action": "modify",
+      "path": "README.md",
+      "reason": "add GET /api/personal-usage/{user_id}/sessions row to the API table (T2 docs trigger)"
+    },
+    "F-07": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_format_session.py",
+      "reason": "unit tests for format_session_duration/format_session_tokens boundaries"
+    },
+    "F-08": {
+      "action": "create",
+      "path": "services/api/tests/unit/test_personal_sessions_route.py",
+      "reason": "route-level unit tests: RBAC allow/deny, pagination clamp, empty-list, ordering, meta composition"
+    },
+    "F-09": {
+      "action": "create",
+      "path": "services/api/tests/perf/test_personal_sessions_perf.py",
+      "reason": "query-count spy + p95 budget, mirrors test_personal_usage_perf.py precedent"
+    },
+    "F-10": {
+      "action": "create",
+      "path": "apps/web/src/types/personalSessions.ts",
+      "reason": "PersonalSessionEntryData / PersonalSessionsData / PersonalSessionsResult types (D-06)"
+    },
+    "F-11": {
+      "action": "create",
+      "path": "apps/web/src/lib/personalSessionsApi.ts",
+      "reason": "server-only, direct-to-FastAPI fetch (D-06, mirrors artifactsApi.ts)"
+    },
+    "F-12": {
+      "action": "create",
+      "path": "apps/web/src/lib/personalSessionsApi.client.ts",
+      "reason": "client-only fetch targeting the proxy route (D-06, mirrors artifactsApi.client.ts)"
+    },
+    "F-13": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/personal-sessions/[user_id]/route.ts",
+      "reason": "full server-to-server proxy (ADR-0008); entry-registration site for personalSessionsApi.client.ts's fetch target"
+    },
+    "F-14": {
+      "action": "create",
+      "path": "apps/web/src/components/SessionsTable.tsx",
+      "reason": "self-fetching client component, loading/empty/populated/error states (D-06)"
+    },
+    "F-15": {
+      "action": "create",
+      "path": "apps/web/src/components/SessionsTable.module.css",
+      "reason": "card shell, grid row anatomy, pagination footer styling per DESIGN.md anatomy"
+    },
+    "F-16": {
+      "action": "create",
+      "path": "apps/web/src/components/SessionsTable.test.tsx",
+      "reason": "vitest + Testing Library, mocked fetch boundary, 3x-mount fixture mirroring ArtifactsPanel.test.tsx precedent"
+    },
+    "F-17": {
+      "action": "create",
+      "path": "apps/web/src/app/api/proxy/personal-sessions/[user_id]/route.test.ts",
+      "reason": "proxy plumbing test, mirrors artifacts proxy route test"
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "T-01",
+      "title": "format_session_duration() / format_session_tokens() in app/utils/format.py",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "D-01/D-02 \u2014 new pure functions beside the existing sealed format_duration()/format_number(); unit tests in T-02.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:14:57Z",
+      "files_touched": [
+        "services/api/app/utils/format.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-02",
+      "title": "Unit tests for the two new formatters",
+      "complexity": "S",
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "boundary cases: 0m, exact hours, zero-padded minutes; sub-1K/1K/1M token boundaries for format_session_tokens.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:16:34Z",
+      "files_touched": [
+        "services/api/tests/unit/test_format_session.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-03",
+      "title": "PersonalSessionEntry / PersonalSessionsResponse schemas",
+      "complexity": "S",
+      "predecessors": [],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
+      "notes": "extra=forbid on PersonalSessionEntry (4-field lock: title, meta, duration, tokens) mirroring ArtifactItem precedent (D-03).",
+      "status": "done",
+      "completed_at": "2026-09-18T12:14:57Z",
+      "files_touched": [
+        "services/api/app/schemas/personal_sessions.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-04",
+      "title": "fetch_sessions_paginated() service function",
+      "complexity": "M",
+      "predecessors": [
+        "T-01",
+        "T-03"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1",
+        "SHP-03-FR-2",
+        "SHP-03-FR-3"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "single SELECT WHERE user_id=:user_id ORDER BY started_at DESC, id ASC LIMIT/OFFSET, using ix_user_sessions_user_id_started_at; separate COUNT(*) for total; composes meta server-side (D-03) via format_session_duration/format_session_tokens.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:17:39Z",
+      "files_touched": [
+        "services/api/app/services/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-05",
+      "title": "GET /{user_id}/sessions route in personal_usage.py",
+      "complexity": "S",
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-3",
+        "SHP-03-FR-4"
+      ],
+      "risk_refs": [
+        "R-03",
+        "R-04"
+      ],
+      "notes": "bare await individual_usage_visibility() first statement (D-04); page_size Query(20, ge=1) default overriding get_page_params()'s 100-default, clamp-to-100 delegated unmodified (FR-3); docstring documents the meta composite, ORDER BY tiebreak, and clamp-not-reject per REQUIREMENTS.md Documentation requirements.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:19:30Z",
+      "files_touched": [
+        "services/api/app/api/personal_usage.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-06",
+      "title": "Route-level unit tests: RBAC, pagination, ordering, empty-list, meta format",
+      "complexity": "M",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-2",
+        "SHP-03-FR-3",
+        "SHP-03-FR-4"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-04",
+        "R-05"
+      ],
+      "notes": "self-access allow, cross-user non-cio 403 (no data body), cross-user cio allow; page_size=150 clamps to 100 (not 400); zero-session user returns 200 items:[] total:0; an ORDER-BY-dropped regression test that seeds out-of-insertion-order rows and asserts strict started_at DESC, id ASC \u2014 fails if ORDER BY were removed (research risk #2).",
+      "status": "done",
+      "completed_at": "2026-09-18T12:23:37Z",
+      "files_touched": [
+        "services/api/tests/unit/test_personal_sessions_route.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-07",
+      "title": "Performance test: query-count spy + p95 budget",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-2"
+      ],
+      "risk_refs": [
+        "R-02"
+      ],
+      "notes": "mirrors test_personal_usage_perf.py: asserts exactly 2 SELECTs/call (items + count), p95 < 2s per REQUIREMENTS.md NFR.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:27:39Z",
+      "files_touched": [
+        "services/api/tests/perf/test_personal_sessions_perf.py"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-08",
+      "title": "Fill personal-sessions-api contract in docs/requirements/api.md",
+      "complexity": "S",
+      "predecessors": [
+        "T-03",
+        "T-05"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "D-05 \u2014 replace the decomposition-time sketch with the concrete FR-1 wire shape, clamp behavior, and 403/empty-list cases.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:22:15Z",
+      "files_touched": [
+        "docs/requirements/api.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-09",
+      "title": "docs(readme): add the new route to README.md API table",
+      "complexity": "S",
+      "predecessors": [
+        "T-05"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1",
+        "SHP-03-FR-3"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
+      "notes": "T2 docs trigger \u2014 new HTTP route. Matches the existing /api/personal-usage/{user_id} row's format/detail level; documents clamp-not-reject page_size behavior explicitly.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:22:15Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-10",
+      "title": "Frontend types: PersonalSessionEntryData / PersonalSessionsData / PersonalSessionsResult",
+      "complexity": "S",
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "mirrors artifacts.ts's ArtifactItemData/ArtifactsData/ArtifactsResult naming convention.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:15:46Z",
+      "files_touched": [
+        "apps/web/src/types/personalSessions.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-11",
+      "title": "personalSessionsApi.ts (server-only, direct-to-FastAPI)",
+      "complexity": "S",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "mirrors artifactsApi.ts; accepts page/page_size query params.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:18:12Z",
+      "files_touched": [
+        "apps/web/src/lib/personalSessionsApi.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-12",
+      "title": "Proxy route: /api/proxy/personal-sessions/[user_id]",
+      "complexity": "M",
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-13"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-4"
+      ],
+      "risk_refs": [],
+      "notes": "full server-to-server proxy per ADR-0008, mirrors program-detail/team proxy route; forwards page/page_size, maps ok/401/403/error statuses.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:18:12Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/personal-sessions/[user_id]/route.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-13",
+      "title": "Proxy route test",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-17"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-4"
+      ],
+      "risk_refs": [],
+      "notes": "vitest; ok/401/403/error status-mapping, mirrors artifacts proxy route test.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:20:29Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/personal-sessions/[user_id]/route.test.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-14",
+      "title": "personalSessionsApi.client.ts (client-only, targets proxy)",
+      "complexity": "S",
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-12"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [],
+      "notes": "mirrors artifactsApi.client.ts.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:20:29Z",
+      "files_touched": [
+        "apps/web/src/lib/personalSessionsApi.client.ts"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-15",
+      "title": "SessionsTable.tsx + SessionsTable.module.css",
+      "complexity": "L",
+      "predecessors": [
+        "T-14"
+      ],
+      "files": [
+        "F-14",
+        "F-15"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-06",
+        "R-07"
+      ],
+      "notes": "'use client' self-fetching component; loading (20 skeleton rows), populated, empty (D-4: no mockup precedent, component-original empty-state copy), error/403 (D-5: same, componen-original denial copy) states; <table> semantics per DESIGN.md Accessibility section (not the mockup's <div>-grid); accessible names on prev/next buttons; aria-current on active page button; duration cell mapped to text-700 per D-07.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:23:37Z",
+      "files_touched": [
+        "apps/web/src/components/SessionsTable.tsx",
+        "apps/web/src/components/SessionsTable.module.css"
+      ],
+      "reason": null
+    },
+    {
+      "task_id": "T-16",
+      "title": "SessionsTable component test",
+      "complexity": "M",
+      "predecessors": [
+        "T-15"
+      ],
+      "files": [
+        "F-16"
+      ],
+      "ac_refs": [
+        "SHP-03-FR-1"
+      ],
+      "risk_refs": [
+        "R-06",
+        "R-07"
+      ],
+      "notes": "vitest + Testing Library, mocked fetch boundary; 3x-mount fixture (Architect/Developer/Product-Manager contexts, no page exists to render against yet \u2014 mirrors ArtifactsPanel.test.tsx T-13 precedent); asserts table semantics, aria-current, accessible prev/next names, empty state, 403 state.",
+      "status": "done",
+      "completed_at": "2026-09-18T12:27:39Z",
+      "files_touched": [
+        "apps/web/src/components/SessionsTable.test.tsx"
+      ],
+      "reason": null
+    }
+  ]
+}

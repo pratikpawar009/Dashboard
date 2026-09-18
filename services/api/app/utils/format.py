@@ -129,6 +129,66 @@ def format_duration(minutes: int) -> str:
     return f"{remaining_minutes}m"
 
 
+def format_session_duration(duration_seconds: int) -> str:
+    """Format raw session seconds as `"<h>h <mm>m"` (SHP-03 D-01, DESIGN.md § Value formats).
+
+    >>> format_session_duration(7620)
+    '2h 07m'
+    >>> format_session_duration(1800)
+    '0h 30m'
+
+    Sibling of `format_duration()`, not a change to it — that function is a
+    sealed cross-story contract (SHP-02/PGD-04/PGD-05) whose shape
+    (`"2h 5m"`/`"2h"`/`"5m"`, no zero-pad, drops an exact-hour minutes term)
+    genuinely disagrees with this panel's mockup-mandated shape (minutes
+    always shown, zero-padded to 2 digits; hours never padded, including a
+    literal `"0h"` below one hour — the generator's own expression,
+    `Math.floor(mins/60) + 'h ' + String(mins%60).padStart(2,'0') + 'm'`,
+    has no branch that omits the hours term). Takes raw seconds (matching
+    `user_sessions.duration_seconds`), converted to whole minutes via
+    integer floor division before splitting h/m.
+    """
+    total_minutes = duration_seconds // 60
+    hours, minutes = divmod(total_minutes, 60)
+    return f"{hours}h {minutes:02d}m"
+
+
+def format_session_tokens(tokens: int) -> str:
+    """Format a session's token count with an M/K suffix (SHP-03 D-02, DESIGN.md § Value formats).
+
+    >>> format_session_tokens(1_200_000)
+    '1.2M'
+    >>> format_session_tokens(840_000)
+    '840K'
+    >>> format_session_tokens(850)
+    '1K'
+
+    Sibling of `format_number()`, not a change to it — delegates to it only
+    at/above the M threshold (`format_number()`'s `.1f` M rendering matches
+    the mockup generator's `tk.toFixed(1)+'M'` branch exactly). Below 1M,
+    `format_number()` is NOT reused: its K branch always keeps one decimal
+    (`"840.0K"`), but DESIGN.md's generator expression for this field
+    (`tk >= 1 ? tk.toFixed(1)+'M' : Math.round(tk*1000)+'K'`, `tk` in
+    millions) and its own point 3 ("a whole-number `K` below [1M]") are
+    explicit that the whole sub-1M range renders as a rounded whole number
+    with no decimal — `840_000 -> "840K"`, not `"840.0K"`. DECISIONS.md
+    D-02's prose describes delegating to `format_number()` for "the M/K
+    magnitude/rounding logic" generally, which would produce the `.1f` K
+    string `format_number()` actually emits; that reads as inconsistent
+    with DESIGN.md's own literal generator expression and point 3 above.
+    Resolved in DESIGN.md's favor (the more specific, generator-literal
+    source) rather than silently picking one — flagged back for the task
+    owner to reconcile the D-02 prose. Below 1M the value is scaled to
+    thousands and rounded (`round(tokens / 1000)`), always carrying a
+    trailing `K` with no decimal, including the sub-1K case:
+    `850 -> "1K"` rather than a bare `"850"` or `"0K"` (no suffix-less case
+    exists in the design source's two-branch expression).
+    """
+    if tokens >= 1_000_000:
+        return format_number(tokens)
+    return f"{round(tokens / 1000)}K"
+
+
 def dot_style_for_program(program_id: str) -> str:
     """Deterministic per-program dot colour (AUTH-04-AC-5, D-01).
 

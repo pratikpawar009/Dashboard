@@ -1,0 +1,569 @@
+{
+  "story_id": "SHP-03",
+  "generated_at": "2026-09-18",
+  "generation_note": "GET /api/personal-usage/{user_id}/sessions does not exist yet -- test_data field names follow FR-1's frozen wire shape (docs/features/SHP-03/REQUIREMENTS.md). Open clarification: story AC-3 asserts HTTP 400 on page_size>100; PRD FR-3 implements clamp-to-100 instead, matching shipped get_page_params() and every other paginated consumer. TC-06 below is written against the PRD's clamp behaviour and tagged clamp-vs-400-open-question so it is trivially findable and flippable if the PO rules for the story's 400 instead. No e2e TC: story's own Test mapping defers E2E to ARC-01/DEV-01/PMD-01 dashboard-composition suites; docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature. Unit-shaped cases (fetch_sessions_paginated() query builder, meta-string composer helper) are NOT enumerated here per the skill's Scope section -- they belong in docs/features/SHP-03/tasks.json.",
+  "test_cases": [
+    {
+      "id": "SHP-03-TC-01",
+      "title": "Self request with defaults returns page=1/page_size=20 envelope, each row's meta as one pre-joined composite string, duration/tokens pre-formatted",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-AC-1",
+      "given": "a signed-in developer persona (usr-shp03-tc01) with 3 user_sessions rows, calling their own sessions endpoint with page/page_size omitted",
+      "when": "GET /api/personal-usage/usr-shp03-tc01/sessions is called by that same user",
+      "then": "the response defaults to page=1, page_size=20 and returns items where each row's title/meta/duration/tokens are all present, with meta composed server-side as 'S-<identifier> · <Mon Day, YYYY>' -- never two separate identifier/date fields",
+      "objective": "Verify AC-1's row anatomy and FR-1's frozen wire shape: title verbatim from user_sessions.name, meta as a single pre-joined composite string (not two raw fields), duration/tokens pre-formatted strings, and page/page_size/total as raw ints.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc01: 3 rows with distinct session_identifier, name, started_at, duration_seconds, tokens",
+        "A valid developer bearer token for usr-shp03-tc01"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc01",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "seeded_sessions": [
+          {"session_identifier": "421", "name": "Refactor auth module", "started_at": "2026-09-10T14:00:00Z", "duration_seconds": 8100, "tokens": 15200},
+          {"session_identifier": "418", "name": "Fix pagination bug", "started_at": "2026-09-08T09:30:00Z", "duration_seconds": 3600, "tokens": 4200},
+          {"session_identifier": "410", "name": "Write PRD draft", "started_at": "2026-09-05T11:00:00Z", "duration_seconds": 1800, "tokens": 900}
+        ],
+        "expected_meta_for_first_row": "S-421 · Sep 10, 2026"
+      },
+      "steps": [
+        "Seed the 3 user_sessions rows for usr-shp03-tc01",
+        "Call GET /api/personal-usage/usr-shp03-tc01/sessions with the developer bearer token, no query params",
+        "Parse the JSON response body",
+        "Inspect page, page_size, total and each item's title/meta/duration/tokens"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "page == 1, page_size == 20 (both raw ints)",
+        "total == 3",
+        "items has exactly 3 entries",
+        "Each item carries exactly the 4 fields title/meta/duration/tokens -- no separate identifier or date field",
+        "The row for session_identifier=421 has meta == \"S-421 · Sep 10, 2026\" (single composite string, literal middle dot separator, full 4-digit year)",
+        "duration is a pre-formatted string (e.g. \"2h 15m\"), never a raw int of seconds",
+        "tokens is a pre-formatted M/K-suffixed string, never a raw int"
+      ],
+      "tags": ["happy-path", "contract", "meta-composite", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 250, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_self_access_allowed_and_not_logged_tc07",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Route shape/self-access verified by test_self_access_allowed_and_not_logged_tc07; the literal meta-composite string is verified by source inspection only (app/services/personal_usage.py::_build_session_entry), not by a dedicated assertion -- see VALIDATION-20260918-1250.md Carry-forward #4."
+      }
+    },
+    {
+      "id": "SHP-03-TC-02",
+      "title": "Rows are ordered started_at DESC with id ASC tiebreak -- fails if ORDER BY is omitted or partial",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-FR-2",
+      "given": "a signed-in developer persona with 4 user_sessions rows, two of which share the exact same started_at timestamp",
+      "when": "GET /api/personal-usage/{user_id}/sessions is called with page_size large enough to return all 4 rows in one page",
+      "then": "rows are ordered started_at DESC, and the two rows sharing started_at are ordered by id ASC as a deterministic tiebreak -- not database-default (arbitrary) order",
+      "objective": "Verify FR-2's exact ORDER BY clause (started_at DESC, id ASC). This TC is deliberately shaped so it would fail under an unordered or started_at-only ORDER BY: two rows share started_at, so a missing tiebreak makes their relative order nondeterministic across repeat calls.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc02 with 4 rows: two independent started_at values, and two rows sharing the identical started_at timestamp but with different (known) id values",
+        "A valid developer bearer token for usr-shp03-tc02"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc02",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "page_size": 20,
+        "seeded_sessions": [
+          {"id": "sess-a", "started_at": "2026-09-12T10:00:00Z"},
+          {"id": "sess-b", "started_at": "2026-09-01T08:00:00Z", "tiebreak_group": "shared"},
+          {"id": "sess-c", "started_at": "2026-09-01T08:00:00Z", "tiebreak_group": "shared"},
+          {"id": "sess-d", "started_at": "2026-08-20T08:00:00Z"}
+        ],
+        "expected_order": ["sess-a", "sess-b", "sess-c", "sess-d"]
+      },
+      "steps": [
+        "Seed the 4 user_sessions rows for usr-shp03-tc02, ensuring sess-b.id < sess-c.id lexically/UUID-wise",
+        "Call GET /api/personal-usage/usr-shp03-tc02/sessions?page=1&page_size=20 twice, with a short delay between calls",
+        "Compare the returned item order across both calls",
+        "Compare the returned order against expected_order"
+      ],
+      "expected_results": [
+        "Response status is 200 on both calls",
+        "items are ordered sess-a, sess-b, sess-c, sess-d -- sess-a first (most recent started_at), sess-d last (oldest)",
+        "Between sess-b and sess-c (identical started_at), sess-b (lower id) consistently precedes sess-c (id ASC tiebreak)",
+        "The order is byte-identical across both calls -- no nondeterminism from an unordered or partially-ordered query"
+      ],
+      "tags": ["ordering", "deterministic", "tiebreak", "boundary", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 1780,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 1780, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_personal_sessions_perf.py::test_personal_sessions_query_count_and_p95_budget",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "ORDER BY started_at DESC, id ASC verified by source inspection (app/services/personal_usage.py::fetch_sessions_paginated) and exercised at scale by the perf test's 250-row fixture; TC-02's own literal tiebreak seed scenario (sess-a/b/c/d) is not replayed by a dedicated assertion -- see VALIDATION-20260918-1250.md Carry-forward #4."
+      }
+    },
+    {
+      "id": "SHP-03-TC-03",
+      "title": "Zero sessions returns 200 with items=[] and total=0, never an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-AC-5",
+      "given": "a signed-in developer persona with zero rows in user_sessions",
+      "when": "GET /api/personal-usage/{user_id}/sessions is called by that same user",
+      "then": "the response is 200 with items=[] and total=0 -- not a 404 or 500",
+      "objective": "Verify AC-5's graceful-empty contract: a user with no sessions gets a valid empty page, matching this codebase's established zero-fill/graceful-empty pattern elsewhere.",
+      "preconditions": [
+        "Test database migrated to head",
+        "No user_sessions rows exist for usr-shp03-tc03",
+        "A valid developer bearer token for usr-shp03-tc03"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc03",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>"
+      },
+      "steps": [
+        "Call GET /api/personal-usage/usr-shp03-tc03/sessions with the developer bearer token, no query params",
+        "Parse the JSON response body"
+      ],
+      "expected_results": [
+        "Response status is 200, never 404 or 500",
+        "items == [] (empty array)",
+        "total == 0",
+        "page == 1, page_size == 20 (defaults still populated even for an empty result)"
+      ],
+      "tags": ["empty-state", "boundary", "graceful-empty", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 180,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 180, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_zero_sessions_returns_empty_page_not_error_tc03",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Additionally live-verified against a running server: GET /api/personal-usage/{fresh_user}/sessions -> 200 {items:[],page:1,page_size:20,total:0}."
+      }
+    },
+    {
+      "id": "SHP-03-TC-04",
+      "title": "page beyond available range returns 200 with items=[] and the true total, not an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-03-AC-2",
+      "given": "a signed-in developer persona with 3 user_sessions rows",
+      "when": "GET /api/personal-usage/{user_id}/sessions?page=5&page_size=20 is called (page far beyond the 1-page result set)",
+      "then": "the response is 200 with items=[] and total=3, reflecting the true row count rather than erroring on an out-of-range page",
+      "objective": "Verify pagination boundary behaviour beyond the last page: an out-of-range page number is not an error condition -- it is a valid empty page with the correct total for building pagination controls.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc04 with exactly 3 rows",
+        "A valid developer bearer token for usr-shp03-tc04"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc04",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "page": 5,
+        "page_size": 20,
+        "seeded_session_count": 3
+      },
+      "steps": [
+        "Seed 3 user_sessions rows for usr-shp03-tc04",
+        "Call GET /api/personal-usage/usr-shp03-tc04/sessions?page=5&page_size=20",
+        "Parse the JSON response body"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items == []",
+        "total == 3 (the true row count, not 0)",
+        "page == 5, page_size == 20 (echoed back as requested, even though empty)"
+      ],
+      "tags": ["pagination-boundary", "out-of-range-page", "boundary", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 210,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 210, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_page_beyond_available_range_returns_empty_items_true_total_tc04",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "SHP-03-TC-05",
+      "title": "page<1 and page_size<1 are clamped/rejected per get_page_params(), never silently treated as page=1",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-03-FR-3",
+      "given": "a signed-in developer persona and the shared get_page_params() dependency (Query(..., ge=1) on page and page_size)",
+      "when": "GET /api/personal-usage/{user_id}/sessions is called with page=0 and, separately, page_size=0",
+      "then": "both requests are rejected 422 by FastAPI's own ge=1 validation on the query parameter -- distinct from the page_size>100 clamp-not-reject path",
+      "objective": "Verify the lower pagination boundary: page<1 / page_size<1 are FastAPI Query(ge=1) validation failures (422), not silently coerced to page=1/page_size=default and not confused with the upper-bound clamp behaviour FR-3 documents for page_size>100.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc05 with at least 1 row",
+        "A valid developer bearer token for usr-shp03-tc05"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc05",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "invalid_page": 0,
+        "invalid_page_size": 0
+      },
+      "steps": [
+        "Call GET /api/personal-usage/usr-shp03-tc05/sessions?page=0&page_size=20",
+        "Call GET /api/personal-usage/usr-shp03-tc05/sessions?page=1&page_size=0",
+        "Inspect both response statuses and bodies"
+      ],
+      "expected_results": [
+        "GET with page=0 returns 422 (FastAPI Query(ge=1) validation error), not 200 with page silently reset to 1",
+        "GET with page_size=0 returns 422 for the same reason",
+        "Neither response carries an items/total data body"
+      ],
+      "tags": ["pagination-boundary", "lower-bound", "validation", "boundary", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 195,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 195, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_page_lt_1_and_page_size_lt_1_reject_422_tc05",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Live-verified: page=0 -> 422 greater_than_equal; page_size=0 -> 422, same shape."
+      }
+    },
+    {
+      "id": "SHP-03-TC-06",
+      "title": "[CLARIFICATION-SENSITIVE -- clamp-vs-400] page_size>100 is CLAMPED to 100 and returns 200, per PRD FR-3, contradicting story AC-3's literal HTTP 400 text",
+      "type": "contract",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-FR-3",
+      "given": "a signed-in developer persona with more than 100 user_sessions rows",
+      "when": "GET /api/personal-usage/{user_id}/sessions?page_size=250 is called",
+      "then": "the request is CLAMPED to page_size=100 and returns 200 with up to 100 items -- NOT rejected with HTTP 400, per PRD FR-3's resolution of the story AC-3 vs shipped-code conflict",
+      "objective": "Verify the PRD's chosen resolution (clamp, matching shipped get_page_params() and every existing clamp-not-reject consumer) for the one open PRD clarification on this story. FLIP THIS TEST if the PO signs off on story AC-3's literal HTTP 400 instead: at that point (a) invert the expected_results below to assert 400 and no data body, (b) change requirement_id to SHP-03-AC-3, and (c) remove the [CLARIFICATION-SENSITIVE] title tag.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc06 with 105 rows (enough to fill a clamped page_size=100 response)",
+        "A valid developer bearer token for usr-shp03-tc06"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc06",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "requested_page_size": 250,
+        "expected_effective_page_size": 100,
+        "seeded_session_count": 105
+      },
+      "steps": [
+        "Seed 105 user_sessions rows for usr-shp03-tc06",
+        "Call GET /api/personal-usage/usr-shp03-tc06/sessions?page=1&page_size=250",
+        "Parse the JSON response body"
+      ],
+      "expected_results": [
+        "Response status is 200, NOT 400",
+        "page_size in the response body == 100 (clamped from the requested 250), never echoing back the raw requested value",
+        "items has exactly 100 entries (the clamp ceiling, not 250)",
+        "total == 105 (the true row count, unaffected by the clamp)"
+      ],
+      "tags": ["clamp-vs-400-open-question", "pagination-boundary", "needs-clarification", "boundary", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 320,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 320, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_page_size_over_100_clamps_to_100_returns_200_not_400_tc06",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Live-verified: page_size=250 -> 200 {page_size:100}. Clamp confirmed, matching PRD FR-3 resolution of the story AC-3 vs shipped-code conflict."
+      }
+    },
+    {
+      "id": "SHP-03-TC-07",
+      "title": "Self request for own user_id is allowed regardless of persona",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-AC-4",
+      "given": "a signed-in architect persona requesting their own user_id's sessions",
+      "when": "GET /api/personal-usage/{own_user_id}/sessions is called",
+      "then": "individual_usage_visibility allows the self case unconditionally and the response is 200 with the user's own session data",
+      "objective": "Verify the positive half of FR-4's RBAC gate: self access is always allowed, independent of persona.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc07 with at least 1 row",
+        "A valid architect bearer token for usr-shp03-tc07"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc07",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>"
+      },
+      "steps": [
+        "Call GET /api/personal-usage/usr-shp03-tc07/sessions with the architect bearer token for usr-shp03-tc07 itself"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "The response body carries the seeded session data for usr-shp03-tc07"
+      ],
+      "tags": ["rbac", "positive", "self-access", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 250,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 250, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_self_access_allowed_and_not_logged_tc07",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "SHP-03-TC-08",
+      "title": "Cross-user request from a non-cio persona is denied 403 with no data body, logged individual_view_denied",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-AC-4",
+      "given": "a signed-in developer persona (usr-shp03-tc08-requester) requesting a different user_id (usr-shp03-tc08-target) that is not their own, and the requester is not cio",
+      "when": "GET /api/personal-usage/usr-shp03-tc08-target/sessions is called by the requester",
+      "then": "individual_usage_visibility denies the request with HTTP 403 and no data body, and exactly one individual_view_denied log record is emitted",
+      "objective": "Verify FR-4's negative RBAC path precisely: cross-user + non-cio is denied, the 403 body carries no items/page/total leakage, and the denial is logged via individual_view_denied -- the same denial-only event SHP-02 already emits, with no separate 'authorized' event for this route.",
+      "preconditions": [
+        "Test database migrated to head",
+        "Two distinct user ids: usr-shp03-tc08-requester (persona=developer) and usr-shp03-tc08-target (any persona, no cio grant for the requester)",
+        "A log-capturing handler attached to the personal_usage router's logger",
+        "A valid developer bearer token for usr-shp03-tc08-requester"
+      ],
+      "test_data": {
+        "requester_user_id": "usr-shp03-tc08-requester",
+        "requester_persona": "developer",
+        "target_user_id": "usr-shp03-tc08-target",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>"
+      },
+      "steps": [
+        "Attach the log-capturing handler",
+        "Call GET /api/personal-usage/usr-shp03-tc08-target/sessions with the requester's developer bearer token",
+        "Inspect the response status and body",
+        "Inspect the captured log records for individual_view_denied"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body carries no items/page/page_size/total fields -- no partial session data",
+        "Exactly one individual_view_denied log record is emitted for this call",
+        "No separate 'authorized'/'allowed' event is emitted anywhere in this call's log trail -- denial-only logging, matching SHP-02/SHP-04 precedent"
+      ],
+      "tags": ["rbac", "negative", "observability", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 280,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 280, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_cross_user_non_cio_denied_bare_403_logged_tc08",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Live-verified: cross-user call -> 403 {error:{code:http_403}}, no items/page/total fields."
+      }
+    },
+    {
+      "id": "SHP-03-TC-09",
+      "title": "cio persona requesting another user's sessions is allowed 200",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-AC-4",
+      "given": "a signed-in cio persona requesting a different user_id's sessions",
+      "when": "GET /api/personal-usage/{other_user_id}/sessions is called by the cio",
+      "then": "individual_usage_visibility allows the cio's cross-user access and the response is 200 with that user's session data",
+      "objective": "Verify the cio-exception branch of FR-4's RBAC gate: non-self is allowed when the requester's persona is cio, matching SHP-02's identical gate.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc09-target with at least 1 row",
+        "A valid cio bearer token"
+      ],
+      "test_data": {
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "target_user_id": "usr-shp03-tc09-target"
+      },
+      "steps": [
+        "Call GET /api/personal-usage/usr-shp03-tc09-target/sessions with the cio bearer token"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "The response body carries usr-shp03-tc09-target's seeded session data",
+        "No individual_view_denied log record is emitted for this call"
+      ],
+      "tags": ["rbac", "positive", "cio-exception", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 260,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 260, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_cio_cross_user_access_allowed_no_denial_logged_tc09",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Live-verified: cio dev-bypass token against another user_id -> 200 {items:[]}."
+      }
+    },
+    {
+      "id": "SHP-03-TC-10",
+      "title": "Missing or invalid bearer token returns 401",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-03-NFR-security",
+      "given": "no Authorization header, and separately a malformed/expired bearer token",
+      "when": "GET /api/personal-usage/{user_id}/sessions is called",
+      "then": "both calls are rejected 401 before individual_usage_visibility or any user_sessions query runs",
+      "objective": "Verify the standard auth dependency rejects an absent or invalid bearer token with 401, matching every other route in this table, and that RBAC/session-data logic never executes without a validated token.",
+      "preconditions": [
+        "Test database migrated to head",
+        "user_sessions seeded for usr-shp03-tc10 with at least 1 row",
+        "A malformed/expired bearer token string available for the second call"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc10",
+        "malformed_bearer_token": "<MALFORMED_OR_EXPIRED_TEST_JWT>"
+      },
+      "steps": [
+        "Call GET /api/personal-usage/usr-shp03-tc10/sessions with no Authorization header",
+        "Call GET /api/personal-usage/usr-shp03-tc10/sessions with the malformed bearer token",
+        "Inspect both response statuses and bodies"
+      ],
+      "expected_results": [
+        "Both calls return 401",
+        "Neither response body carries items/page/total data",
+        "No individual_view_denied log record is emitted for either call -- 401 is an authn failure, distinct from the authz denial event"
+      ],
+      "tags": ["authn", "negative", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 190,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 190, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_personal_sessions_route.py::test_missing_or_invalid_bearer_token_returns_401_tc10",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "note": "Live-verified: no Authorization header -> 401; malformed token -> 401, both no data body."
+      }
+    },
+    {
+      "id": "SHP-03-TC-11",
+      "title": "Single indexed lookup on (user_id, started_at), no N+1, page-navigation refresh within 2s budget",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-03-NFR-performance",
+      "given": "user_sessions seeded for a user with 250 rows and a query counter attached",
+      "when": "GET /api/personal-usage/{user_id}/sessions?page=2&page_size=20 is called",
+      "then": "exactly one indexed SELECT (using ix_user_sessions_user_id_started_at) plus at most one COUNT query run, no per-row fan-out, and the call completes within the 2s page-navigation budget",
+      "objective": "Verify the performance NFR: a single indexed LIMIT/OFFSET lookup bounded by page_size<=100, no N+1, within the 2s budget sourced from the story NFR.",
+      "preconditions": [
+        "Test database migrated to head; user_sessions seeded for usr-shp03-tc11 with 250 rows",
+        "A query counter/spy attached for the duration of each call",
+        "A valid developer bearer token for usr-shp03-tc11"
+      ],
+      "test_data": {
+        "user_id": "usr-shp03-tc11",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "page": 2,
+        "page_size": 20,
+        "query_count_budget": 2,
+        "latency_budget_ms": 2000
+      },
+      "steps": [
+        "Attach the query counter",
+        "Call GET /api/personal-usage/usr-shp03-tc11/sessions?page=2&page_size=20 10 times, timing each call",
+        "Inspect the query counter for user_sessions",
+        "Compute p95 latency across the sample"
+      ],
+      "expected_results": [
+        "At most 2 SELECTs run per call (the paginated row lookup + a total count) -- no per-row fan-out",
+        "The query plan uses ix_user_sessions_user_id_started_at (or equivalent index scan), not a sequential scan",
+        "p95 latency across the sample is under the 2s page-navigation budget"
+      ],
+      "tags": ["performance", "query-budget", "shp-03"],
+      "last_run": {
+        "started_at": "2026-09-18T12:30:00Z",
+        "duration_ms": 1780,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 1780, "reason": null}],
+        "budget": {
+          "target": "p95 < 2000ms @ page navigation",
+          "measured": "under 2000ms (see test assertion; runner does not print a numeric p95 to stdout)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/perf/test_personal_sessions_perf.py::test_personal_sessions_query_count_and_p95_budget",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {"id": "SHP-03-AC-1", "covered_by": ["SHP-03-TC-01"]},
+      {"id": "SHP-03-AC-2", "covered_by": ["SHP-03-TC-04"]},
+      {"id": "SHP-03-AC-3", "covered_by": ["SHP-03-TC-06"]},
+      {"id": "SHP-03-AC-4", "covered_by": ["SHP-03-TC-07", "SHP-03-TC-08", "SHP-03-TC-09"]},
+      {"id": "SHP-03-AC-5", "covered_by": ["SHP-03-TC-03"]}
+    ],
+    "functional_requirements": [
+      {"id": "SHP-03-FR-1", "covered_by": ["SHP-03-TC-01"]},
+      {"id": "SHP-03-FR-2", "covered_by": ["SHP-03-TC-02"]},
+      {"id": "SHP-03-FR-3", "covered_by": ["SHP-03-TC-05", "SHP-03-TC-06"]},
+      {"id": "SHP-03-FR-4", "covered_by": ["SHP-03-TC-08"]}
+    ],
+    "non_functional_requirements": [
+      {"id": "SHP-03-NFR-performance", "covered_by": ["SHP-03-TC-11"]},
+      {"id": "SHP-03-NFR-security", "covered_by": ["SHP-03-TC-10"]},
+      {"id": "SHP-03-NFR-observability", "covered_by": ["SHP-03-TC-08"]}
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "AC-3 is deliberately covered against the PRD's clamp behaviour (FR-3), not the story's literal HTTP 400 text -- see the one open [NEEDS CLARIFICATION] in REQUIREMENTS.md § Open questions. SHP-03-TC-06 is tagged clamp-vs-400-open-question and titled [CLARIFICATION-SENSITIVE] with an explicit flip-instruction in its objective, so a PO ruling for the story's 400 can be located and inverted without re-deriving the case.",
+      "Accessibility NFR has no dedicated TC: the PRD states pagination controls are reused, unchanged frontend components and the sortable-column/live-region rules apply to those existing components, not new work in this story -- no new accessibility surface is introduced. Not listed under non_functional_requirements/uncovered since REQUIREMENTS.md does not assign it a distinct budget beyond the reused-component statement.",
+      "Cross-checked against REQUIREMENTS.md § Scope Out: (dashboard composition beyond this table, any write/ingest path into user_sessions, mockup pagination-chrome build-out, cross-program session listing) -- no test case references any of these.",
+      "Unit-shaped cases (fetch_sessions_paginated() query builder, meta-string composer helper) are deliberately NOT enumerated here per the skill's Scope section -- they belong in docs/features/SHP-03/tasks.json.",
+      "No TC of type e2e was written: story's own Test mapping defers E2E to ARC-01/DEV-01/PMD-01 dashboard-composition suites; docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature."
+    ]
+  }
+}

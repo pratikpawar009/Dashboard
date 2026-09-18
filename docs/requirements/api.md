@@ -279,8 +279,29 @@ shape:
 produced_by: SHP-03
 consumed_by: [ARC-01, DEV-01, PMD-01]
 shape:
-  endpoint: "GET /api/personal-usage/{user_id}/sessions?page=&page_size= (max 100)"
-  fields: "session name/description, identifier, date, duration, tokens — paginated"
+  endpoint: "GET /api/personal-usage/{user_id}/sessions?page=&page_size= — a SIBLING route on the SAME router as personal-usage-api (app/api/personal_usage.py), not a separate router."
+  auth: "bearer token via the standard auth dependency; gated by individual_usage_visibility (self always, else cio only) — identical gate and denial-logging (individual_view_denied, denial-only) as GET /api/personal-usage/{user_id} (SHP-02), reused unchanged (SHP-03-FR-4)."
+  response: |
+    200 {
+      "items": [
+        {"title": "Refactor auth middleware", "meta": "S-1088 · Jul 5, 2026", "duration": "2h 07m", "tokens": "1.2M"}
+      ],
+      "page": 1,
+      "page_size": 20,
+      "total": 63
+    }
+  contract_notes:
+    - "items has exactly 4 fields per row (title, meta, duration, tokens), extra=\"forbid\" on the row model — session_identifier and started_at are NEVER returned as separate fields; meta is a server-composed pre-joined string ('S-' + session_identifier + ' · ' + started_at formatted 'Mon Day, YYYY', U+00B7 middle dot, year included) (SHP-03-FR-1, DESIGN.md D-1)."
+    - "title maps verbatim from user_sessions.name."
+    - "duration is pre-formatted 'XhYYm' (minutes zero-padded to 2 digits, hours not padded, both terms always present — e.g. '2h 07m', never '2h' or '07m' alone) via a NEW format_session_duration() helper, distinct from the existing format_duration() (which drops the minutes term on exact hours and does not zero-pad) — the two formatters coexist, format_duration() is unedited (DECISIONS.md D-01)."
+    - "tokens is pre-formatted, M/K-suffixed, switching unit at 1M (one decimal above, e.g. '1.2M'; whole-number K below, e.g. '840K') via a NEW format_session_tokens() helper, distinct from the existing format_number() (whose sub-1000 branch has no suffix) — the two formatters coexist, format_number() is unedited (DECISIONS.md D-02)."
+    - "Neither duration nor tokens ships a raw-int sibling — unlike DailyTokenPoint.tokens/CommandEntry.count, this is a terminal display surface with no downstream numeric consumer."
+    - "page/page_size/total are raw ints, matching the activities.py paginated-list envelope precedent."
+    - "Ordering is ORDER BY started_at DESC, id ASC (deterministic tiebreak) — most-recent-first, required so LIMIT/OFFSET pagination cannot return duplicate or skipped rows across page boundaries (SHP-03-FR-2)."
+    - "page_size defaults to 20 (mockup's own sesPageSize=20 corroborates this) via a story-local _sessions_page_params wrapper that supplies only this default; ALL bounds/clamp logic, including the page_size>100 clamp, is delegated unedited to the shared get_page_params() dependency (whose own default is 100) — a page_size above 100 is CLAMPED to 100, never HTTP 400/422-rejected, matching every other paginated/ranged list route in this codebase's clamp-not-reject convention (SHP-03-FR-3). page<1 / page_size<1 still 422 via get_page_params()'s ge=1 bounds — the only rejection path that exists here. This supersedes docs/stories/SHP-03.md's own AC-3 text, which still asserts HTTP 400 — that story text is stale and needs correcting at its next edit; not corrected here (carry-forward)."
+    - "A user with zero sessions gets 200 {items: [], page: 1, page_size: 20, total: 0} — never a 404 or error (AC-5)."
+    - "403 (cross-user request from a non-cio persona) carries no items/page/page_size/total field. No additional route-level logging around the gate — individual_usage_visibility itself emits individual_view_denied on denial only."
+    - "No program_id in request or response — a cross-program aggregate by contract, inherited unchanged from personal-usage-api's own no-program_id scope."
 ```
 
 ### artifacts-api
