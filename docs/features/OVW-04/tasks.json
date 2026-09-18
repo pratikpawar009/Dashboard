@@ -116,154 +116,339 @@
       "title": "Verify + add program_summary.tokens index (research C-1)",
       "complexity": "S",
       "predecessors": [],
-      "files": ["F-01", "F-02", "F-03"],
-      "ac_refs": ["OVW-04-FR-2"],
-      "risk_refs": ["R-05"],
+      "files": [
+        "F-01",
+        "F-02",
+        "F-03"
+      ],
+      "ac_refs": [
+        "OVW-04-FR-2"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
       "notes": "Pre-code, merge-blocking per research condition C-1. Confirmed via codebase-exploration: no index on program_summary.tokens exists (001_initial_schema.py only has a unique constraint on program_id). Mirror 007_program_releases_date_index.py's plain op.create_index/downgrade pattern (D-01). Update model __table_args__ and tests/fixtures/prd_8_4_schema.json in the same task so TestSchemaDiffGate and TestFixtureDrivenTableConstraints stay green.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:41:35Z",
+      "files_touched": [
+        "services/api/migrations/versions/009_program_summary_tokens_index.py",
+        "services/api/app/models/rollup.py",
+        "services/api/tests/fixtures/prd_8_4_schema.json"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-02",
       "title": "ProgramBoard response schemas",
       "complexity": "S",
       "predecessors": [],
-      "files": ["F-04"],
-      "ac_refs": ["OVW-04-FR-1"],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "OVW-04-FR-1"
+      ],
       "risk_refs": [],
       "notes": "ProgramBoardSparkline{points, mom_change_percent, mom_direction}, ProgramBoardMetric{glyph,label,value}, ProgramBoardCard{program_id,name,type,icon,description(alias scope not needed -- wire name is 'description' per FR-1, mockup's p.scope is a frontend rename concern only),href,sparkline,metrics,repos_with_harness_installed,repos_total}, ProgramBoardResponse{items,page,page_size,total}. No cardStyle/avatarStyle/typeChip/momColor/momBg/repoBarStyle fields (TC-01 explicitly asserts their absence).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:41:35Z",
+      "files_touched": [
+        "services/api/app/schemas/program_board.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-03",
       "title": "fetch_program_board() service: query, JSONB validation, MoM computation, card assembly",
       "complexity": "L",
-      "predecessors": ["T-01", "T-02"],
-      "files": ["F-05"],
-      "ac_refs": ["OVW-04-FR-1", "OVW-04-FR-2", "OVW-04-FR-3"],
-      "risk_refs": ["R-02", "R-03"],
-      "notes": "Query: SELECT * FROM program_summary ORDER BY tokens DESC OFFSET :offset LIMIT :limit, plus a COUNT(*) for total (mirrors fetch_program_releases's paired-query pattern). _validate_sparkline(raw) -> list[dict]: null/missing/non-list/malformed-element all fall back to [] (research C-2). _compute_mom(points) -> (pct|None, direction|None): 0 or 1 points -> (None,None); >=2 points -> pct=round((last-prev)/prev*100,1) with divide-by-zero guard (prev==0 -> pct=None but direction still computed from the raw delta per FR-3's table), direction via ±0.05% threshold -> up/down/flat (research C-3). _BOARD_METRIC_GLYPHS_LABELS fixed 4-tuple constant (D-03) zipped with format_number() of tokens/releases/features/active_contributors. repos_with_harness_installed/repos_total pass through as raw ints (no ratio composed server-side per FR-1 rationale).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "predecessors": [
+        "T-01",
+        "T-02"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "OVW-04-FR-1",
+        "OVW-04-FR-2",
+        "OVW-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "Query: SELECT * FROM program_summary ORDER BY tokens DESC OFFSET :offset LIMIT :limit, plus a COUNT(*) for total (mirrors fetch_program_releases's paired-query pattern). _validate_sparkline(raw) -> list[dict]: null/missing/non-list/malformed-element all fall back to [] (research C-2). _compute_mom(points) -> (pct|None, direction|None): 0 or 1 points -> (None,None); >=2 points -> pct=round((last-prev)/prev*100,1) with divide-by-zero guard (prev==0 -> pct=None but direction still computed from the raw delta per FR-3's table), direction via \u00b10.05% threshold -> up/down/flat (research C-3). _BOARD_METRIC_GLYPHS_LABELS fixed 4-tuple constant (D-03) zipped with format_number() of tokens/releases/features/active_contributors. repos_with_harness_installed/repos_total pass through as raw ints (no ratio composed server-side per FR-1 rationale).",
+      "status": "done",
+      "completed_at": "2026-09-18T05:43:58Z",
+      "files_touched": [
+        "services/api/app/services/program_board.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-04",
       "title": "GET /api/overview/program-board route wiring",
       "complexity": "M",
-      "predecessors": ["T-03"],
-      "files": ["F-06"],
-      "ac_refs": ["OVW-04-AC-1", "OVW-04-AC-2", "OVW-04-AC-5", "OVW-04-AC-6"],
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1",
+        "OVW-04-AC-2",
+        "OVW-04-AC-5",
+        "OVW-04-AC-6"
+      ],
       "risk_refs": [],
       "notes": "_board_page_params dependency (D-02): page default 1 ge=1, page_size default 20 ge=1, clamp via min(page_size, MAX_PAGE_SIZE) reusing app.dependencies.pagination.MAX_PAGE_SIZE. Route: await org_access(current_user) FIRST (403, no data body, non-CIO -- AC-2), then call fetch_program_board. Empty org -> 200 {items:[],page:1,page_size:20,total:0} falls out naturally from the query (AC-5, no special-casing needed). Docstring documents (a) JSONB fallback contract (C-2) and (b) MoM neutral-state rule (C-3) per Documentation requirements 'Inline code comments'.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:46:41Z",
+      "files_touched": [
+        "services/api/app/api/overview.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-05",
       "title": "Backend unit/integration/performance/security tests",
       "complexity": "L",
-      "predecessors": ["T-04"],
-      "files": ["F-07"],
-      "ac_refs": ["OVW-04-AC-1", "OVW-04-AC-2", "OVW-04-AC-5", "OVW-04-AC-6"],
-      "risk_refs": ["R-02", "R-03", "R-05"],
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1",
+        "OVW-04-AC-2",
+        "OVW-04-AC-5",
+        "OVW-04-AC-6"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03",
+        "R-05"
+      ],
       "notes": "Maps OVW-04-TC-01 (ordering + full shape + no-inline-css), TC-02 (EXPLAIN ANALYZE index-scan + p95<300ms, 200 seeded rows), TC-03 (null/missing/malformed JSONB -> empty points, never 500), TC-04 (0/1/>=2 point MoM neutral+computed cases), TC-05 (non-CIO 403 no body + rbac_check_org_access denied log), TC-08 (empty org 200), TC-09 (pagination default/clamp), TC-10 (page<1 / page_size<1 -> 422), TC-11 (p95<300ms default page_size=20).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:50:54Z",
+      "files_touched": [
+        "services/api/tests/unit/test_program_board.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-06",
       "title": "Add MoM flat-chip design token",
       "complexity": "S",
       "predecessors": [],
-      "files": ["F-08"],
-      "ac_refs": ["OVW-04-NFR-accessibility"],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "OVW-04-NFR-accessibility"
+      ],
       "risk_refs": [],
       "notes": "D-05: record #5b6472/#f0f1f4 flat MoM pair in tokens.md alongside the existing up/down MoM pair, flagged PO-approved-not-mockup-sourced (same disclosure style as existing tokens.md entries).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:41:35Z",
+      "files_touched": [
+        "docs/design/tokens.md"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-07",
       "title": "Frontend wire types + fetch client",
       "complexity": "S",
-      "predecessors": ["T-02"],
-      "files": ["F-09", "F-10"],
-      "ac_refs": ["OVW-04-FR-1"],
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-09",
+        "F-10"
+      ],
+      "ac_refs": [
+        "OVW-04-FR-1"
+      ],
       "risk_refs": [],
       "notes": "types/programBoard.ts mirrors types/overview.ts's ProgramBoardCardData/ProgramBoardResult (status: ok|forbidden|unauthorized|error, same 403->forbidden precedence over 401->unauthorized per fetchOverviewSummary's convention). lib/programBoardApi.ts::fetchProgramBoard({accessToken}) mirrors fetchOverviewSummary verbatim: FETCH_TIMEOUT_MS=5000, GET /api/overview/program-board, no query params (fetch page 1 default per PO resolution #3).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:43:58Z",
+      "files_touched": [
+        "apps/web/src/types/programBoard.ts",
+        "apps/web/src/lib/programBoardApi.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-08",
       "title": "momChipStyle() helper",
       "complexity": "S",
-      "predecessors": ["T-06"],
-      "files": ["F-11"],
-      "ac_refs": ["OVW-04-NFR-accessibility"],
+      "predecessors": [
+        "T-06"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "OVW-04-NFR-accessibility"
+      ],
       "risk_refs": [],
       "notes": "momChipStyle(direction: 'up'|'down'|'flat'|null) -> {color,background}|null (null when direction is null -- chip omitted entirely per FR-3/DESIGN.md). Mirrors getProgramStyle()'s shape/style (two independent object literals, not aliased -- same discipline programStyle.ts documents).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:43:58Z",
+      "files_touched": [
+        "apps/web/src/lib/momChipStyle.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-09",
       "title": "ProgramSparkline inline SVG component",
       "complexity": "M",
       "predecessors": [],
-      "files": ["F-14"],
-      "ac_refs": ["OVW-04-AC-1"],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1"
+      ],
       "risk_refs": [],
       "notes": "Ports DESIGN.md's spark() geometry verbatim: viewBox '0 0 240 56' preserveAspectRatio='none', pad=4, x=pad+(i/(n-1))*(W-pad*2), y=pad+(1-(v-min)/rng)*(H-pad*2-6) with rng=(max-min)||1, stroke=typeColor width 2.4 round cap/join, linearGradient fill 0.22->0 opacity, end dot r=4 fill #fff stroke=typeColor. Divide-by-zero guards: n===1 renders a single centered dot (no line), n===0 renders an empty 56px-tall panel body (no axes, no text). role='img' aria-hidden='true' per DESIGN.md Keyboard/AT section (MoM chip already states the trend numerically).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:41:35Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramSparkline.tsx"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-10",
       "title": "ProgramCard component + styles",
       "complexity": "L",
-      "predecessors": ["T-07", "T-08", "T-09"],
-      "files": ["F-12", "F-13"],
-      "ac_refs": ["OVW-04-AC-1", "OVW-04-AC-3", "OVW-04-AC-4", "OVW-04-NFR-accessibility"],
+      "predecessors": [
+        "T-07",
+        "T-08",
+        "T-09"
+      ],
+      "files": [
+        "F-12",
+        "F-13"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1",
+        "OVW-04-AC-3",
+        "OVW-04-AC-4",
+        "OVW-04-NFR-accessibility"
+      ],
       "risk_refs": [],
       "notes": "Single <a href={card.href}> root, target='_top' omitted (this is same-app navigation, not the mockup's canvas-local cross-file link -- AUTH-04 route convention). aria-label={`${name} -- open program detail`}, decorative chrome (nav glyph, sparkline) aria-hidden. cardStyle/cardHover/avatarStyle/typeChip all derived client-side via getProgramStyle(type) (presentation-vs-data boundary) plus momChipStyle(mom_direction) (D-05/D-08). repoLabel = `${installed} / ${total}` with spaces (DESIGN.md L706 correction over PRD prose); total===0 guard renders '0 / 0' with 0%-width fill, no NaN. Metric grid renders exactly 4 boxes from card.metrics in server-given order. Focus ring outline:2px solid #2a6fdb per DESIGN.md Keyboard section (OVW-05's established fallback value). prefers-reduced-motion suppresses the hover transform/transition. D-06: onClick handler logs program_drilldown client-side without preventDefault/blocking navigation.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:46:41Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramCard.tsx",
+        "apps/web/src/components/ProgramCard.module.css"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-11",
       "title": "ProgramLeaderboard section component + styles",
       "complexity": "M",
-      "predecessors": ["T-10"],
-      "files": ["F-15", "F-16"],
-      "ac_refs": ["OVW-04-AC-1", "OVW-04-AC-5"],
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-15",
+        "F-16"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1",
+        "OVW-04-AC-5"
+      ],
       "risk_refs": [],
       "notes": "Heading dot #c08a1e (section-specific, distinct from OVW-01's ORG SUMMARY dot), 'Program board' literal heading text (NOT 'leaderboard' -- DESIGN.md note 1), '-- all programs using Harness' suffix. Right slot: empty styled div, no invented control (CLAUDE.md Design system). Vertical stack gap:14px (not a grid). Loading: exactly 6 skeleton cards regardless of page_size (PO resolution #4), populated-card geometry with text suppressed. Empty (zero items): section header renders, card stack empty, no invented empty-state copy (PO/DESIGN.md precedent). Error: reuses shipped OverviewErrorPanel, same as OrgSummaryCards' sibling pattern.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:50:54Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramLeaderboard.tsx",
+        "apps/web/src/components/ProgramLeaderboard.module.css"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-12",
       "title": "Wire ProgramLeaderboard into AdoptionOverview + page-level fetch",
       "complexity": "M",
-      "predecessors": ["T-11"],
-      "files": ["F-17", "F-18"],
-      "ac_refs": ["OVW-04-AC-1", "OVW-04-AC-2"],
+      "predecessors": [
+        "T-11"
+      ],
+      "files": [
+        "F-17",
+        "F-18"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-1",
+        "OVW-04-AC-2"
+      ],
       "risk_refs": [],
       "notes": "page.tsx: add fetchProgramBoard to the existing Promise.all alongside fetchOverviewSummary and fetchMe, wrapped in the same callWithAuth retry-once-on-401 pattern; only a SessionExpiredError from any of the three redirects to /login (existing catch already generalizes). AdoptionOverview.tsx: render <ProgramLeaderboard> beneath <AdoptionIndicator>, passing the board fetch's status through the same ok/forbidden/unauthorized/error branching OrgSummaryCards already uses (non-ok -> OverviewErrorPanel, same D-07 'one message for all three' precedent) -- entry-registration/wiring for the two new leaf components.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:53:23Z",
+      "files_touched": [
+        "apps/web/src/components/AdoptionOverview.tsx",
+        "apps/web/src/app/overview/page.tsx"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-13",
       "title": "Frontend component tests",
       "complexity": "M",
-      "predecessors": ["T-12"],
-      "files": ["F-19", "F-20"],
-      "ac_refs": ["OVW-04-AC-3", "OVW-04-AC-4", "OVW-04-NFR-accessibility"],
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-19",
+        "F-20"
+      ],
+      "ac_refs": [
+        "OVW-04-AC-3",
+        "OVW-04-AC-4",
+        "OVW-04-NFR-accessibility"
+      ],
       "risk_refs": [],
       "notes": "Maps OVW-04-TC-06 (card selection navigates to href via Testing-Library against a mocked fetch boundary, mirroring OVW-01-TC-06/07's precedent -- no e2e framework configured, deferred per project-commands.yaml), TC-07 (renders only fetched values, no hardcoded/illustrative sample data in the component source or snapshot), TC-12 (MoM chip pairs icon/label text with color, asserted structurally -- never color-only).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T06:00:56Z",
+      "files_touched": [
+        "apps/web/src/components/ProgramCard.test.tsx",
+        "apps/web/src/components/ProgramLeaderboard.test.tsx"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-14",
       "title": "README API table entry",
       "complexity": "S",
-      "predecessors": ["T-04"],
-      "files": ["F-21"],
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-21"
+      ],
       "ac_refs": [],
       "risk_refs": [],
       "notes": "Docs T2 (new HTTP route): add GET /api/overview/program-board row to README.md's API table, ninth sibling on the overview router, matching the existing row format/verbosity for /api/overview/summary and /program-detail/* (request params, response shape, pagination default/clamp, 403/empty-list cases, org_access gate note).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T05:50:54Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
     }
   ]
 }

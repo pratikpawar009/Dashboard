@@ -353,7 +353,8 @@
         }
       ],
       "constraints": [
-        "unique(program_id)"
+        "unique(program_id)",
+        "index(tokens)"
       ]
     },
     "program_releases": {

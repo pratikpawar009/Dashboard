@@ -197,7 +197,7 @@ describe("GET /api/proxy/program-detail/[program_id]/releases", () => {
     installFaithfulCallWithAuth();
     (fetchProgramReleases as Mock).mockResolvedValue({ status: "invalid_range" });
 
-    const response = await GET(buildRequest("bogus"), buildParams());
+    const response = await GET(buildRequest({ range: "bogus" }), buildParams());
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "invalid_range" });
