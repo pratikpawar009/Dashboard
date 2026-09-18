@@ -101,11 +101,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import CurrentUser, get_current_user
 from app.core.db import get_db
 from app.core.rbac import member_in_program_visibility, org_access, program_visibility
-from app.dependencies.pagination import MAX_OFFSET_LIMIT
+from app.dependencies.pagination import MAX_OFFSET_LIMIT, MAX_PAGE_SIZE
 from app.dependencies.range import validate_range
 from app.models.rollup import OrgSummaryRollup, ProgramSummary
 from app.schemas.org_summary import OrgSummaryCard, OrgSummaryResponse, ProgramsUsingAi
 from app.schemas.personal_usage import CommandsPanel, PersonalUsageResponse
+from app.schemas.program_board import ProgramBoardResponse
 from app.schemas.program_detail import (
     ProgramDetailHeader,
     ProgramDetailResponse,
@@ -121,6 +122,7 @@ from app.services.personal_usage import (
     fetch_commands_breakdown,
     fetch_daily_token_series,
 )
+from app.services.program_board import fetch_program_board
 from app.services.program_commands import fetch_program_commands
 from app.services.program_detail_token_trend import fetch_program_token_trend
 from app.services.program_releases import fetch_program_releases
@@ -647,3 +649,50 @@ async def get_org_summary(
     cards = _build_org_summary_cards(programs_using_ai, row)
 
     return OrgSummaryResponse(cards=cards, programs_using_ai=programs_using_ai)
+
+
+def _board_page_params(
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1)
+) -> tuple[int, int]:
+    """DECISIONS.md D-02: story-local pagination default (`page=1, page_size=20`), NOT the
+    shared `get_page_params`'s default (`page_size=MAX_PAGE_SIZE`). Applies the identical
+    clamp, reusing `MAX_PAGE_SIZE` from `app/dependencies/pagination.py` rather than a second
+    literal -- the shared dependency itself is untouched. `page`/`page_size` never 422-reject
+    above the max (clamp, not reject) but DO 422 on `page < 1` or `page_size < 1` (`ge=1`).
+    """
+    return page, min(page_size, MAX_PAGE_SIZE)
+
+
+@router.get("/program-board", response_model=ProgramBoardResponse)
+async def get_program_board(
+    page_params: tuple[int, int] = Depends(_board_page_params),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProgramBoardResponse:
+    """Return the org-wide, `tokens DESC`-ordered program board (OVW-04-AC-1/AC-2/AC-5/AC-6).
+
+    RBAC is `org_access` (cio-only) -- the SAME gate `get_org_summary` above uses, NOT the
+    open-aggregate `program_visibility` gate the `program-detail/*` sibling routes use. A
+    non-CIO authenticated session gets `HTTPException(403)` with no data body (AC-2); the
+    gate itself emits `rbac_check_org_access` (user_id, persona, authorized/denied outcome),
+    inherited from `rbac-checks`/AUTH-03 -- no new logging code here. Unlike the
+    `program-detail/*` siblings' `program_drilldown` server-side log, this route logs
+    nothing on the 200 path: DECISIONS.md D-06 logs `program_drilldown` from the FRONTEND
+    navigation instead, since this endpoint does no per-program fetch to log against.
+
+    `page`/`page_size` resolve via `_board_page_params` (D-02: default `page=1`,
+    `page_size=20`, clamp to `MAX_PAGE_SIZE`). An empty org falls out of
+    `fetch_program_board`'s query naturally as `{items: [], page, page_size, total: 0}`
+    (AC-5) -- no special-casing needed here.
+
+    See `app/services/program_board.py` module docstring for the JSONB sparkline fallback
+    contract (research C-2: malformed `monthly_token_sparkline` degrades to `points: []`,
+    never a 500) and the MoM neutral-state rule (research C-3: fewer than 2 sparkline points
+    yields `mom_change_percent`/`mom_direction` both `None`).
+    """
+    # AC-2/AC-6: cio-only gate, called FIRST -- raises before any data read on denial (no
+    # data body), mirroring get_org_summary's step 1 above.
+    await org_access(current_user)
+
+    page, page_size = page_params
+    return await fetch_program_board(db, page, page_size)

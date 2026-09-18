@@ -38,13 +38,19 @@ import type { OverviewSummaryResult } from "@/types/overview";
 
 const TEST_ACCESS_TOKEN = "test-access-token";
 
-const { mockCallWithAuth, mockFetchOverviewSummary, mockFetchMe, mockRedirect } =
-  vi.hoisted(() => ({
-    mockCallWithAuth: vi.fn(),
-    mockFetchOverviewSummary: vi.fn(),
-    mockFetchMe: vi.fn(),
-    mockRedirect: vi.fn(),
-  }));
+const {
+  mockCallWithAuth,
+  mockFetchOverviewSummary,
+  mockFetchMe,
+  mockFetchProgramBoard,
+  mockRedirect,
+} = vi.hoisted(() => ({
+  mockCallWithAuth: vi.fn(),
+  mockFetchOverviewSummary: vi.fn(),
+  mockFetchMe: vi.fn(),
+  mockFetchProgramBoard: vi.fn(),
+  mockRedirect: vi.fn(),
+}));
 
 vi.mock("@/lib/tokenStore", async (importOriginal) => {
   const actual = await importOriginal();
@@ -60,6 +66,16 @@ vi.mock("@/lib/overviewApi", () => ({
 
 vi.mock("@/lib/meApi", () => ({
   fetchMe: mockFetchMe,
+}));
+
+// OVW-04 (T-12) added a third concurrent fetch to page.tsx --
+// `fetchProgramBoard` -- alongside the two this suite already mocked. Every
+// pre-existing case below asserts on the overview-summary/persona regions
+// only and is indifferent to the board's outcome, so a stable "ok" default
+// keeps them from exercising the real, unmocked network call (which throws
+// in jsdom and previously surfaced as a spurious OverviewErrorPanel).
+vi.mock("@/lib/programBoardApi", () => ({
+  fetchProgramBoard: mockFetchProgramBoard,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -94,6 +110,10 @@ beforeEach(() => {
     async (makeRequest: (accessToken: string) => unknown) =>
       makeRequest(TEST_ACCESS_TOKEN),
   );
+  mockFetchProgramBoard.mockResolvedValue({
+    status: "ok",
+    data: { items: [], page: 1, page_size: 20, total: 0 },
+  });
 });
 
 afterEach(() => {

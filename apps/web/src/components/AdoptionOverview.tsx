@@ -3,8 +3,10 @@ import styles from "./AdoptionOverview.module.css";
 import { OrgSummaryCards } from "./OrgSummaryCards";
 import { OverviewErrorPanel } from "./OverviewErrorPanel";
 import { PersonaDashboardShell } from "./PersonaDashboardShell";
+import { ProgramLeaderboard } from "./ProgramLeaderboard";
 import type { OverviewSummaryResult } from "@/types/overview";
 import type { Persona, SignedInUser } from "@/types/persona";
+import type { ProgramBoardResult } from "@/types/programBoard";
 
 /**
  * Adoption Overview page body (OVW-01, AC-3/AC-4/AC-5) — composes the two
@@ -31,14 +33,30 @@ import type { Persona, SignedInUser } from "@/types/persona";
  * message for `forbidden`, `unauthorized` and `error` alike, so the copy
  * never reveals whether the resource exists or whether the session is at
  * fault.
+ *
+ * `programBoardResult` (OVW-04, T-12) is a separate server-side fetch from
+ * `result` — its own status is branched independently, the same
+ * ok/forbidden/unauthorized/error handling `OrgSummaryCards` above already
+ * uses, rendering `OverviewErrorPanel` on any non-ok status (D-07's "one
+ * message for all three" precedent applies per-region, not just page-wide).
+ * `ProgramLeaderboard` renders beneath `AdoptionIndicator` per DESIGN.md's
+ * region ordering (`PROGRAM LEADERBOARD` follows `PROGRAM ADOPTION HEALTH`
+ * on the mockup). `programBoardResult` stays `undefined` when the caller
+ * omits it (OVW-01's own test suite, which predates this story and knows
+ * nothing about a board) — an *absent* prop renders neither the board region
+ * nor an error panel, distinct from a *supplied* non-ok status, which is a
+ * real fetch failure worth showing. The composing page (`overview/page.tsx`)
+ * always supplies the real fetch result.
  */
 export function AdoptionOverview({
   result,
+  programBoardResult,
   persona,
   signedInUser,
   pageTitle,
 }: {
   result: OverviewSummaryResult;
+  programBoardResult?: ProgramBoardResult;
   persona?: Persona;
   signedInUser?: SignedInUser;
   pageTitle?: string;
@@ -60,6 +78,15 @@ export function AdoptionOverview({
           </>
         ) : (
           <OverviewErrorPanel status={result.status} />
+        )}
+        {programBoardResult === undefined ? null : programBoardResult.status ===
+          "ok" ? (
+          <ProgramLeaderboard
+            state="populated"
+            items={programBoardResult.data.items}
+          />
+        ) : (
+          <OverviewErrorPanel status={programBoardResult.status} />
         )}
       </div>
     </PersonaDashboardShell>

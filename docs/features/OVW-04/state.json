@@ -1,0 +1,136 @@
+{
+  "story": "validated",
+  "story_priority": "P1",
+  "story_independent_test": true,
+  "rtm_source_sha": "b3cd0523ae59",
+  "tracker_story": "pratikpawar009/Dashboard#22",
+  "research": "complete",
+  "research_verdict": "GO",
+  "tracker_research": "pratikpawar009/Dashboard#467",
+  "prd": "complete",
+  "design": "complete",
+  "design_artifact": "docs/features/OVW-04/DESIGN.md",
+  "design_provider": "html-mockup",
+  "design_iteration": 0,
+  "phase": "implemented",
+  "needs_clarification_count": 0,
+  "last_updated": "2026-09-18T07:21:49Z",
+  "tracker_prd": "pratikpawar009/Dashboard#468",
+  "gate": "APPROVE",
+  "tasks": {
+    "file": "docs/features/OVW-04/tasks.json"
+  },
+  "decisions": {
+    "file": "docs/features/OVW-04/DECISIONS.md"
+  },
+  "data_design": {
+    "file": "docs/features/OVW-04/DATA-DESIGN.md"
+  },
+  "plan_validation": "PASS",
+  "plan_validation_rounds": 2,
+  "plan": "complete",
+  "tracker_plan": "pratikpawar009/Dashboard#481",
+  "impl_evidence": {
+    "session_ended_at": "2026-09-18T06:14:21Z",
+    "rounds": 0,
+    "checks": {
+      "typecheck": {
+        "status": "PASS",
+        "source": "project-commands.yaml typecheck:",
+        "command": "pnpm -C apps/web exec tsc --noEmit && cd services/api && uv run mypy .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-04/evidence/typecheck.log",
+        "flag_id": "AF-01",
+        "ran_at": "2026-09-18T06:14:21Z",
+        "note": "Re-run after AF-01 was fixed under explicit user authorization (scoped exception to surgical-changes). The inherited TS2559 at route.test.ts:200 came from PGD-06 (#466) and was proven pre-existing by stashing all OVW-04 changes; buildRequest(\"bogus\") now passes { range: \"bogus\" }, preserving the test's original intent. tsc --noEmit clean; that file's 11 tests and the full 325-test suite pass."
+      },
+      "unit_tests": {
+        "status": "PASS",
+        "source": "project-commands.yaml test_unit:",
+        "command": "pnpm -C apps/web test && cd services/api && uv run pytest tests/",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-04/evidence/unit-tests.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T06:03:00Z",
+        "note": "Frontend: 43 files, 325/325 passing. Backend: 827 passed, 17 deselected (perf tests excluded from default selection). test_program_board.py re-run standalone: 12/12 passing, matching baseline."
+      },
+      "lint": {
+        "status": "PASS",
+        "source": "project-commands.yaml lint:",
+        "command": "pnpm -C apps/web exec eslint . && cd services/api && uv run ruff check .",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-04/evidence/lint.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T11:37:00Z",
+        "note": "0 errors, 3 pre-existing unused-var warnings in ProgramDetailView test files (unrelated to OVW-04). ruff: All checks passed."
+      },
+      "runtime": {
+        "status": "PASS",
+        "source": "stack-smoke.md Run:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": null,
+        "ran_at": "2026-09-18T11:39:00Z",
+        "stacks": [
+          {
+            "stack": "fastapi-2",
+            "status": "PASS",
+            "command": "DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5442/dashboard ENVIRONMENT=local uv run uvicorn app.main:app --port 8001",
+            "exit_code": 0,
+            "evidence_path": "docs/features/OVW-04/evidence/runtime-api.log",
+            "boot_log_scan": "clean",
+            "note": "Migrated an existing dev Postgres (container dashboard-dev5442, host port 5442 \u2014 host 5432 was occupied by an unrelated process) to head first (evidence/migrate.log): 008_program_team_index -> 009_program_summary_tokens_index (OVW-04's own migration) applied cleanly. /health returned 200."
+          },
+          {
+            "stack": "nextjs",
+            "status": "PASS",
+            "command": "NEXT_PUBLIC_API_URL=http://localhost:8001 pnpm dev --port 3001",
+            "exit_code": 0,
+            "evidence_path": "docs/features/OVW-04/evidence/runtime-web.log",
+            "boot_log_scan": "clean",
+            "render_check": "unavailable",
+            "note": "GET / -> 307 -> /overview -> 307 -> /login -> 200 (unauthenticated redirect chain matches README's documented /login behavior). No E2E/browser-render tool wired into this smoke path; @playwright/test is present but its execution is explicitly deferred to /arh-validate-feature per project-commands.yaml (needs running API + seeded data) \u2014 boot-only evidence recorded, render_check unavailable, no additional flag raised since this deferral is already documented project policy, not an OVW-04 gap."
+          }
+        ]
+      },
+      "compile": {
+        "status": "PASS",
+        "source": "project-commands.yaml build:",
+        "command": "pnpm -C apps/web build",
+        "exit_code": 0,
+        "evidence_path": "docs/features/OVW-04/evidence/compile.log",
+        "flag_id": null,
+        "ran_at": "2026-09-18T11:37:30Z"
+      },
+      "design_check": {
+        "status": "N/A",
+        "source": "project-commands.yaml design_check:",
+        "command": null,
+        "exit_code": null,
+        "evidence_path": null,
+        "flag_id": "AF-03",
+        "ran_at": null
+      }
+    },
+    "verdict": "READY"
+  },
+  "validation": "2026-09-18 P=12/12",
+  "review": "PASS",
+  "impl": "branch:feature/OVW-04",
+  "validation_report": "docs/features/OVW-04/VALIDATION-20260918-0645.md",
+  "review_report": "docs/features/OVW-04/REVIEW.md",
+  "gate_rounds": 2,
+  "pr": "pratikpawar009/Dashboard#482",
+  "security": "PASS",
+  "security_findings": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 4,
+    "tool_missing": ["pip-audit"]
+  },
+  "security_report": "docs/features/OVW-04/SECURITY-20260918-0748.md",
+  "phase": "security-reviewed",
+  "last_updated": "2026-09-18T07:48:43Z"
+}

@@ -18,3 +18,4 @@
 | [ADR-0014](0014-mcp-server-topology.md) | MCP server deployment topology — `services/mcp-server/` is a separately-deployed sibling service | Accepted |
 | [ADR-0015](0015-program-releases-date-index.md) | Add a `(program_id, date)` compound index on `program_releases` | Accepted |
 | [ADR-0016](0016-usage-events-program-team-index.md) | Add a `(program_id, user, ts)` composite index on `usage_events` for range-scoped team queries | Accepted |
+| [ADR-0017](0017-program-summary-tokens-index.md) | Add a `tokens` index on `program_summary` for `ORDER BY tokens DESC` | Accepted |

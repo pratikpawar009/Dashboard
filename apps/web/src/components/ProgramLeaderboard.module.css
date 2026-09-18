@@ -1,0 +1,44 @@
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 13px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #c08a1e;
+  flex: none;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.suffix {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9aa2ae;
+}
+
+.rightSlot {
+  flex: 1;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardPlaceholder {
+  height: 178px;
+  background: #fff;
+  border: 1px solid #e9ebef;
+  border-left: 4px solid #eef0f3;
+  border-radius: 16px;
+}

@@ -1,0 +1,940 @@
+{
+  "story_id": "OVW-04",
+  "generated_at": "2026-09-18",
+  "generation_note": "Endpoint (GET /api/overview/program-board) and the ProgramLeaderboard/ProgramCard UI do not exist yet -- test_data field names/glyphs are best-available for TDD authoring per FR-1's frozen wire shape, not a confirmed live schema. No e2e TCs: docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature; TC-06 (frontend card navigation, AC-3) uses type integration (Testing-Library against a mocked fetch boundary) as the closest runnable substitute, mirroring OVW-01-TC-06/07's precedent. Unit-shaped cases (format_number(), MoM-percent helper, JSONB validator) are NOT enumerated here per the skill's Scope section -- they belong in docs/features/OVW-04/tasks.json.",
+  "test_cases": [
+    {
+      "id": "OVW-04-TC-01",
+      "title": "GET /api/overview/program-board returns program_summary rows ordered tokens DESC with full per-card shape (identity, sparkline, metrics, repo ratio, href)",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-1",
+      "given": "a CIO session and 3 program_summary rows seeded with distinct token totals and a valid monthly_token_sparkline",
+      "when": "GET /api/overview/program-board is called with no query params",
+      "then": "the response returns items ordered tokens DESC, each with icon/name/type/description, href, sparkline.points, mom_change_percent/mom_direction, 4 format_number()-formatted metrics, and raw-int repo counts, matching FR-1's frozen shape",
+      "objective": "Verify the populated-org contract: item ordering (tokens DESC), FR-1's exact per-card field shape, and the raw-vs-formatted split (metrics pre-formatted strings; sparkline.points/repo counts raw ints).",
+      "preconditions": [
+        "Test database migrated to head",
+        "program_summary seeded with 3 rows: program-a (tokens=500000), program-b (tokens=2000000), program-c (tokens=1200000), each with a valid monthly_token_sparkline JSONB ([{month,tokens}, ...])",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "seeded_programs": [
+          {
+            "program_id": "program-a",
+            "name": "Alpha",
+            "type": "Greenfield feature development",
+            "tokens": 500000,
+            "releases": 3,
+            "features": 5,
+            "active_contributors": 4,
+            "repos_with_harness_installed": 2,
+            "repos_total": 3
+          },
+          {
+            "program_id": "program-b",
+            "name": "Bravo",
+            "tokens": 2000000,
+            "releases": 10,
+            "features": 20,
+            "active_contributors": 12,
+            "repos_with_harness_installed": 6,
+            "repos_total": 6
+          },
+          {
+            "program_id": "program-c",
+            "name": "Charlie",
+            "tokens": 1200000,
+            "releases": 7,
+            "features": 9,
+            "active_contributors": 8,
+            "repos_with_harness_installed": 4,
+            "repos_total": 5
+          }
+        ],
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_order": [
+          "program-b",
+          "program-c",
+          "program-a"
+        ],
+        "expected_metrics_program_b": {
+          "tokens": "2.0M",
+          "releases": "10",
+          "features": "20",
+          "active_contributors": "12"
+        },
+        "expected_href_program_b": "/programs/program-b"
+      },
+      "steps": [
+        "Seed the 3 program_summary rows from test_data",
+        "Call GET /api/overview/program-board with the CIO bearer token",
+        "Parse the JSON response body",
+        "Diff items[] order against expected_order",
+        "Diff item shape against FR-1's declared schema"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items is ordered [program-b, program-c, program-a] (tokens DESC)",
+        "Each item includes program_id, name, type, icon, description, href, sparkline{points,mom_change_percent,mom_direction}, metrics{tokens,releases,features,active_contributors}, repos_with_harness_installed, repos_total",
+        "metrics.* are format_number()-formatted strings (e.g. '2.0M')",
+        "sparkline.points[].tokens, repos_with_harness_installed, repos_total are raw JSON ints, not strings",
+        "href equals '/programs/{program_id}' for every item",
+        "No item carries a color/style/CSS key (cardStyle, avatarStyle, typeChip, momColor, momBg, repoBarStyle are absent)"
+      ],
+      "tags": [
+        "happy-path",
+        "contract",
+        "ordering",
+        "no-inline-css",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#469",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 5660,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 5660, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_contract_ordering_and_shape_no_inline_css_tc01",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-02",
+      "title": "program_summary.tokens ordering uses an indexed column -- query plan confirms no sequential scan",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-FR-2",
+      "given": "program_summary seeded with a representative row count and an index on tokens verified present",
+      "when": "the ORDER BY tokens DESC query underlying GET /api/overview/program-board is EXPLAIN-analyzed",
+      "then": "the query plan uses the tokens index (or an index-backed sort), not a full sequential scan, and the endpoint stays within its p95 < 300ms budget at default page_size=20",
+      "objective": "Verify research condition C-1: the tokens DESC ordering is backed by a real index, not a full-table sort, and the endpoint meets its p95 latency budget for a default-sized page.",
+      "preconditions": [
+        "Test database migrated to head with the tokens index migration applied",
+        "program_summary seeded with >= 200 rows of varied token totals",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "seeded_row_count": 200,
+        "page_size": 20,
+        "latency_budget_ms_p95": 300
+      },
+      "steps": [
+        "Run EXPLAIN (ANALYZE) on the service's ORDER BY program_summary.tokens DESC query",
+        "Inspect the query plan node type",
+        "Call GET /api/overview/program-board (default page_size) 20 times and record latencies",
+        "Compute p95 latency"
+      ],
+      "expected_results": [
+        "Query plan shows an Index Scan / Index-backed sort on the tokens index, not Seq Scan",
+        "p95 latency across the sample is < 300ms"
+      ],
+      "tags": [
+        "performance",
+        "index-verification",
+        "research-c1",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#470",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 1200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 1200, "reason": null}
+        ],
+        "budget": {
+          "target": "p95 < 300ms @ default page_size=20",
+          "measured": "Index Scan confirmed via EXPLAIN ANALYZE; p95 well under budget",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_program_board_query_uses_tokens_index_not_seq_scan_tc02, ::test_program_board_p95_latency_under_budget_at_default_page_size_tc02_tc11",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-03",
+      "title": "Null, missing, and malformed monthly_token_sparkline JSONB all fall back to an empty points array with a neutral MoM indicator, never a 500",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-FR-3",
+      "given": "3 program_summary rows with monthly_token_sparkline set to null, absent (column default), and a malformed shape (not a list of {month, tokens} objects) respectively",
+      "when": "GET /api/overview/program-board is called",
+      "then": "every one of the 3 rows renders sparkline.points: [] with mom_change_percent: null and mom_direction: null, and the request succeeds with 200, never a 500",
+      "objective": "Verify research condition C-2: the JSONB sparkline validator's fallback contract covers null, missing, and malformed shapes uniformly, and never raises.",
+      "preconditions": [
+        "Test database migrated to head",
+        "program_summary seeded with 3 rows: prog-null (monthly_token_sparkline=NULL), prog-missing (column omitted/default), prog-malformed (monthly_token_sparkline={\"not\": \"a list\"})",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "seeded_programs": [
+          {
+            "program_id": "prog-null",
+            "monthly_token_sparkline": null
+          },
+          {
+            "program_id": "prog-missing",
+            "monthly_token_sparkline": "<column default>"
+          },
+          {
+            "program_id": "prog-malformed",
+            "monthly_token_sparkline": {
+              "not": "a list"
+            }
+          }
+        ],
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_sparkline": {
+          "points": [],
+          "mom_change_percent": null,
+          "mom_direction": null
+        }
+      },
+      "steps": [
+        "Seed the 3 program_summary rows with the null/missing/malformed sparkline values",
+        "Call GET /api/overview/program-board with the CIO bearer token",
+        "Parse the JSON response body",
+        "Locate each of the 3 seeded items and inspect their sparkline object"
+      ],
+      "expected_results": [
+        "Response status is 200, never 500",
+        "All 3 items render sparkline.points as an empty array []",
+        "All 3 items render mom_change_percent: null and mom_direction: null",
+        "No item's card omits its other fields (metrics, identity) as a side effect of the sparkline fallback"
+      ],
+      "tags": [
+        "negative",
+        "boundary",
+        "jsonb-validation",
+        "research-c2",
+        "fallback",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#471",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 480,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 480, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_null_missing_malformed_sparkline_falls_back_to_empty_tc03, ::test_validate_sparkline_never_raises_on_deviant_shapes",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-04",
+      "title": "Month-over-month change indicator is neutral for 0 and 1 sparkline points, and correctly computed with direction thresholding for 2+ points",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-FR-3",
+      "given": "4 program_summary rows with 0-point, 1-point, 2-point-increasing, and 2-point-flat (within \u00b10.05%) sparklines respectively",
+      "when": "GET /api/overview/program-board is called",
+      "then": "the 0-point and 1-point rows render null/null, the increasing 2-point row renders a positive mom_change_percent rounded to 1 decimal with mom_direction 'up', and the flat 2-point row renders mom_direction 'flat'",
+      "objective": "Verify research condition C-3: the MoM neutral-state contract for <2 data points, and the direction/percent computation and \u00b10.05% flat threshold for >=2 points, including the divide-by-zero guard when points[-2].tokens == 0.",
+      "preconditions": [
+        "Test database migrated to head",
+        "program_summary seeded with 5 rows: prog-0pt (sparkline=[]), prog-1pt (sparkline=[{month:'2026-08',tokens:1000}]), prog-2pt-up (sparkline=[{month:'2026-07',tokens:1000},{month:'2026-08',tokens:1200}]), prog-2pt-flat (sparkline=[{month:'2026-07',tokens:1000},{month:'2026-08',tokens:1000.3}] within threshold), prog-2pt-zero-prev (sparkline=[{month:'2026-07',tokens:0},{month:'2026-08',tokens:500}])",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "prog_2pt_up_sparkline": [
+          {
+            "month": "2026-07",
+            "tokens": 1000
+          },
+          {
+            "month": "2026-08",
+            "tokens": 1200
+          }
+        ],
+        "prog_2pt_flat_sparkline": [
+          {
+            "month": "2026-07",
+            "tokens": 1000
+          },
+          {
+            "month": "2026-08",
+            "tokens": 1000
+          }
+        ],
+        "prog_2pt_zero_prev_sparkline": [
+          {
+            "month": "2026-07",
+            "tokens": 0
+          },
+          {
+            "month": "2026-08",
+            "tokens": 500
+          }
+        ],
+        "expected_up_mom_change_percent": 20.0,
+        "expected_up_mom_direction": "up",
+        "expected_flat_mom_direction": "flat"
+      },
+      "steps": [
+        "Seed the 5 program_summary rows from test_data/preconditions",
+        "Call GET /api/overview/program-board with the CIO bearer token",
+        "Parse the JSON response body",
+        "Inspect each of the 5 seeded items' sparkline.mom_change_percent and mom_direction"
+      ],
+      "expected_results": [
+        "prog-0pt: mom_change_percent null, mom_direction null",
+        "prog-1pt: mom_change_percent null, mom_direction null",
+        "prog-2pt-up: mom_change_percent == 20.0, mom_direction == 'up'",
+        "prog-2pt-flat: mom_direction == 'flat' (within +/-0.05% threshold)",
+        "prog-2pt-zero-prev: mom_change_percent is null (division-by-zero guard), mom_direction reflects the null-percent neutral rule",
+        "All 5 requests succeed with 200, no error for any edge case"
+      ],
+      "tags": [
+        "boundary",
+        "mom-indicator",
+        "research-c3",
+        "edge-case",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#472",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 510,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 510, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_mom_edge_cases_0_1_and_2_plus_points_tc04, ::test_compute_mom_unit_boundaries",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-05",
+      "title": "Non-CIO session receives 403 with no data body on GET /api/overview/program-board; rbac_check_org_access logged denied",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-2",
+      "given": "sessions for a CIO and for each of architect, developer, product-manager, engineering-manager, with log capture attached over org_access()",
+      "when": "GET /api/overview/program-board is called once per session",
+      "then": "the CIO call succeeds, every non-CIO call is rejected 403 with no data body, and rbac_check_org_access is logged with outcome denied for each non-CIO call",
+      "objective": "Verify org_access (cio-only) is enforced server-side on the new endpoint, reusing OVW-01's gate/status-code precedent, and every check outcome is logged.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded with at least 1 row so a 200 is possible for the CIO case",
+        "5 valid bearer tokens: one per persona (cio, architect, developer, product-manager, engineering-manager)",
+        "Log capture attached over the logger, filtering for the rbac_check_org_access event"
+      ],
+      "test_data": {
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "product_manager_bearer_token": "<PM_TEST_JWT>",
+        "engineering_manager_bearer_token": "<EM_TEST_JWT>",
+        "expected_non_cio_status": 403,
+        "expected_log_event": "rbac_check_org_access",
+        "expected_log_fields": [
+          "user_id",
+          "persona",
+          "outcome",
+          "timestamp"
+        ]
+      },
+      "steps": [
+        "Attach log capture filtering for rbac_check_org_access",
+        "Call GET /api/overview/program-board with the CIO bearer token",
+        "Call GET /api/overview/program-board once per remaining persona bearer token",
+        "Inspect each response body and status",
+        "Inspect the captured log records for each call"
+      ],
+      "expected_results": [
+        "The CIO call returns 200",
+        "Each non-CIO call returns 403 with no data body (no items/page/total keys)",
+        "Exactly 5 rbac_check_org_access log records were emitted, one per call",
+        "The CIO record has outcome=authorized; every non-CIO record has outcome=denied",
+        "Every record includes user_id, persona, outcome, timestamp"
+      ],
+      "tags": [
+        "rbac",
+        "org-access",
+        "403-no-body",
+        "observability",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#473",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 620,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 620, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_non_cio_403_no_body_and_rbac_check_org_access_logged_tc05",
+        "runner": "pytest",
+        "rerun_count": 0,
+        "notes": "Re-confirmed live against a real running server (uvicorn on :8010, real Postgres on :5442): CIO dev-bypass token -> 200 ordered items; developer dev-bypass token -> 403 {\"error\":{\"code\":\"http_403\",...}} with no data body."
+      }
+    },
+    {
+      "id": "OVW-04-TC-06",
+      "title": "Selecting a program card or its navigation affordance routes to /programs/{program_id} and logs program_drilldown",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-3",
+      "given": "the /overview route is rendered for a CIO session with GET /api/overview/program-board mocked at the fetch boundary to return a populated, color/style-free payload including href '/programs/program-b'",
+      "when": "the user selects the program-b card's navigation affordance",
+      "then": "the app navigates to /programs/program-b and a program_drilldown event is logged",
+      "objective": "Verify the card's navigation affordance uses the response's href verbatim to route to the correct Program Detail page, and the program_drilldown observability event fires on selection.",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/program-board -> 200 fixture with one item {program_id:'program-b', href:'/programs/program-b', ...}",
+        "Initial render at /overview for a CIO session",
+        "Router navigation spy and log capture attached"
+      ],
+      "test_data": {
+        "fixture_item": {
+          "program_id": "program-b",
+          "name": "Bravo",
+          "href": "/programs/program-b"
+        },
+        "expected_navigation_target": "/programs/program-b",
+        "expected_log_event": "program_drilldown"
+      },
+      "steps": [
+        "Render /overview with the mocked GET /api/overview/program-board fixture",
+        "Locate the program-b card's navigation affordance",
+        "Click/select the navigation affordance",
+        "Inspect the router navigation spy",
+        "Inspect the captured log for a program_drilldown event"
+      ],
+      "expected_results": [
+        "The router navigates to '/programs/program-b' -- the fixture's href value verbatim",
+        "A program_drilldown event is logged on selection",
+        "Selecting the card body itself (not only the explicit arrow affordance) also triggers the same navigation"
+      ],
+      "tags": [
+        "frontend-integration",
+        "navigation",
+        "observability",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#474",
+      "last_run": {
+        "started_at": "2026-09-18T06:45:00Z",
+        "duration_ms": 90,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 90, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramCard.test.tsx (describe: ProgramCard — navigation (OVW-04-TC-06))",
+        "runner": "vitest",
+        "rerun_count": 0,
+        "notes": "Round 2: re-judged PASS (was FLAKY in round 1 pending BUG-OVW04-01). Component render still passes; additionally re-verified live against the real running app (uvicorn:8021 + next dev:3021, real Postgres:5442, CIO session via /dev-login) -- GET /overview now returns 200 and renders 4 real ProgramCardLink <a> elements with hrefs /programs/{alpha,beta,gamma,dashboard}, proving the RSC Server/Client boundary this TC's own assertions could not see is now sound. Playwright regression spec apps/web/e2e/overview-program-board.spec.ts (regression-OVW-04-TC-06) discovered via `playwright test --list` (1 test, 1 file); execution deferred per project-commands.yaml/environment policy (browser binaries not installed)."
+      }
+    },
+    {
+      "id": "OVW-04-TC-07",
+      "title": "Program board renders every figure dynamically from the API response -- no hardcoded or illustrative values in a production build",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-4",
+      "given": "the /overview route is rendered for a CIO session with GET /api/overview/program-board mocked to return a distinctive, non-default fixture (values that would visibly clash with any plausible hardcoded placeholder)",
+      "when": "the page loads",
+      "then": "every rendered card value (name, type, description, metrics, sparkline, repo ratio) matches the fixture exactly, with no static/illustrative fallback value appearing anywhere",
+      "objective": "Verify no hardcoded or illustrative values remain in the ProgramLeaderboard/ProgramCard components -- every figure traces to the mocked response at runtime.",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/program-board -> 200 fixture with 1 item carrying deliberately unusual values (e.g. name 'Zzz-Test-Program', tokens '999.9K')",
+        "Initial render at /overview for a CIO session"
+      ],
+      "test_data": {
+        "fixture_item": {
+          "program_id": "prog-zzz",
+          "name": "Zzz-Test-Program",
+          "type": "Brownfield migration",
+          "description": "Distinctive test description XQ42",
+          "metrics": {
+            "tokens": "999.9K",
+            "releases": "13",
+            "features": "27",
+            "active_contributors": "9"
+          },
+          "repos_with_harness_installed": 1,
+          "repos_total": 7
+        }
+      },
+      "steps": [
+        "Render /overview with the mocked distinctive fixture",
+        "Assert the card's name, type, description text nodes match the fixture exactly",
+        "Assert all 4 metric values and the repo ratio ('1/7') match the fixture exactly",
+        "Grep the rendered DOM for any known placeholder/illustrative string from the mockup source"
+      ],
+      "expected_results": [
+        "All rendered values equal the fixture's distinctive values byte-for-byte",
+        "No illustrative/mockup-sample string (e.g. mockup's own sample program names) appears anywhere in the rendered output"
+      ],
+      "tags": [
+        "no-hardcoded-values",
+        "frontend-integration",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#475",
+      "last_run": {
+        "started_at": "2026-09-18T06:45:00Z",
+        "duration_ms": 60,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 60, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramCard.test.tsx (describe: ProgramCard — no hardcoded or illustrative values)",
+        "runner": "vitest",
+        "rerun_count": 0,
+        "notes": "Round 2: re-judged PASS (was FLAKY in round 1 pending BUG-OVW04-01). Live re-verification confirms the real /overview render carries the API's own program names/metrics (e.g. 'AgentRise Dashboard', '3220.9M') with no static fallback."
+      }
+    },
+    {
+      "id": "OVW-04-TC-08",
+      "title": "Empty org (zero program_summary rows) returns 200 with an empty items list, not an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-5",
+      "given": "a CIO session and zero rows in program_summary",
+      "when": "GET /api/overview/program-board is called",
+      "then": "the response is 200 with items: [], page: 1, page_size: 20, total: 0",
+      "objective": "Verify the graceful-empty response contract (FR-4) for an org with no programs yet, consistent with the overview-summary-api all-zero precedent.",
+      "preconditions": [
+        "Test database migrated to head; no rows exist in program_summary",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_status": 200,
+        "expected_body": {
+          "items": [],
+          "page": 1,
+          "page_size": 20,
+          "total": 0
+        }
+      },
+      "steps": [
+        "Ensure program_summary has zero rows",
+        "Call GET /api/overview/program-board with the CIO bearer token",
+        "Parse the JSON response body"
+      ],
+      "expected_results": [
+        "Response status is 200, never 404 or 500",
+        "Response body equals {items: [], page: 1, page_size: 20, total: 0} exactly"
+      ],
+      "tags": [
+        "empty-org",
+        "boundary",
+        "graceful-empty",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#476",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 300, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_empty_org_returns_200_empty_items_tc08",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-09",
+      "title": "Pagination defaults to page=1/page_size=20 when omitted, and clamps page_size above 100 to 100 without a 422",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "OVW-04-AC-6",
+      "given": "150 program_summary rows seeded with varied token totals",
+      "when": "GET /api/overview/program-board is called with no pagination params, then again with page_size=500",
+      "then": "the first call returns page=1/page_size=20 with 20 items, and the second call clamps to page_size=100 (never 422-rejected) returning 100 items",
+      "objective": "Verify FR-2's pagination defaults (page=1, page_size=20) and the clamp-not-reject behavior above the max of 100.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded with 150 rows of varied token totals",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "seeded_row_count": 150,
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "requested_page_size_oversized": 500,
+        "expected_default_page": 1,
+        "expected_default_page_size": 20,
+        "expected_clamped_page_size": 100
+      },
+      "steps": [
+        "Seed 150 program_summary rows",
+        "Call GET /api/overview/program-board with no query params",
+        "Parse the response and inspect page/page_size/items.length/total",
+        "Call GET /api/overview/program-board?page_size=500",
+        "Parse the second response and inspect page_size/items.length"
+      ],
+      "expected_results": [
+        "First call: response status 200, page=1, page_size=20, items.length==20, total==150",
+        "Second call: response status 200 (not 422), page_size clamped to 100, items.length==100",
+        "Both calls preserve tokens DESC ordering across the returned page"
+      ],
+      "tags": [
+        "pagination",
+        "clamp",
+        "boundary",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#477",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 550,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 550, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_pagination_default_and_clamp_above_100_tc09",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-10",
+      "title": "page_size below 1 or a non-positive page is rejected with 422, not silently coerced",
+      "type": "integration",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "OVW-04-FR-2",
+      "given": "a CIO session and program_summary seeded with rows",
+      "when": "GET /api/overview/program-board is called with page=0 and separately with page_size=0",
+      "then": "both requests are rejected 422 per the ge=1 constraint on page and page_size",
+      "objective": "Verify the lower-bound validation on page (ge=1) and page_size (ge=1) rejects invalid values with 422 rather than silently coercing them.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded with at least 1 row",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "invalid_page": 0,
+        "invalid_page_size": 0
+      },
+      "steps": [
+        "Call GET /api/overview/program-board?page=0",
+        "Call GET /api/overview/program-board?page_size=0",
+        "Inspect both response statuses"
+      ],
+      "expected_results": [
+        "GET with page=0 returns 422",
+        "GET with page_size=0 returns 422"
+      ],
+      "tags": [
+        "pagination",
+        "negative",
+        "boundary",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#478",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 220,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 220, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_page_and_page_size_below_1_rejected_422_tc10",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-11",
+      "title": "Program board request completes as a single indexed-order read within the p95 < 300ms budget at default page_size",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "OVW-04-NFR-performance",
+      "given": "program_summary seeded with a representative row count and a query counter attached",
+      "when": "GET /api/overview/program-board is called at default page_size=20",
+      "then": "exactly one indexed-order select() runs against program_summary with no N+1 fan-out, and p95 latency is under 300ms",
+      "objective": "Verify the endpoint's performance contract: single indexed read, no joins/fan-out, p95 < 300ms at default page_size=20.",
+      "preconditions": [
+        "Test database migrated to head; program_summary seeded with >= 200 rows",
+        "A query counter/spy attached for the duration of each call",
+        "A valid CIO bearer token"
+      ],
+      "test_data": {
+        "seeded_row_count": 200,
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "query_count_budget": 1,
+        "latency_budget_ms_p95": 300
+      },
+      "steps": [
+        "Attach the query counter",
+        "Call GET /api/overview/program-board (default params) 20 times, timing each call",
+        "Inspect the query counter for program_summary",
+        "Compute p95 latency across the sample"
+      ],
+      "expected_results": [
+        "Exactly one SELECT ran against program_summary per call -- no joins, no N+1 fan-out",
+        "p95 latency across the sample is < 300ms"
+      ],
+      "tags": [
+        "performance",
+        "query-budget",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#479",
+      "last_run": {
+        "started_at": "2026-09-18T06:00:00Z",
+        "duration_ms": 1100,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 1100, "reason": null}
+        ],
+        "budget": {
+          "target": "p95 < 300ms @ default page_size=20; exactly 1 SELECT, no N+1",
+          "measured": "single indexed-order SELECT confirmed; p95 within budget",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_program_board.py::test_program_board_single_query_no_n_plus_one_tc11, ::test_program_board_p95_latency_under_budget_at_default_page_size_tc02_tc11",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
+    },
+    {
+      "id": "OVW-04-TC-12",
+      "title": "MoM change indicator pairs an icon/label with color -- never color alone",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "OVW-04-NFR-accessibility",
+      "given": "the /overview route is rendered for a CIO session with GET /api/overview/program-board mocked to return one item with mom_direction 'up' and one with mom_direction 'down'",
+      "when": "the page loads",
+      "then": "each card's MoM indicator renders a direction icon/label alongside its color, never color alone, and the neutral (null/null) case renders with no arrow/color",
+      "objective": "Verify WCAG AA non-color-reliance (NFR-008 precedent): the sparkline's MoM change indicator is distinguishable by icon/label, not color alone, mirroring OVW-01's adoption-bar precedent.",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/program-board -> 200 fixture with 3 items: mom_direction='up', mom_direction='down', mom_direction=null",
+        "Initial render at /overview for a CIO session"
+      ],
+      "test_data": {
+        "fixture_items": [
+          {
+            "program_id": "prog-up",
+            "sparkline": {
+              "mom_change_percent": 12.5,
+              "mom_direction": "up"
+            }
+          },
+          {
+            "program_id": "prog-down",
+            "sparkline": {
+              "mom_change_percent": -8.2,
+              "mom_direction": "down"
+            }
+          },
+          {
+            "program_id": "prog-neutral",
+            "sparkline": {
+              "mom_change_percent": null,
+              "mom_direction": null
+            }
+          }
+        ]
+      },
+      "steps": [
+        "Render /overview with the mocked 3-item fixture",
+        "Inspect the prog-up card's MoM indicator DOM for an icon/label element alongside its color styling",
+        "Inspect the prog-down card's MoM indicator the same way",
+        "Inspect the prog-neutral card's MoM indicator for absence of arrow/color"
+      ],
+      "expected_results": [
+        "prog-up renders an up-arrow icon or 'up'/'+' label text alongside its color, not color alone",
+        "prog-down renders a down-arrow icon or 'down'/'-' label text alongside its color, not color alone",
+        "prog-neutral renders with no arrow icon and no directional color applied"
+      ],
+      "tags": [
+        "accessibility",
+        "non-color-reliance",
+        "mom-indicator",
+        "ovw-04"
+      ],
+      "tracker_test": "pratikpawar009/Dashboard#480",
+      "last_run": {
+        "started_at": "2026-09-18T06:45:00Z",
+        "duration_ms": 70,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [
+          {"n": 1, "status": "PASS", "duration_ms": 70, "reason": null}
+        ],
+        "budget": null,
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ProgramCard.test.tsx (describe: ProgramCard — MoM change indicator, non-color-reliant)",
+        "runner": "vitest",
+        "rerun_count": 0,
+        "notes": "Round 2: re-judged PASS (was FLAKY in round 1 pending BUG-OVW04-01). Component-level assertions were always sound; the real page they ship into now renders successfully."
+      }
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {
+        "id": "OVW-04-AC-1",
+        "covered_by": [
+          "OVW-04-TC-01",
+          "OVW-04-TC-03",
+          "OVW-04-TC-04"
+        ]
+      },
+      {
+        "id": "OVW-04-AC-2",
+        "covered_by": [
+          "OVW-04-TC-05"
+        ]
+      },
+      {
+        "id": "OVW-04-AC-3",
+        "covered_by": [
+          "OVW-04-TC-06"
+        ]
+      },
+      {
+        "id": "OVW-04-AC-4",
+        "covered_by": [
+          "OVW-04-TC-07"
+        ]
+      },
+      {
+        "id": "OVW-04-AC-5",
+        "covered_by": [
+          "OVW-04-TC-08"
+        ]
+      },
+      {
+        "id": "OVW-04-AC-6",
+        "covered_by": [
+          "OVW-04-TC-09",
+          "OVW-04-TC-10"
+        ]
+      }
+    ],
+    "functional_requirements": [
+      {
+        "id": "OVW-04-FR-1",
+        "covered_by": [
+          "OVW-04-TC-01"
+        ]
+      },
+      {
+        "id": "OVW-04-FR-2",
+        "covered_by": [
+          "OVW-04-TC-02",
+          "OVW-04-TC-09",
+          "OVW-04-TC-10"
+        ]
+      },
+      {
+        "id": "OVW-04-FR-3",
+        "covered_by": [
+          "OVW-04-TC-03",
+          "OVW-04-TC-04"
+        ]
+      },
+      {
+        "id": "OVW-04-FR-4",
+        "covered_by": [
+          "OVW-04-TC-05",
+          "OVW-04-TC-08"
+        ]
+      }
+    ],
+    "non_functional_requirements": [
+      {
+        "id": "OVW-04-NFR-performance",
+        "covered_by": [
+          "OVW-04-TC-02",
+          "OVW-04-TC-11"
+        ]
+      },
+      {
+        "id": "OVW-04-NFR-security",
+        "covered_by": [
+          "OVW-04-TC-05"
+        ]
+      },
+      {
+        "id": "OVW-04-NFR-accessibility",
+        "covered_by": [
+          "OVW-04-TC-12"
+        ]
+      },
+      {
+        "id": "OVW-04-NFR-observability",
+        "covered_by": [
+          "OVW-04-TC-05",
+          "OVW-04-TC-06"
+        ]
+      }
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "FR-4 (non-CIO rejection + empty-org) covers both AC-2 (403) and AC-5 (empty-200) since the PRD groups both status-code-provenance clauses under one FR id.",
+      "Research conditions C-1/C-2/C-3 are each covered by a dedicated TC (TC-02, TC-03, TC-04 respectively) per the invocation's explicit instruction, beyond the base AC-1 happy path.",
+      "No TC of type e2e was written: docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature. TC-06/TC-07/TC-12 use type integration (Testing-Library against a mocked fetch boundary), mirroring OVW-01-TC-06/07's precedent.",
+      "Unit-shaped cases (format_number() reuse, MoM-percent helper, JSONB shape validator, ProgramCard component render) are deliberately NOT enumerated here per the skill's Scope section -- they belong in docs/features/OVW-04/tasks.json per the story's own Test mapping section.",
+      "Cross-checked against REQUIREMENTS.md Scope Out: (org summary cards/adoption indicator, monthly token-cost bar chart, MAU-by-role, Program Detail page content, mobile/responsive layout, filtering/sorting/search) -- no test case references any of these."
+    ]
+  }
+}

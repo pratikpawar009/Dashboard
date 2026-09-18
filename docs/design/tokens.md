@@ -102,6 +102,20 @@ its two roles — legend swatch vs. bar-segment background — matching the mock
 | Not yet adopted — legend swatch | `#c3c9d2` |
 | Not yet adopted — bar segment background (also the zero-state flat-bar color) | `#dfe3e9` |
 
+### Month-over-month (MoM) chip colors
+
+Extracted 2026-09-18 (OVW-04, `DECISIONS.md` D-05) from the Program Board mockup's `momColor`/
+`momBg` script (`DESIGN.md` § MoM change indicator). The mockup's own logic (`up = mom >= 0`) is
+binary and has no neutral branch — the `flat` pair below is the one entry in this table that is
+PO-approved, not mockup-sourced, recorded here so it is a token rather than a magic number in
+component code.
+
+| Direction | Color | Background |
+|---|---|---|
+| Up | `#1f8a5b` | `#e8f5ee` |
+| Down | `#d1495b` | `#fdeaec` |
+| Flat (PO-approved, not mockup-sourced) | `#5b6472` | `#f0f1f4` |
+
 ## Radius
 
 `18px` modal panel · `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px`

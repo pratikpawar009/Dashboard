@@ -4,9 +4,11 @@ import { AdoptionOverview } from "@/components/AdoptionOverview";
 import { composeSignedInUser } from "@/lib/composeSignedInUser";
 import { fetchMe } from "@/lib/meApi";
 import { fetchOverviewSummary } from "@/lib/overviewApi";
+import { fetchProgramBoard } from "@/lib/programBoardApi";
 import { callWithAuth, SessionExpiredError } from "@/lib/tokenStore";
 import type { OverviewSummaryResult } from "@/types/overview";
 import type { Persona, SignedInUser } from "@/types/persona";
+import type { ProgramBoardResult } from "@/types/programBoard";
 
 /**
  * Persona-resolution-failure sentinel (OVW-05 DECISIONS.md D-03) — passed as
@@ -29,35 +31,36 @@ const PERSONA_RESOLUTION_ERROR = "persona-resolution-error";
  * pointed at `/overview` in anticipation, so nothing there needs changing —
  * the App Router file convention self-registers this segment.
  *
- * Performs two concurrent, server-side fetches (DESIGN.md Screen inventory:
+ * Performs three concurrent, server-side fetches (DESIGN.md Screen inventory:
  * "server (initial load, no client refetch)") — `GET /api/overview/summary`
- * (org summary data) and `GET /api/me` (`session-identity-api`, brand-bar
- * identity, OVW-05 DECISIONS.md D-02) — and hands the resolved results to
- * `AdoptionOverview`, which owns every render decision from there. Unlike
- * Program Detail there is no client-side refetch path at all — no program
- * switcher, no range toggle — so this Server Component is still the only
- * fetch site, now issuing two calls instead of one.
+ * (org summary data), `GET /api/me` (`session-identity-api`, brand-bar
+ * identity, OVW-05 DECISIONS.md D-02), and `GET /api/overview/program-board`
+ * (OVW-04-FR-1, program board section, page 1 only per PO resolution #3) —
+ * and hands the resolved results to `AdoptionOverview`, which owns every
+ * render decision from there. Unlike Program Detail there is no client-side
+ * refetch path at all — no program switcher, no range toggle — so this
+ * Server Component is still the only fetch site.
  *
  * Auth mirrors `programs/[program_id]/page.tsx` deliberately (D-03): each
  * fetch is wrapped in its own `tokenStore.callWithAuth()` call, which
  * attaches the session's access token and retries once on a reactive 401;
- * both calls are issued concurrently via `Promise.all` inside the SAME
+ * all three calls are issued concurrently via `Promise.all` inside the SAME
  * try/catch below rather than sequentially — safe because `tokenStore`'s
  * existing single-flight `refreshPromise` guard (FR-1) already dedupes the
  * proactive-refresh race between them, so no new concurrency primitive is
- * added (D-02). Only a `SessionExpiredError` from either call — the refresh
+ * added (D-02). Only a `SessionExpiredError` from any call — the refresh
  * itself failing — redirects to `/login`.
  *
- * The two calls' non-`SessionExpiredError` failure modes are deliberately
+ * The three calls' non-`SessionExpiredError` failure modes are deliberately
  * asymmetric and must not be merged into one error path: a
- * `{status: "unauthorized"}` overview-summary result that survives the retry
- * falls through to `AdoptionOverview`, which renders `OverviewErrorPanel` for
- * it exactly as it does for `forbidden` and `error` (D-07 — one message for
- * all three, so the copy never reveals whether the resource exists or
- * whether the session is at fault). A non-`"ok"` `/api/me` result does
- * **not** render an error panel — it only degrades the shell's persona
- * display via the `PERSONA_RESOLUTION_ERROR` sentinel above, leaving the
- * summary content unaffected.
+ * `{status: "unauthorized"}` overview-summary or program-board result that
+ * survives the retry falls through to `AdoptionOverview`, which renders
+ * `OverviewErrorPanel` for it exactly as it does for `forbidden` and `error`
+ * (D-07 — one message for all three, so the copy never reveals whether the
+ * resource exists or whether the session is at fault). A non-`"ok"` `/api/me`
+ * result does **not** render an error panel — it only degrades the shell's
+ * persona display via the `PERSONA_RESOLUTION_ERROR` sentinel above, leaving
+ * the summary content unaffected.
  *
  * The `redirect()` call sits inside the `catch`, not the `try`, and this
  * placement is load-bearing rather than stylistic: `redirect()` works by
@@ -74,10 +77,11 @@ const PERSONA_RESOLUTION_ERROR = "persona-resolution-error";
  */
 export default async function Page() {
   let result: OverviewSummaryResult;
+  let programBoardResult: ProgramBoardResult;
   let persona: Persona;
   let signedInUser: SignedInUser | undefined;
   try {
-    const [overviewSummary, meResult] = await Promise.all([
+    const [overviewSummary, meResult, programBoard] = await Promise.all([
       callWithAuth(
         (accessToken) => fetchOverviewSummary({ accessToken }),
         (r) => r.status === "unauthorized",
@@ -86,8 +90,13 @@ export default async function Page() {
         (accessToken) => fetchMe({ accessToken }),
         (r) => r.status === "unauthorized",
       ),
+      callWithAuth(
+        (accessToken) => fetchProgramBoard({ accessToken }),
+        (r) => r.status === "unauthorized",
+      ),
     ]);
     result = overviewSummary;
+    programBoardResult = programBoard;
     if (meResult.status === "ok") {
       persona = meResult.data.persona;
       signedInUser = composeSignedInUser(meResult.data);
@@ -105,6 +114,7 @@ export default async function Page() {
   return (
     <AdoptionOverview
       result={result}
+      programBoardResult={programBoardResult}
       persona={persona}
       signedInUser={signedInUser}
       pageTitle="Adoption Overview"
