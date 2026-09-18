@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
 from app.api.admin import router as admin_router
+from app.api.artifacts import router as artifacts_router
 from app.api.health import router as health_router
 from app.api.ingest import router as ingest_router
 from app.api.manifest import router as manifest_router
@@ -100,6 +101,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.include_router(programs_router)
     app.include_router(overview_router)
     app.include_router(personal_usage_router)
+    app.include_router(artifacts_router)
     app.include_router(me_router)
     app.include_router(admin_router)  # ING-07 F-04
     app.include_router(oidc_router)  # FR-2 gates at request time (501) -- always registered

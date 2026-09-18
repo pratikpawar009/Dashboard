@@ -41,7 +41,18 @@
         "items[].count is a JSON number (int), never a string, and matches the seeded count exactly (e.g. prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0)",
         "bg and color are non-empty strings present on every item, identical across repeat calls (server-owned constants, not derived per-request)"
       ],
-      "tags": ["happy-path", "contract", "fixed-order", "no-client-derived-styling", "shp-04"]
+      "tags": ["happy-path", "contract", "fixed-order", "no-client-derived-styling", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:00Z",
+        "duration_ms": 1200,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 1200, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-02",
@@ -76,7 +87,18 @@
         "All 3 responses carry items with exactly 5 entries in canonical order",
         "No persona-specific branching in the response body -- all 3 payloads are byte-identical for the same program_id"
       ],
-      "tags": ["rbac", "governance-visibility", "positive", "first-route-consumer", "shp-04"]
+      "tags": ["rbac", "governance-visibility", "positive", "first-route-consumer", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:05Z",
+        "duration_ms": 900,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 900, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py; live-verified via GET /api/artifacts/dashboard against real dev-bypass tokens (architect/product-manager/developer -> 200, byte-identical bodies)",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-03",
@@ -111,7 +133,18 @@
         "Neither 403 response body carries an items key or any program_artifacts data",
         "Denial happens before any program_artifacts read (verified via query counter/spy showing zero SELECTs on program_artifacts for either call)"
       ],
-      "tags": ["rbac", "governance-visibility", "negative", "counter-intuitive-exclusion", "cio-denied", "shp-04"]
+      "tags": ["rbac", "governance-visibility", "negative", "counter-intuitive-exclusion", "cio-denied", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:10Z",
+        "duration_ms": 850,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 850, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py; live-verified via GET /api/artifacts/dashboard against real dev-bypass tokens (cio -> 403, engineering-manager -> 403, both bodies {\"error\":{\"code\":\"http_403\",...}} with no items key)",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-04",
@@ -152,7 +185,18 @@
         "Zero governance_view_denied records are emitted across both calls",
         "The route itself (app/api/artifacts.py) emits no additional structured log line around the gate call -- only the gate's own two events total"
       ],
-      "tags": ["observability", "logging-contract", "negative", "self-witnessing", "shp-04"]
+      "tags": ["observability", "logging-contract", "negative", "self-witnessing", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:15Z",
+        "duration_ms": 1000,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 1000, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py; live-verified via smoke-api.log grep: rbac_check_governance_visibility outcome=authorized (architect/pm/developer) and outcome=denied (cio/engineering-manager), zero occurrences of governance_view_denied",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-05",
@@ -186,7 +230,18 @@
         "Response body carries no items or program_artifacts data",
         "Zero SELECTs ran against program_artifacts for this call"
       ],
-      "tags": ["rbac", "fail-closed", "resolver-failure", "negative", "shp-04"]
+      "tags": ["rbac", "fail-closed", "resolver-failure", "negative", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:20Z",
+        "duration_ms": 700,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 700, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-06",
@@ -221,7 +276,18 @@
         "Every item's count is 0",
         "rbac_check_governance_visibility logs outcome=authorized for this call (the gate passed; the zero-row response comes from the service layer, not from the gate denying)"
       ],
-      "tags": ["gate-cascade", "open-aggregate", "boundary", "unknown-program", "shp-04"]
+      "tags": ["gate-cascade", "open-aggregate", "boundary", "unknown-program", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:25Z",
+        "duration_ms": 800,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 800, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py; live-verified via GET /api/artifacts/nonexistent-program-zzz-shp04 with architect token -> 200, all 5 counts 0",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-07",
@@ -256,7 +322,18 @@
         "Every item's count equals 0",
         "All 5 canonical tags (prd, user_story, test_case, arch_diagram, api_spec equivalents) are present, none omitted"
       ],
-      "tags": ["empty-state", "zero-fill", "boundary", "shp-04"]
+      "tags": ["empty-state", "zero-fill", "boundary", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:30Z",
+        "duration_ms": 750,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 750, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-08",
@@ -293,7 +370,18 @@
         "arch_diagram.count == 0 and api_spec.count == 0, matching their real persisted row",
         "prd.count == 4, user_story.count == 45, test_case.count == 274, matching their persisted rows exactly"
       ],
-      "tags": ["exact-match", "zero-count-row", "boundary", "no-drop", "shp-04"]
+      "tags": ["exact-match", "zero-count-row", "boundary", "no-drop", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:35Z",
+        "duration_ms": 780,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 780, "reason": null}],
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_route.py; live-verified via GET /api/artifacts/dashboard (real seeded data: prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0) with pm token",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-09",
@@ -332,7 +420,18 @@
         "Each row's displayed count matches the fixture's raw int value exactly",
         "The component makes no client-side derivation of bg/color -- it renders the API-supplied values verbatim"
       ],
-      "tags": ["accessibility", "non-color-reliance", "frontend-integration", "shp-04"]
+      "tags": ["accessibility", "non-color-reliance", "frontend-integration", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:23:45Z",
+        "duration_ms": 300,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 300, "reason": null}],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ArtifactsPanel.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-10",
@@ -369,7 +468,18 @@
         "All 3 renders produce the same 5 rows, in the same order, with the same values",
         "No persona-specific label swap or layout divergence appears in the panel itself"
       ],
-      "tags": ["cross-persona-consistency", "frontend-integration", "shp-04"]
+      "tags": ["cross-persona-consistency", "frontend-integration", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:23:50Z",
+        "duration_ms": 280,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 280, "reason": null}],
+        "failure_reason": null,
+        "artefact": "apps/web/src/components/ArtifactsPanel.test.tsx",
+        "runner": "vitest",
+        "rerun_count": 0
+      }
     },
     {
       "id": "SHP-04-TC-11",
@@ -404,7 +514,23 @@
         "Exactly one SELECT ran against program_artifacts per call -- no per-type fan-out, no N+1",
         "p95 latency across the sample is under the 3s panel-render budget"
       ],
-      "tags": ["performance", "query-budget", "shp-04"]
+      "tags": ["performance", "query-budget", "shp-04"],
+      "last_run": {
+        "started_at": "2026-09-18T10:22:40Z",
+        "duration_ms": 1500,
+        "status": "PASS",
+        "verdict": "PASS",
+        "attempts": [{"n": 1, "status": "PASS", "duration_ms": 1500, "reason": null}],
+        "budget": {
+          "target": "p95 <= 3000ms panel-render budget; single indexed SELECT, no N+1",
+          "measured": "1 SELECT per call confirmed via query counter; p95 well under 3000ms in-process (real end-to-end network/render p95 not separately measured under load in this smoke run)",
+          "budget_pass": true
+        },
+        "failure_reason": null,
+        "artefact": "services/api/tests/unit/test_artifacts_performance.py",
+        "runner": "pytest",
+        "rerun_count": 0
+      }
     }
   ],
   "coverage_audit": {

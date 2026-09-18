@@ -17,6 +17,15 @@ Scale, in use-frequency order: `12.5` · `13` · `15` · `10.5` · `12` · `11` 
 `22` · `14` · `20` · `10.8` · `16` · `17` px, plus `25px` for KPI values and `19px` for page titles.
 The fractional sizes are pervasive and deliberate — round them only as a conscious decision.
 
+Added 2026-09-18 (SHP-04, `DECISIONS.md` D-03/D-04) from the Artifacts generated panel
+(`DESIGN.md` § Token gaps) — three steps this region introduces:
+
+| Token | Value | Role |
+|---|---|---|
+| `13.5px` / `600` | row name |
+| `16px` / `800`, `letter-spacing:-.4px` | row count |
+| `15px` / `700`, `letter-spacing:-.2px` | card title — distinct from OVW-04's `14px` section heading |
+
 ## Color
 
 | Role | Hex |
@@ -59,6 +68,14 @@ sourced.
 |---|---|---|---|
 | QA Engineer | `qa-engineer` | `#d1495b` | N/A — not present in the persona-tag mockups |
 
+**Reused as the artifact-type categorical palette (SHP-04).** Added 2026-09-18 (SHP-04,
+`DESIGN.md` § Token gaps) — the Artifacts generated panel (`ArtifactsPanel`) re-uses the
+Architect, Developer, Product Manager and Eng Manager `color`/`bg` pairs above verbatim for its
+`PRD`/`US`/`TC`/`AD` tag chips, with **no semantic link**: `US` (User stories) does not mean "the
+architect's artifact". Treat this as a shared colour ramp only. Do not "fix" a pair to align with
+its persona, and if a future persona re-colour touches this table, check `ArtifactsPanel` for
+unintended fallout before shipping.
+
 ### Program type colors
 
 Extracted 2026-09-03 (SHP-01, `DECISIONS.md` D-04) from the Engineering Manager mockup's `tMap` —
@@ -88,6 +105,29 @@ nothing" (research condition C-3, `docs/features/ING-10/REQUIREMENTS.md` FR-6) �
 guessed hex here. It renders with `Migration`'s blue via `programStyle.ts`'s
 `?? PROGRAM_TYPE_COLORS["Migration"]` fallback, deliberately, until a real design token is
 supplied.
+
+### Artifact tag-chip colors
+
+Extracted 2026-09-18 (SHP-04, `DECISIONS.md` D-03) from the Artifacts generated panel
+(`DESIGN.md` § Presentation constants, decode L899–905, all three ARC/DEV/PMD mockups
+byte-identical). Four of the five tag-chip pairs reuse § Persona colors verbatim as a categorical
+palette — no new colour, see the note under that table. `API` is the exception:
+
+| Tag | Color | Background |
+|---|---|---|
+| `API` | `#c08a1e` (existing — § Program type colors `Maintenance`, reused at a third role) | `#fef4e6` (**new** — genuinely new tint, not tokenised elsewhere; distinct from `#fdf3e0`, the `Maintenance` program-type background) |
+
+**Contrast — standing carry-forward, not fixed here.** Four of the five tag-chip fg/bg pairs fail
+WCAG AA (4.5:1 normal text, 3:1 non-text) as drawn: `PRD` `#2a6fdb`/`#e9f1fd` 4.20:1, `TC`
+`#1f8a5b`/`#eaf6ef` 3.91:1, `API` `#c08a1e`/`#fef4e6` 2.80:1, `AD` `#d97757`/`#fdefe9` 2.78:1 —
+`AD` and `API` fall below even the 3:1 non-text bar. Only `US` `#6a4fd0`/`#f0edfb` (5.00:1) clears
+AA. These are the same pairs already shipping as persona tag pills (§ Persona colors, SHP-01), so
+a fix is a token-level change with blast radius across all six dashboards — reproduced
+byte-exactly from the mockup here, not diverged from unilaterally, and not this story's to fix
+(`DESIGN.md` § Design QA / § Open design items for the gate #2). The tag abbreviation is
+redundant decoration next to the full-contrast row name, so the failure does not block the
+`NFR-accessibility` requirement, but it is recorded honestly rather than silently shipped as if
+passing.
 
 ### Adoption indicator colors
 
@@ -119,10 +159,15 @@ component code.
 ## Radius
 
 `18px` modal panel · `16px` cards · `20px` pills and chips · `11px` icon tiles · `10px` · `9px`
-brand mark · `8px` controls · `6px` chips · `4px` · `2px` dots · `50%` avatars.
+brand mark, tag chip tile · `8px` controls · `6px` chips · `4px` · `2px` dots · `50%` avatars.
 
 `18px` added 2026-09-17 (PGD-05 T-16, `DESIGN.md` § Token gaps) from the EMD popup panel — the
 system's only modal, one radius step above the `16px` card token.
+
+`9px` tag-chip use added 2026-09-18 (SHP-04, `DESIGN.md` § Token gaps) from the Artifacts
+generated panel — the existing `9px` step (brand mark) reused, not a new radius value, on a
+`32×32` square-ish tile distinct from the `20px` pill radius the persona tag / program-type chips
+use.
 
 ## Elevation
 
@@ -149,6 +194,19 @@ the system uses a scrim.
 
 Header is sticky and translucent: `background:#ffffffcc` with `backdrop-filter: blur(8px)`,
 `z-index:5`, above a `1px solid #e9ebef` rule.
+
+### Tile sizes
+
+No prior token section collected these — recorded here for the first time (SHP-04,
+`DESIGN.md` § Token gaps), not an established convention, just the observed set of square
+avatar/tile sizes across the mockups:
+
+| Size | Use |
+|---|---|
+| `26×26` | header avatar tile |
+| `32×32` | artifact tag-chip tile (SHP-04, added 2026-09-18) |
+| `34×34` | identity avatar / nav glyph |
+| `46×46` | program avatar |
 
 ## Card recipe
 

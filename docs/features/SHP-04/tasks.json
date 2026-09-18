@@ -67,7 +67,7 @@
     "F-13": {
       "action": "create",
       "path": "apps/web/src/components/ArtifactsPanel.module.css",
-      "reason": "card shell, row anatomy, tag-chip styling per DESIGN.md § Region ARTIFACTS"
+      "reason": "card shell, row anatomy, tag-chip styling per DESIGN.md \u00a7 Region ARTIFACTS"
     },
     "F-14": {
       "action": "create",
@@ -82,7 +82,7 @@
     "F-16": {
       "action": "modify",
       "path": "docs/design/tokens.md",
-      "reason": "DESIGN.md § Token gaps T-task: add #fef4e6 (API tag-chip bg), 9px radius step, 32x32 tile size, 13.5px/600 and 16px/800 type steps, 15px/700 card-title step, and the persona/artifact shared-ramp note"
+      "reason": "DESIGN.md \u00a7 Token gaps T-task: add #fef4e6 (API tag-chip bg), 9px radius step, 32x32 tile size, 13.5px/600 and 16px/800 type steps, 15px/700 card-title step, and the persona/artifact shared-ramp note"
     }
   },
   "tasks": [
@@ -91,165 +91,367 @@
       "title": "ArtifactItem/ArtifactsResponse Pydantic schemas",
       "complexity": "S",
       "predecessors": [],
-      "files": ["F-01"],
-      "ac_refs": ["SHP-04-FR-1"],
-      "risk_refs": ["R-01"],
+      "files": [
+        "F-01"
+      ],
+      "ac_refs": [
+        "SHP-04-FR-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
       "notes": "extra=forbid on ArtifactItem so no accidental extra key ships (5-field lock: tag, name, count, bg, color); count: int, not str -- mirrors ProgramTeamRowData's raw-int precedent, not ProgramSummaryCard's pre-formatted-string one.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T09:54:19Z",
+      "files_touched": [
+        "services/api/app/schemas/artifacts.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-02",
       "title": "fetch_program_artifacts() service with _ARTIFACT_PRESENTATION zero-fill",
       "complexity": "M",
-      "predecessors": ["T-01"],
-      "files": ["F-02"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-3", "SHP-04-AC-4"],
-      "risk_refs": ["R-01"],
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-02"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-3",
+        "SHP-04-AC-4"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
       "notes": "D-03: single SELECT type,count FROM program_artifacts WHERE program_id=:program_id into a dict[str,int]; iterate the fixed 5-tuple _ARTIFACT_PRESENTATION (values transcribed verbatim from DESIGN.md L899-905) and .get(type, 0) per row -- same code path produces both AC-3 (missing row) and AC-4 (real row, count=0). No per-type fan-out query.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T09:56:13Z",
+      "files_touched": [
+        "services/api/app/services/artifacts.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-03",
       "title": "GET /api/artifacts/{program_id} route, governance_visibility wired as first statement",
       "complexity": "M",
-      "predecessors": ["T-02"],
-      "files": ["F-03"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-2", "SHP-04-FR-2", "SHP-04-FR-3"],
-      "risk_refs": ["R-02", "R-03"],
-      "notes": "D-02: `await governance_visibility(current_user, program_id)` as the handler's first statement (bare call, not Depends() -- mirrors personal_usage.py's individual_usage_visibility exactly). D-01: zero additional logging around the gate call. Docstring MUST note (a) the AC-3 zero-fill contract and (b) that this is governance_visibility's first live route consumer (REQUIREMENTS.md § Documentation requirements, inline code comments).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "predecessors": [
+        "T-02"
+      ],
+      "files": [
+        "F-03"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-2",
+        "SHP-04-FR-2",
+        "SHP-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
+      "notes": "D-02: `await governance_visibility(current_user, program_id)` as the handler's first statement (bare call, not Depends() -- mirrors personal_usage.py's individual_usage_visibility exactly). D-01: zero additional logging around the gate call. Docstring MUST note (a) the AC-3 zero-fill contract and (b) that this is governance_visibility's first live route consumer (REQUIREMENTS.md \u00a7 Documentation requirements, inline code comments).",
+      "status": "done",
+      "completed_at": "2026-09-18T09:57:46Z",
+      "files_touched": [
+        "services/api/app/api/artifacts.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-04",
       "title": "Wire artifacts_router into app.main",
       "complexity": "S",
-      "predecessors": ["T-03"],
-      "files": ["F-04"],
-      "ac_refs": ["SHP-04-AC-1"],
+      "predecessors": [
+        "T-03"
+      ],
+      "files": [
+        "F-04"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1"
+      ],
       "risk_refs": [],
       "notes": "app.include_router(artifacts_router) alongside the existing overview/personal_usage/programs includes -- wiring entry point per plan-validation Wiring dimension.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:00:02Z",
+      "files_touched": [
+        "services/api/app/main.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-05",
       "title": "Route-level RBAC + shape + zero-fill test suite (TC-01..TC-08)",
       "complexity": "L",
-      "predecessors": ["T-04"],
-      "files": ["F-05"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-2", "SHP-04-AC-3", "SHP-04-AC-4", "SHP-04-FR-1", "SHP-04-FR-2", "SHP-04-FR-3"],
-      "risk_refs": ["R-02", "R-03"],
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-05"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-2",
+        "SHP-04-AC-3",
+        "SHP-04-AC-4",
+        "SHP-04-FR-1",
+        "SHP-04-FR-2",
+        "SHP-04-FR-3"
+      ],
+      "risk_refs": [
+        "R-02",
+        "R-03"
+      ],
       "notes": "Covers TC-01 (fixed order + raw int), TC-02 (architect/PM/developer all 200), TC-03 (cio AND engineering-manager both 403, zero SELECTs via query spy), TC-04 (log capture: rbac_check_governance_visibility with outcome on both paths, self-witnessing precondition, zero governance_view_denied), TC-05 (persona-resolution-failure -> 403, zero SELECTs), TC-06 (unknown program_id -> 200 all-zero, gate does not reject), TC-07 (empty program -> 200 all-zero), TC-08 (real zero-count row vs missing row render identically). This is governance_visibility's first route-level exercise -- do not assume the existing unit suite (test_rbac.py) suffices.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:03:09Z",
+      "files_touched": [
+        "services/api/tests/unit/test_artifacts_route.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-06",
       "title": "Query-count + latency budget test (TC-11)",
       "complexity": "S",
-      "predecessors": ["T-04"],
-      "files": ["F-06"],
-      "ac_refs": ["SHP-04-NFR-performance"],
-      "risk_refs": ["R-04"],
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-06"
+      ],
+      "ac_refs": [
+        "SHP-04-NFR-performance"
+      ],
+      "risk_refs": [
+        "R-04"
+      ],
       "notes": "Query counter/spy asserts exactly one SELECT against program_artifacts per call (no N+1); 10-call sample, p95 < 3000ms.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:03:09Z",
+      "files_touched": [
+        "services/api/tests/unit/test_artifacts_performance.py"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-07",
       "title": "Frontend wire-shape types",
       "complexity": "S",
-      "predecessors": ["T-01"],
-      "files": ["F-07"],
-      "ac_refs": ["SHP-04-AC-1"],
-      "risk_refs": ["R-01"],
+      "predecessors": [
+        "T-01"
+      ],
+      "files": [
+        "F-07"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1"
+      ],
+      "risk_refs": [
+        "R-01"
+      ],
       "notes": "ArtifactItemData {tag,name,count,bg,color} (count: number, raw int, mirrors ProgramTeamRowData not ProgramSummaryCard), ArtifactsData {items}, ArtifactsResult status union (ok/unauthorized/error -- no not_found variant, this route never 404s per SHP-04-FR-3).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T09:56:13Z",
+      "files_touched": [
+        "apps/web/src/types/artifacts.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-08",
       "title": "Server-only artifactsApi.ts fetch module",
       "complexity": "S",
-      "predecessors": ["T-07"],
-      "files": ["F-08"],
-      "ac_refs": ["SHP-04-AC-1"],
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-08"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1"
+      ],
       "risk_refs": [],
       "notes": "Mirrors programTeamApi.ts: getApiBaseUrl(), optional Authorization header, AbortSignal.timeout(5000) per performance-baseline.md, 401->unauthorized (checked before generic !response.ok), else->error.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T09:57:46Z",
+      "files_touched": [
+        "apps/web/src/lib/artifactsApi.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-09",
       "title": "Client-only artifactsApi.client.ts fetch module",
       "complexity": "S",
-      "predecessors": ["T-07"],
-      "files": ["F-09"],
-      "ac_refs": ["SHP-04-AC-1"],
+      "predecessors": [
+        "T-07"
+      ],
+      "files": [
+        "F-09"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1"
+      ],
       "risk_refs": [],
       "notes": "Mirrors programTeamApi.client.ts: targets /api/proxy/artifacts/{programId}, no token/getApiBaseUrl/tokenStore import (ADR-0008), 401->unauthorized, else->error.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T09:57:46Z",
+      "files_touched": [
+        "apps/web/src/lib/artifactsApi.client.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-10",
       "title": "Proxy Route Handler /api/proxy/artifacts/[program_id]",
       "complexity": "M",
-      "predecessors": ["T-08", "T-09"],
-      "files": ["F-10"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-2"],
+      "predecessors": [
+        "T-08",
+        "T-09"
+      ],
+      "files": [
+        "F-10"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-2"
+      ],
       "risk_refs": [],
       "notes": "Mirrors program-detail/[program_id]/team/route.ts: callWithAuth() resolves the dashboard_session cookie server-side, calls fetchProgramArtifacts() (F-08) directly, returns bare ArtifactsData JSON. 403 from FastAPI maps to a 403 passthrough (no data body) since ArtifactsResult carries no dedicated forbidden variant beyond error/unauthorized -- SessionExpiredError -> 401 session_expired, else -> 502 upstream_error. This is F-09's entry-registration site (wiring dimension).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:00:02Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/artifacts/[program_id]/route.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-11",
       "title": "Proxy route status-mapping tests",
       "complexity": "S",
-      "predecessors": ["T-10"],
-      "files": ["F-11"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-2"],
+      "predecessors": [
+        "T-10"
+      ],
+      "files": [
+        "F-11"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-2"
+      ],
       "risk_refs": [],
       "notes": "Mirrors team/route.test.ts: ok/401/error status mapping, no not_found branch.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:03:09Z",
+      "files_touched": [
+        "apps/web/src/app/api/proxy/artifacts/[program_id]/route.test.ts"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-12",
       "title": "ArtifactsPanel component + CSS module",
       "complexity": "L",
-      "predecessors": ["T-09"],
-      "files": ["F-12", "F-13"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-NFR-accessibility"],
-      "risk_refs": ["R-05", "R-06"],
-      "notes": "DESIGN.md § Region ARTIFACTS: card shell (16px radius, overflow:hidden -- load-bearing per L58), static header (literal copy, never bound), <dl> semantics (dt=chip+name, dd=count) per § Keyboard and assistive tech, tag chip aria-hidden (decorative abbreviation), hint-placeholder-count=5 loading skeleton (mirrors ProgramTeamPanel's PLACEHOLDER_ROW_COUNT idiom but fixed at 5, no range toggle), populated/zero-count state renders 0 as a real value (never hidden/dimmed), no interactive affordance (no tabindex, no role=button, no click handler -- panel is non-interactive per DESIGN.md). No composition into any page in this task (D-04) -- ARC-01/DEV-01/PMD-01 own that.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "predecessors": [
+        "T-09"
+      ],
+      "files": [
+        "F-12",
+        "F-13"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-NFR-accessibility"
+      ],
+      "risk_refs": [
+        "R-05",
+        "R-06"
+      ],
+      "notes": "DESIGN.md \u00a7 Region ARTIFACTS: card shell (16px radius, overflow:hidden -- load-bearing per L58), static header (literal copy, never bound), <dl> semantics (dt=chip+name, dd=count) per \u00a7 Keyboard and assistive tech, tag chip aria-hidden (decorative abbreviation), hint-placeholder-count=5 loading skeleton (mirrors ProgramTeamPanel's PLACEHOLDER_ROW_COUNT idiom but fixed at 5, no range toggle), populated/zero-count state renders 0 as a real value (never hidden/dimmed), no interactive affordance (no tabindex, no role=button, no click handler -- panel is non-interactive per DESIGN.md). No composition into any page in this task (D-04) -- ARC-01/DEV-01/PMD-01 own that.",
+      "status": "done",
+      "completed_at": "2026-09-18T10:00:02Z",
+      "files_touched": [
+        "apps/web/src/components/ArtifactsPanel.tsx",
+        "apps/web/src/components/ArtifactsPanel.module.css"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-13",
       "title": "ArtifactsPanel integration tests (TC-09, TC-10)",
       "complexity": "M",
-      "predecessors": ["T-12"],
-      "files": ["F-14"],
-      "ac_refs": ["SHP-04-NFR-accessibility", "SHP-04-AC-1"],
-      "risk_refs": ["R-05"],
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-14"
+      ],
+      "ac_refs": [
+        "SHP-04-NFR-accessibility",
+        "SHP-04-AC-1"
+      ],
+      "risk_refs": [
+        "R-05"
+      ],
       "notes": "TC-09: mocked fetch boundary returns 5-item fixture, assert every row shows tag+name text alongside bg/color (never color alone), counts render as raw ints verbatim. TC-10: same fixture mounted 3x (standalone component renders, since ARC-01/DEV-01/PMD-01 dashboard routes do not exist yet -- assert byte-identical output across 3 independent mounts of <ArtifactsPanel programId=... /> rather than 3 page routes, preserving the cross-persona-consistency intent without depending on out-of-scope pages).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:03:09Z",
+      "files_touched": [
+        "apps/web/src/components/ArtifactsPanel.test.tsx"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-14",
       "title": "README API table: add GET /api/artifacts/{program_id} row",
       "complexity": "S",
-      "predecessors": ["T-04"],
-      "files": ["F-15"],
-      "ac_refs": ["SHP-04-AC-1", "SHP-04-AC-2", "SHP-04-AC-3"],
+      "predecessors": [
+        "T-04"
+      ],
+      "files": [
+        "F-15"
+      ],
+      "ac_refs": [
+        "SHP-04-AC-1",
+        "SHP-04-AC-2",
+        "SHP-04-AC-3"
+      ],
       "risk_refs": [],
       "notes": "docs T2 trigger (new HTTP route). Row format matches the existing /api/overview/program-detail/* rows: request (bearer token, governance_visibility gate), response shape (5-row fixed order, server-owned constants, raw-int count), 403 case (cio/engineering-manager denied, no data body), empty-program zero-fill case (AC-3).",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "status": "done",
+      "completed_at": "2026-09-18T10:05:22Z",
+      "files_touched": [
+        "README.md"
+      ],
+      "reason": null
     },
     {
       "task_id": "T-15",
       "title": "tokens.md: add #fef4e6, 9px radius, 32x32 tile, 13.5px/600, 16px/800, 15px/700 steps + persona/artifact shared-ramp note",
       "complexity": "S",
-      "predecessors": ["T-12"],
-      "files": ["F-16"],
+      "predecessors": [
+        "T-12"
+      ],
+      "files": [
+        "F-16"
+      ],
       "ac_refs": [],
-      "risk_refs": ["R-06"],
-      "notes": "DESIGN.md § Token gaps / § Open design items for the gate #3: record the one genuinely new colour (#fef4e6, API tag-chip bg) and the missing type/radius/tile-size steps this region introduces, plus the note that the 4 persona color/bg pairs double as the artifact-type categorical palette with no semantic link, so a future persona re-colour does not silently re-colour this panel.",
-      "status": "pending", "completed_at": null, "files_touched": [], "reason": null
+      "risk_refs": [
+        "R-06"
+      ],
+      "notes": "DESIGN.md \u00a7 Token gaps / \u00a7 Open design items for the gate #3: record the one genuinely new colour (#fef4e6, API tag-chip bg) and the missing type/radius/tile-size steps this region introduces, plus the note that the 4 persona color/bg pairs double as the artifact-type categorical palette with no semantic link, so a future persona re-colour does not silently re-colour this panel.",
+      "status": "done",
+      "completed_at": "2026-09-18T10:05:22Z",
+      "files_touched": [
+        "docs/design/tokens.md"
+      ],
+      "reason": null
     }
   ]
 }
