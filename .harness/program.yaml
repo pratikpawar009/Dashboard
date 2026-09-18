@@ -108,10 +108,14 @@ files:
 #                      data, keep zero").
 # ─────────────────────────────────────────────────────────────────────────────
 artifacts:
+  # The harness writes one PRD per feature at docs/features/<id>/REQUIREMENTS.md
+  # (32 of them today). docs/prd/ holds the handful of upstream *source*
+  # requirement docs that intake decomposes FROM — a different artifact class,
+  # and counting it here under-reported PRDs 4 vs 32.
   prd:
     kind: glob-count
-    path: docs/prd
-    glob: "*.md"
+    path: docs/features
+    glob: "*/REQUIREMENTS.md"
     exclude: [".wip/**"]
 
   user_story:
