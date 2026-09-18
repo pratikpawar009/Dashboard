@@ -290,7 +290,23 @@ produced_by: SHP-04
 consumed_by: [ARC-01, DEV-01, PMD-01]
 shape:
   endpoint: "GET /api/artifacts/{program_id}"
-  fields: "5 canonical types (prd, user_story, test_case, arch_diagram, api_spec) with counts, zero-count types included"
+  auth: "bearer token via the standard auth dependency; gated by governance_visibility (architect | product-manager | developer only — cio and engineering-manager denied, this gate's first live route consumer)"
+  response: |
+    200 {
+      "items": [
+        {"tag": "PRD", "name": "Product Requirement Docs", "count": int, "bg": "#e9f1fd", "color": "#2a6fdb"},
+        {"tag": "US",  "name": "User stories",             "count": int, "bg": "#f0edfb", "color": "#6a4fd0"},
+        {"tag": "TC",  "name": "Test cases",               "count": int, "bg": "#eaf6ef", "color": "#1f8a5b"},
+        {"tag": "AD",  "name": "Architecture diagrams",    "count": int, "bg": "#fdefe9", "color": "#d97757"},
+        {"tag": "API", "name": "API specifications",       "count": int, "bg": "#fef4e6", "color": "#c08a1e"}
+      ]
+    }
+  contract_notes:
+    - "items is always exactly 5 entries, fixed order = _CANONICAL_ARTIFACT_TYPES (services/api/app/schemas/ingest_artifacts.py): prd, user_story, test_case, arch_diagram, api_spec — never re-sorted, never omitted."
+    - "tag/name/bg/color are server-owned presentation constants, one fixed pair per canonical type — never derived client-side (ADR-0009/ADR-0007 precedent)."
+    - "count is a raw int (not format_number()-formatted) — a missing program_artifacts row AND a real row with count=0 both yield count: 0 via the same zero-fill code path; no distinction on the wire."
+    - "program_id is NOT membership-scoped by governance_visibility — the gate's persona check runs first; only when it passes does it cascade into program_visibility (open-aggregate, no per-program filter). An unknown program_id is not rejected by the gate; it reaches the service layer's zero-fill and returns 200 with all-zero counts. No dedicated 404 path."
+    - "403 (persona denied, or unknown/resolver-failure persona) carries no items field. No additional route-level logging around the gate — governance_visibility itself emits rbac_check_governance_visibility with an outcome field on every call."
 ```
 
 ### guardrails-api

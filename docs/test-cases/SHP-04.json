@@ -1,0 +1,439 @@
+{
+  "story_id": "SHP-04",
+  "generated_at": "2026-09-18",
+  "generation_note": "Endpoint (GET /api/artifacts/{program_id}) and the ArtifactsPanel UI do not exist yet -- test_data field names are best-available for TDD authoring per FR-1's frozen wire shape (docs/features/SHP-04/REQUIREMENTS.md), not a confirmed live schema. The exact tag/bg/color hex pairs are [NEEDS CLARIFICATION] in the PRD; test_data uses placeholder-but-representative values and TCs assert presence/type/consistency of bg/color, not specific hex literals, until the PO confirms the 5 pairs. No e2e TCs: docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature; story's own Test mapping defers E2E to ARC-01/DEV-01/PMD-01 dashboard-composition suites. Frontend ArtifactsPanel TCs use type integration (Testing-Library against a mocked fetch boundary), mirroring OVW-04/OVW-01 precedent. Unit-shaped cases (fetch_program_artifacts() zero-fill helper, presentation-constant mapping table) are NOT enumerated here per the skill's Scope section -- they belong in docs/features/SHP-04/tasks.json. Canonical types/order sourced from services/api/app/schemas/ingest_artifacts.py::_CANONICAL_ARTIFACT_TYPES (prd, user_story, test_case, arch_diagram, api_spec) and services/api/app/core/rbac.py:196-243 (governance_visibility).",
+  "test_cases": [
+    {
+      "id": "SHP-04-TC-01",
+      "title": "GET /api/artifacts/{program_id} returns exactly 5 rows in fixed canonical order with server-owned presentation constants and raw-int count",
+      "type": "contract",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-FR-1",
+      "given": "an authorized architect session and program_artifacts rows for program_id='dashboard' (prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0)",
+      "when": "GET /api/artifacts/dashboard is called",
+      "then": "the response is {items: [...]} with exactly 5 entries in the order prd, user_story, test_case, arch_diagram, api_spec, each carrying tag/name/count/bg/color, and count is a raw int (not a formatted string)",
+      "objective": "Verify FR-1's frozen wire shape: fixed 5-row canonical order, server-owned tag/name/bg/color constants, and count as a raw int.",
+      "preconditions": [
+        "Test database migrated to head",
+        "program_artifacts seeded for program_id='dashboard': prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0",
+        "A valid architect bearer token"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "seeded_counts": {"prd": 4, "user_story": 45, "test_case": 274, "arch_diagram": 0, "api_spec": 0},
+        "expected_type_order": ["prd", "user_story", "test_case", "arch_diagram", "api_spec"]
+      },
+      "steps": [
+        "Seed program_artifacts rows for program_id='dashboard' from test_data.seeded_counts",
+        "Call GET /api/artifacts/dashboard with the architect bearer token",
+        "Parse the JSON response body",
+        "Diff items[] order against expected_type_order",
+        "Inspect each item's field set and count's JSON type"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items has exactly 5 entries",
+        "items[].tag order corresponds to prd, user_story, test_case, arch_diagram, api_spec in that exact sequence",
+        "Each item has exactly the fields tag, name, count, bg, color -- no extra keys",
+        "items[].count is a JSON number (int), never a string, and matches the seeded count exactly (e.g. prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0)",
+        "bg and color are non-empty strings present on every item, identical across repeat calls (server-owned constants, not derived per-request)"
+      ],
+      "tags": ["happy-path", "contract", "fixed-order", "no-client-derived-styling", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-02",
+      "title": "architect, product-manager, and developer personas each receive 200 with the full 5-row payload",
+      "type": "security",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-AC-1",
+      "given": "valid bearer tokens for architect, product-manager, and developer personas, and a program with program_artifacts rows",
+      "when": "GET /api/artifacts/{program_id} is called once per persona",
+      "then": "every one of the 3 allowed personas receives 200 with the full 5-item response",
+      "objective": "Verify governance_visibility allows exactly architect, product-manager, and developer -- the positive half of the RBAC gate, which is this gate's first live route consumer.",
+      "preconditions": [
+        "Test database migrated to head; program_artifacts seeded for program_id='dashboard'",
+        "3 valid bearer tokens: one per persona (architect, product-manager, developer)"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "product_manager_bearer_token": "<PM_TEST_JWT>",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>"
+      },
+      "steps": [
+        "Call GET /api/artifacts/dashboard with the architect bearer token",
+        "Call GET /api/artifacts/dashboard with the product-manager bearer token",
+        "Call GET /api/artifacts/dashboard with the developer bearer token",
+        "Inspect each response status and body"
+      ],
+      "expected_results": [
+        "All 3 calls return 200",
+        "All 3 responses carry items with exactly 5 entries in canonical order",
+        "No persona-specific branching in the response body -- all 3 payloads are byte-identical for the same program_id"
+      ],
+      "tags": ["rbac", "governance-visibility", "positive", "first-route-consumer", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-03",
+      "title": "cio and engineering-manager personas are BOTH denied 403 with no data body -- the counter-intuitive exclusion this gate's first route consumer must prove",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-AC-2",
+      "given": "valid bearer tokens for cio and engineering-manager personas, and a program with program_artifacts rows",
+      "when": "GET /api/artifacts/{program_id} is called once per persona",
+      "then": "both the cio and the engineering-manager call are rejected 403 with no data body -- despite cio passing every other org-level route (org_access, program_visibility)",
+      "objective": "Verify governance_visibility's counter-intuitive exclusion: cio is denied here even though it is allowed by org_access/program_visibility elsewhere, and engineering-manager is denied too. This is the highest-value RBAC assertion for SHP-04 since the gate has zero prior route consumers.",
+      "preconditions": [
+        "Test database migrated to head; program_artifacts seeded for program_id='dashboard'",
+        "2 valid bearer tokens: one for cio, one for engineering-manager"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "engineering_manager_bearer_token": "<EM_TEST_JWT>",
+        "expected_status": 403
+      },
+      "steps": [
+        "Call GET /api/artifacts/dashboard with the cio bearer token",
+        "Call GET /api/artifacts/dashboard with the engineering-manager bearer token",
+        "Inspect each response status and body"
+      ],
+      "expected_results": [
+        "cio call returns 403",
+        "engineering-manager call returns 403",
+        "Neither 403 response body carries an items key or any program_artifacts data",
+        "Denial happens before any program_artifacts read (verified via query counter/spy showing zero SELECTs on program_artifacts for either call)"
+      ],
+      "tags": ["rbac", "governance-visibility", "negative", "counter-intuitive-exclusion", "cio-denied", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-04",
+      "title": "governance_visibility denial and authorization are both logged as rbac_check_governance_visibility with outcome field -- no separate governance_view_denied event ever emitted",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-FR-2",
+      "given": "log capture attached over the rbac logger, a valid architect bearer token (authorized case) and a valid cio bearer token (denied case)",
+      "when": "GET /api/artifacts/{program_id} is called with each token",
+      "then": "the architect call emits rbac_check_governance_visibility with outcome=authorized and the cio call emits rbac_check_governance_visibility with outcome=denied; no governance_view_denied event is emitted on either call, and the route itself adds no additional log line around the gate",
+      "objective": "Verify FR-2's logging contract precisely: the gate's own event with an outcome field is the ONLY denial/authorization log, superseding the story's now-obsolete governance_view_denied naming. Asserts the authorized case actually emits (self-witnessing) before asserting the absence of the separate event, guarding against alembic fileConfig silently disabling app loggers post-migration.",
+      "preconditions": [
+        "Test database migrated to head; program_artifacts seeded for program_id='dashboard'",
+        "Log capture attached and PRE-VERIFIED to receive at least one log record from an unrelated known-good call before this test's assertions run (self-witnessing guard against alembic fileConfig disabling app loggers)",
+        "A valid architect bearer token and a valid cio bearer token"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "cio_bearer_token": "<CIO_TEST_JWT>",
+        "expected_log_event": "rbac_check_governance_visibility",
+        "forbidden_log_event": "governance_view_denied",
+        "expected_log_fields": ["user_id", "persona", "outcome"]
+      },
+      "steps": [
+        "Emit one known-good log record via an unrelated already-passing call and assert log capture receives it (self-witnessing precondition)",
+        "Clear the log capture buffer",
+        "Attach log capture filtering for rbac_check_governance_visibility and governance_view_denied",
+        "Call GET /api/artifacts/dashboard with the architect bearer token",
+        "Call GET /api/artifacts/dashboard with the cio bearer token",
+        "Inspect the captured log records for both calls"
+      ],
+      "expected_results": [
+        "Exactly one rbac_check_governance_visibility record is emitted for the architect call, with outcome=authorized",
+        "Exactly one rbac_check_governance_visibility record is emitted for the cio call, with outcome=denied",
+        "Zero governance_view_denied records are emitted across both calls",
+        "The route itself (app/api/artifacts.py) emits no additional structured log line around the gate call -- only the gate's own two events total"
+      ],
+      "tags": ["observability", "logging-contract", "negative", "self-witnessing", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-05",
+      "title": "governance_visibility persona-resolution-failure path returns 403 without invoking the program_artifacts read",
+      "type": "security",
+      "category": "negative",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-NFR-security",
+      "given": "a bearer token that causes persona resolution to raise (PersonaNotFoundError/PersonaResolutionError)",
+      "when": "GET /api/artifacts/{program_id} is called",
+      "then": "the request is rejected 403 via the gate's fail-closed _resolve_persona_or_deny path, with no data body and no program_artifacts query executed",
+      "objective": "Verify the resolver-failure path (fail-closed) is exercised through a real route, per the PRD security NFR's explicit call-out that authorized/denied/resolver-failure must all be covered since this is the gate's first live consumer.",
+      "preconditions": [
+        "Test database migrated to head; program_artifacts seeded for program_id='dashboard'",
+        "A bearer token configured to trigger persona-resolution failure (e.g. an unmapped role claim with no Tier-1/2/3 resolution)"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "unresolvable_bearer_token": "<UNRESOLVABLE_PERSONA_TEST_JWT>",
+        "expected_status": 403
+      },
+      "steps": [
+        "Attach a query counter/spy on program_artifacts",
+        "Call GET /api/artifacts/dashboard with the unresolvable bearer token",
+        "Inspect the response status and body",
+        "Inspect the query counter for program_artifacts"
+      ],
+      "expected_results": [
+        "Response status is 403",
+        "Response body carries no items or program_artifacts data",
+        "Zero SELECTs ran against program_artifacts for this call"
+      ],
+      "tags": ["rbac", "fail-closed", "resolver-failure", "negative", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-06",
+      "title": "Unknown/nonexistent program_id is NOT rejected by governance_visibility -- persona gate passes, program_visibility cascade is open-aggregate, service layer's zero-row fallback produces the all-zero 200",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-FR-3",
+      "given": "an authorized architect session and a program_id that does not exist in program_artifacts or any program table",
+      "when": "GET /api/artifacts/{unknown_program_id} is called",
+      "then": "the persona gate passes, program_visibility's open-aggregate cascade does not reject on the unknown id, and the response is 200 with all 5 canonical types at count 0 -- never a 404, and never rejected by the gate itself",
+      "objective": "Verify FR-3's gate cascade behaviour precisely: governance_visibility runs the persona check first and only cascades into program_visibility (which never filters by membership) when program_id is not None -- an unknown program_id reaches the service layer, which is what actually produces the zero-row response, not the gate.",
+      "preconditions": [
+        "Test database migrated to head; no program_artifacts rows and no program record exist for program_id='nonexistent-program-zzz'",
+        "A valid architect bearer token"
+      ],
+      "test_data": {
+        "unknown_program_id": "nonexistent-program-zzz",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "expected_status": 200,
+        "expected_counts": {"prd": 0, "user_story": 0, "test_case": 0, "arch_diagram": 0, "api_spec": 0}
+      },
+      "steps": [
+        "Call GET /api/artifacts/nonexistent-program-zzz with the architect bearer token",
+        "Parse the JSON response body",
+        "Inspect items[].count for all 5 entries"
+      ],
+      "expected_results": [
+        "Response status is 200, never 403 (gate does not reject) and never 404 (no dedicated 404 path for this endpoint)",
+        "items has exactly 5 entries in canonical order",
+        "Every item's count is 0",
+        "rbac_check_governance_visibility logs outcome=authorized for this call (the gate passed; the zero-row response comes from the service layer, not from the gate denying)"
+      ],
+      "tags": ["gate-cascade", "open-aggregate", "boundary", "unknown-program", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-07",
+      "title": "Program with zero program_artifacts rows renders all 5 canonical types at count 0, never an error",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-AC-3",
+      "given": "an authorized developer session and a real, existing program_id with zero rows in program_artifacts (no artifacts ingested yet)",
+      "when": "GET /api/artifacts/{program_id} is called",
+      "then": "the response is 200 with all 5 canonical types present at count 0, not an error and not a subset of types",
+      "objective": "Verify AC-3's zero-fill contract: a program with no program_artifacts rows still renders the full fixed 5-row list, each at count 0.",
+      "preconditions": [
+        "Test database migrated to head; a program record exists for program_id='empty-program' with zero rows in program_artifacts",
+        "A valid developer bearer token"
+      ],
+      "test_data": {
+        "program_id": "empty-program",
+        "developer_bearer_token": "<DEVELOPER_TEST_JWT>",
+        "expected_status": 200,
+        "expected_item_count": 5
+      },
+      "steps": [
+        "Call GET /api/artifacts/empty-program with the developer bearer token",
+        "Parse the JSON response body",
+        "Count items[] length and inspect each count value"
+      ],
+      "expected_results": [
+        "Response status is 200, never an error status",
+        "items has exactly 5 entries -- no fewer",
+        "Every item's count equals 0",
+        "All 5 canonical tags (prd, user_story, test_case, arch_diagram, api_spec equivalents) are present, none omitted"
+      ],
+      "tags": ["empty-state", "zero-fill", "boundary", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-08",
+      "title": "Partial data: types with a real zero count (arch_diagram=0, api_spec=0) are rendered identically to types with no row at all -- zero-count rows are never dropped from the 5-row list",
+      "type": "integration",
+      "category": "boundary",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-AC-4",
+      "given": "an authorized product-manager session and program_artifacts rows for program_id='dashboard' matching live data (prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0)",
+      "when": "GET /api/artifacts/dashboard is called",
+      "then": "each type's displayed count matches its program_artifacts.count value exactly, including the two types whose real row has count=0 -- arch_diagram and api_spec are present in the response, not dropped for being zero",
+      "objective": "Verify AC-4's exact-match contract using the documented live dataset, specifically that a persisted zero-count row is rendered identically to a zero-fill for a missing row -- the panel must never special-case or omit a zero.",
+      "preconditions": [
+        "Test database migrated to head",
+        "program_artifacts seeded for program_id='dashboard' exactly as documented live: prd=4, user_story=45, test_case=274, arch_diagram=0, api_spec=0 (arch_diagram and api_spec have REAL rows with count=0, not missing rows)",
+        "A valid product-manager bearer token"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "product_manager_bearer_token": "<PM_TEST_JWT>",
+        "seeded_counts": {"prd": 4, "user_story": 45, "test_case": 274, "arch_diagram": 0, "api_spec": 0}
+      },
+      "steps": [
+        "Seed program_artifacts with a real row for every one of the 5 types, two of them (arch_diagram, api_spec) with count=0",
+        "Call GET /api/artifacts/dashboard with the product-manager bearer token",
+        "Parse the JSON response body",
+        "Locate the arch_diagram and api_spec items and inspect their count",
+        "Locate the prd, user_story, test_case items and inspect their count"
+      ],
+      "expected_results": [
+        "Response status is 200",
+        "items still has exactly 5 entries -- arch_diagram and api_spec are present, not dropped",
+        "arch_diagram.count == 0 and api_spec.count == 0, matching their real persisted row",
+        "prd.count == 4, user_story.count == 45, test_case.count == 274, matching their persisted rows exactly"
+      ],
+      "tags": ["exact-match", "zero-count-row", "boundary", "no-drop", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-09",
+      "title": "ArtifactsPanel renders all 5 rows with tag/name/count and pairs bg/color with the text label -- never color alone",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Must",
+      "requirement_id": "SHP-04-NFR-accessibility",
+      "given": "the Architect dashboard route is rendered for an architect session with GET /api/artifacts/{program_id} mocked at the fetch boundary to return a populated 5-item fixture",
+      "when": "the page loads",
+      "then": "the ArtifactsPanel renders all 5 rows, each showing its tag and name text alongside its bg/color styling -- color is never the sole indicator of artifact type",
+      "objective": "Verify the accessibility NFR: each row's bg/color presentation pair is always paired with the tag/name text labels, never color-only differentiation, per WCAG AA non-color-reliance.",
+      "preconditions": [
+        "Fetch mock configured: GET /api/proxy/artifacts/{program_id} -> 200 fixture with 5 items in canonical order, each with a distinct bg/color pair",
+        "Initial render at the Architect dashboard route for an architect session"
+      ],
+      "test_data": {
+        "fixture_items": [
+          {"tag": "PRD", "name": "PRDs", "count": 4, "bg": "#EEF2FF", "color": "#4338CA"},
+          {"tag": "US", "name": "User stories", "count": 45, "bg": "#ECFDF5", "color": "#047857"},
+          {"tag": "TC", "name": "Test cases", "count": 274, "bg": "#FFFBEB", "color": "#B45309"},
+          {"tag": "AD", "name": "Arch diagrams", "count": 0, "bg": "#FEF2F2", "color": "#B91C1C"},
+          {"tag": "API", "name": "API specs", "count": 0, "bg": "#F5F3FF", "color": "#6D28D9"}
+        ]
+      },
+      "steps": [
+        "Render the Architect dashboard with the mocked 5-item fixture",
+        "Locate the ArtifactsPanel and count the rendered rows",
+        "For each row, inspect the DOM for both the text label (tag/name) and the bg/color styling",
+        "Verify count values render as the fixture's raw ints (no formatting applied)"
+      ],
+      "expected_results": [
+        "The panel renders exactly 5 rows in fixture order",
+        "Every row shows its tag and name as visible text, alongside its bg/color styling -- never color alone",
+        "Each row's displayed count matches the fixture's raw int value exactly",
+        "The component makes no client-side derivation of bg/color -- it renders the API-supplied values verbatim"
+      ],
+      "tags": ["accessibility", "non-color-reliance", "frontend-integration", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-10",
+      "title": "ArtifactsPanel renders identically when composed on Architect, Developer, and Product Manager dashboards for the same program",
+      "type": "integration",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-04-AC-1",
+      "given": "the same GET /api/artifacts/{program_id} fixture mocked identically across the Architect, Developer, and Product Manager dashboard routes",
+      "when": "each of the 3 dashboard pages loads",
+      "then": "the ArtifactsPanel renders byte-identically on all 3 pages -- same 5 rows, same order, same values",
+      "objective": "Verify the panel is one shared component consumed identically by all 3 authorized-persona dashboards, per the PRD's byte-identical-markup research finding.",
+      "preconditions": [
+        "Fetch mock configured identically for all 3 dashboard routes: GET /api/proxy/artifacts/{program_id} -> 200 fixture with 5 items",
+        "Initial render at /architect, /developer, and /product-manager for their respective sessions"
+      ],
+      "test_data": {
+        "fixture_items": [
+          {"tag": "PRD", "name": "PRDs", "count": 4},
+          {"tag": "US", "name": "User stories", "count": 45},
+          {"tag": "TC", "name": "Test cases", "count": 274},
+          {"tag": "AD", "name": "Arch diagrams", "count": 0},
+          {"tag": "API", "name": "API specs", "count": 0}
+        ]
+      },
+      "steps": [
+        "Render the Architect dashboard with the fixture and capture the ArtifactsPanel's rendered rows",
+        "Render the Developer dashboard with the same fixture and capture the ArtifactsPanel's rendered rows",
+        "Render the Product Manager dashboard with the same fixture and capture the ArtifactsPanel's rendered rows",
+        "Diff the 3 captured outputs"
+      ],
+      "expected_results": [
+        "All 3 renders produce the same 5 rows, in the same order, with the same values",
+        "No persona-specific label swap or layout divergence appears in the panel itself"
+      ],
+      "tags": ["cross-persona-consistency", "frontend-integration", "shp-04"]
+    },
+    {
+      "id": "SHP-04-TC-11",
+      "title": "Single indexed program_artifacts lookup with no N+1 fan-out; panel-render budget (<=3s) met",
+      "type": "performance",
+      "category": "positive",
+      "automatable": true,
+      "priority": "Should",
+      "requirement_id": "SHP-04-NFR-performance",
+      "given": "program_artifacts seeded for program_id='dashboard' and a query counter attached",
+      "when": "GET /api/artifacts/dashboard is called",
+      "then": "exactly one indexed SELECT runs against program_artifacts (unique on [program_id, type]), no per-type fan-out queries, and the panel-render budget of <=3s under normal load is met",
+      "objective": "Verify the performance NFR: a single indexed lookup over at most 5 rows, no N+1, within the 3s panel-render budget (NFR-001).",
+      "preconditions": [
+        "Test database migrated to head; program_artifacts seeded for program_id='dashboard' with all 5 types",
+        "A query counter/spy attached for the duration of each call",
+        "A valid architect bearer token"
+      ],
+      "test_data": {
+        "program_id": "dashboard",
+        "architect_bearer_token": "<ARCHITECT_TEST_JWT>",
+        "query_count_budget": 1,
+        "latency_budget_ms": 3000
+      },
+      "steps": [
+        "Attach the query counter",
+        "Call GET /api/artifacts/dashboard 10 times, timing each call",
+        "Inspect the query counter for program_artifacts",
+        "Compute p95 latency across the sample"
+      ],
+      "expected_results": [
+        "Exactly one SELECT ran against program_artifacts per call -- no per-type fan-out, no N+1",
+        "p95 latency across the sample is under the 3s panel-render budget"
+      ],
+      "tags": ["performance", "query-budget", "shp-04"]
+    }
+  ],
+  "coverage_audit": {
+    "acceptance_criteria": [
+      {"id": "SHP-04-AC-1", "covered_by": ["SHP-04-TC-01", "SHP-04-TC-02", "SHP-04-TC-10"]},
+      {"id": "SHP-04-AC-2", "covered_by": ["SHP-04-TC-03", "SHP-04-TC-04"]},
+      {"id": "SHP-04-AC-3", "covered_by": ["SHP-04-TC-07"]},
+      {"id": "SHP-04-AC-4", "covered_by": ["SHP-04-TC-08"]}
+    ],
+    "functional_requirements": [
+      {"id": "SHP-04-FR-1", "covered_by": ["SHP-04-TC-01"]},
+      {"id": "SHP-04-FR-2", "covered_by": ["SHP-04-TC-04"]},
+      {"id": "SHP-04-FR-3", "covered_by": ["SHP-04-TC-06"]}
+    ],
+    "non_functional_requirements": [
+      {"id": "SHP-04-NFR-performance", "covered_by": ["SHP-04-TC-11"]},
+      {"id": "SHP-04-NFR-security", "covered_by": ["SHP-04-TC-02", "SHP-04-TC-03", "SHP-04-TC-05"]},
+      {"id": "SHP-04-NFR-accessibility", "covered_by": ["SHP-04-TC-09"]}
+    ],
+    "uncovered": [],
+    "audit_notes": [
+      "Observability NFR (no new logging beyond rbac_check_governance_visibility) is covered under SHP-04-FR-2 (SHP-04-TC-04) rather than a separate NFR-observability id -- the PRD's Non-functional requirements section states this as a restatement of FR-2's contract, not an independent budget; no dedicated NFR-observability entry was declared to avoid a duplicate id pointing at the same TC.",
+      "SHP-04-TC-03 is the highest-value TC in this manifest per the invocation's explicit instruction: it proves governance_visibility's counter-intuitive exclusion of BOTH cio and engineering-manager through a real route call, since this gate had zero live consumers before SHP-04.",
+      "SHP-04-TC-04's log assertion is self-witnessing per project convention (alembic fileConfig can silently disable app loggers post-migration): it first proves the log capture pipeline is live via a known-good emission before asserting the absence of governance_view_denied.",
+      "SHP-04-TC-06 covers FR-3's gate-cascade nuance precisely: the persona gate passes and is not what produces the zero-row response for an unknown program_id -- the service layer's zero-fill (AC-3) is the actual producer, and program_visibility's open-aggregate posture never rejects on an unknown id.",
+      "Cross-checked against REQUIREMENTS.md Scope Out: (program_artifacts vs program_summary reconciliation, any write/ingest path into program_artifacts, CIO/engineering-manager-facing artifact views, dashboard composition beyond this one panel) -- no test case references any of these.",
+      "Unit-shaped cases (fetch_program_artifacts() zero-fill helper, tag/name/bg/color presentation-constant mapping table) are deliberately NOT enumerated here per the skill's Scope section -- they belong in docs/features/SHP-04/tasks.json.",
+      "No TC of type e2e was written: story's own Test mapping defers E2E to ARC-01/DEV-01/PMD-01 dashboard-composition suites; docs/config/project-commands.yaml's test_e2e (Playwright) execution is deferred to /arh-validate-feature. SHP-04-TC-09/10 use type integration (Testing-Library against a mocked fetch boundary).",
+      "Exact tag/bg/color hex pairs remain [NEEDS CLARIFICATION] in the PRD (SHP-04-FR-1) pending PO confirmation; TC-01/TC-09/TC-10 assert structural presence/consistency of bg/color rather than pinning specific hex literals, to avoid encoding an unconfirmed value as a false contract."
+    ]
+  }
+}
