@@ -4,7 +4,13 @@ Goal: create one linked Test issue per generated test case on the configured iss
 QA can track each TC independently of the parent story.
 
 Runs **only after the Product Gate returns APPROVE** (Phase 4 § On APPROVE), and only when
-`provider != none` in `docs/config/issue-tracking.yaml`.
+BOTH of these hold in `docs/config/issue-tracking.yaml`:
+
+- `provider != none`
+- `push_test_cases` is not `false` (absent means true — the push is opt-out, not opt-in)
+
+Check `push_test_cases` FIRST, before reading `tracker_story` or scanning the manifest: when a
+project has opted out, no tracker read and no secret scan should happen at all.
 
 ## Why after the gate, not before
 
@@ -132,6 +138,11 @@ pushed, confirm that many test cases actually carry a tracker key.
 
 ## Skip conditions (must be logged)
 
+- `push_test_cases: false` in `docs/config/issue-tracking.yaml` → skip and log:
+  `Test cases pushed: skipped (push_test_cases disabled in issue-tracking.yaml).` Write nothing
+  to `docs/test-cases/$ARGUMENTS.json` — the generated manifest stays the source of truth, and
+  any `tracker_test` keys already recorded by an earlier run are left untouched so re-enabling
+  the flag resumes rather than duplicates.
 - `provider: none` → skip silently.
 - No `tracker_story` on the feature → log:
   `Push test cases skipped — no tracker_story on $ARGUMENTS.` Write nothing to

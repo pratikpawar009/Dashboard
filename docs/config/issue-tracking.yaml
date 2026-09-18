@@ -4,6 +4,14 @@ repo: Dashboard
 project:
   number: null
   status_field: null
+# Set false to stop `/arh-plan-requirements` Phase 4b from creating one GitHub
+# issue per generated test case. Test cases are still generated and remain the
+# source of truth in `docs/test-cases/<id>.json` (with their `tracker_test` keys
+# for any already pushed) -- only the tracker push is suppressed. Flip to true to
+# resume; a re-run then pushes only the cases that carry no key yet, so nothing
+# is duplicated.
+push_test_cases: false
+
 labels:
   - dashboard
   - type:story
